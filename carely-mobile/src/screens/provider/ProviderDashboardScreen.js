@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  SafeAreaView,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -11,53 +11,63 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { bookingService, providerService } from '../../api';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { bookingService, notificationService, providerService } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
-
-const formatWhen = (booking) => {
-  const scheduledAt = booking?.scheduledAt ? new Date(booking.scheduledAt) : null;
-  if (!scheduledAt || Number.isNaN(scheduledAt.getTime())) {
-    return 'Schedule unavailable';
-  }
-
-  return `${scheduledAt.toLocaleDateString()} • ${scheduledAt.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`;
-};
+import EmptyState from '../../components/EmptyState';
+import NotificationTray from '../../components/NotificationTray';
+import { formatScheduleWindow } from '../../utils/dateTime';
 
 export default function ProviderDashboardScreen({ navigation }) {
-  const { user, providerProfile, logout } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { user, providerProfile } = useAuth();
   const [isOnline, setIsOnline] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
   const [requests, setRequests] = useState([]);
   const [allBookings, setAllBookings] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const initializeScreen = async () => {
+  const fetchDashboard = async () => {
     try {
       if (providerProfile) {
-        setIsOnline(providerProfile.isOnline || false);
+        setIsOnline(Boolean(providerProfile.isOnline));
       }
 
-      const response = await bookingService.getMyBookings();
-      if (response.data?.success) {
-        const bookings = response.data.data.bookings || [];
+      const [bookingResponse, notificationResponse] = await Promise.all([
+        bookingService.getMyBookings(),
+        notificationService.getAll(4),
+      ]);
+
+      if (bookingResponse.data?.success) {
+        const bookings = bookingResponse.data.data.bookings || [];
         setAllBookings(bookings);
         setRequests(bookings.filter((booking) => booking.status === 'pending').slice(0, 3));
       }
+
+      if (notificationResponse.data?.success) {
+        setNotifications(notificationResponse.data.data.notifications || []);
+        setUnreadCount(notificationResponse.data.data.unreadCount || 0);
+      }
     } catch (error) {
-      console.warn('Error loading dashboard:', error.response?.data?.message || error.message);
+      console.warn('Error loading provider dashboard:', error.response?.data?.message || error.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    initializeScreen();
-  }, [providerProfile]);
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchDashboard();
+    }, [providerProfile])
+  );
 
   const metrics = useMemo(() => {
     return allBookings.reduce(
@@ -77,6 +87,11 @@ export default function ProviderDashboardScreen({ navigation }) {
     );
   }, [allBookings]);
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchDashboard();
+  };
+
   const toggleAvailability = async () => {
     setChangingStatus(true);
     try {
@@ -85,10 +100,34 @@ export default function ProviderDashboardScreen({ navigation }) {
         setIsOnline(response.data.data.isOnline);
       }
     } catch (error) {
-      console.warn('Failed to toggle status:', error.response?.data?.message || error.message);
+      console.warn('Failed to update availability:', error.response?.data?.message || error.message);
     } finally {
       setChangingStatus(false);
     }
+  };
+
+  const handleNotificationPress = async (notification) => {
+    try {
+      if (!notification.isRead) {
+        await notificationService.markAsRead(notification._id);
+        setNotifications((current) =>
+          current.map((item) => (item._id === notification._id ? { ...item, isRead: true } : item))
+        );
+        setUnreadCount((count) => Math.max(count - 1, 0));
+      }
+    } catch (error) {
+      console.warn('Failed to mark notification as read:', error.response?.data?.message || error.message);
+    }
+
+    if (notification.linkId) {
+      const matchingBooking = allBookings.find((item) => item._id === notification.linkId);
+      if (matchingBooking) {
+        navigation.navigate('BookingDetails', { booking: matchingBooking, context: 'provider' });
+        return;
+      }
+    }
+
+    navigation.navigate('Requests');
   };
 
   const handleStatusUpdate = async (bookingId, status) => {
@@ -99,55 +138,65 @@ export default function ProviderDashboardScreen({ navigation }) {
         current.map((booking) => (booking._id === bookingId ? { ...booking, status } : booking))
       );
     } catch (error) {
-      console.warn('Error updating request:', error.response?.data?.message || error.message);
+      console.warn('Failed to update request:', error.response?.data?.message || error.message);
     }
   };
 
   const renderRequestCard = ({ item }) => (
-    <Card variant="outlined" style={styles.requestCard}>
+    <Card
+      variant="outlined"
+      style={styles.requestCard}
+      pressable
+      onPress={() => navigation.navigate('BookingDetails', { booking: item, context: 'provider' })}
+    >
       <View style={styles.requestHeader}>
-        <View style={styles.requestIconBg}>
+        <View style={styles.requestIcon}>
           <Ionicons name="person-outline" size={18} color="#10b981" />
         </View>
-        <View style={styles.requestText}>
-          <Text style={styles.requestTitle}>{item.patient?.name || 'Patient'}</Text>
-          <Text style={styles.requestSubtitle}>{item.service?.toUpperCase() || 'SERVICE'}</Text>
+
+        <View style={styles.requestCopy}>
+          <Text style={styles.requestPatient}>{item.patient?.name || 'Patient'}</Text>
+          <Text style={styles.requestService}>{item.service?.toUpperCase() || 'SERVICE'}</Text>
         </View>
-        <Text style={styles.requestPrice}>
+
+        <Text style={styles.requestAmount}>
           {typeof item.totalAmount === 'number' ? `Rs ${item.totalAmount}` : 'Pending'}
         </Text>
       </View>
 
       <View style={styles.requestDivider} />
 
-      <View style={styles.requestDetails}>
-        <View style={styles.detailItem}>
-          <Ionicons name="calendar-outline" size={14} color="#10b981" />
-          <Text style={styles.detailText}>{formatWhen(item)}</Text>
+      <View style={styles.requestMeta}>
+        <View style={styles.metaRow}>
+          <Ionicons name="calendar-outline" size={15} color="#10b981" />
+          <Text style={styles.metaText}>
+            {formatScheduleWindow(item.scheduledAt, item.durationHours)}
+          </Text>
         </View>
-        <View style={styles.detailItem}>
-          <Ionicons name="location-outline" size={14} color="#10b981" />
-          <Text style={styles.detailText} numberOfLines={1}>
-            {item.address}
+
+        <View style={styles.metaRow}>
+          <Ionicons name="location-outline" size={15} color="#10b981" />
+          <Text style={styles.metaText} numberOfLines={1}>
+            {item.address}, {item.pincode}
           </Text>
         </View>
       </View>
 
-      <View style={styles.actionButtons}>
+      <View style={styles.requestActions}>
         <Button
-          title="Reject"
+          title="Decline"
           icon="close"
           variant="secondary"
           size="small"
           onPress={() => handleStatusUpdate(item._id, 'cancelled')}
-          style={styles.flexButton}
+          style={styles.flexAction}
         />
         <Button
           title="Accept"
           icon="checkmark"
           size="small"
           onPress={() => handleStatusUpdate(item._id, 'confirmed')}
-          style={styles.flexButton}
+          style={styles.flexAction}
         />
       </View>
     </Card>
@@ -155,26 +204,48 @@ export default function ProviderDashboardScreen({ navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centerContainer}>
+      <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>PROVIDER</Text>
+          <Text style={styles.title}>Dashboard</Text>
+        </View>
+        <View style={styles.centerState}>
           <ActivityIndicator size="large" color="#10b981" />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerSection}>
-          <View>
-            <Text style={styles.greeting}>Hi, {user?.name?.split(' ')[0] || 'Provider'}</Text>
-            <Text style={styles.headerSubtitle}>Manage your bookings</Text>
-          </View>
-          <TouchableOpacity onPress={logout} style={styles.logoutBtn} activeOpacity={0.8}>
-            <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          </TouchableOpacity>
+    <View style={styles.container}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: insets.top + 18,
+          paddingHorizontal: 20,
+          paddingBottom: insets.bottom + 140,
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#10b981"
+            colors={['#10b981']}
+          />
+        }
+      >
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>PROVIDER</Text>
+          <Text style={styles.title}>Hello, {user?.name?.split(' ')[0] || 'Provider'}</Text>
+          <Text style={styles.subtitle}>A clean snapshot of your bookings, earnings, and requests.</Text>
         </View>
+
+        <NotificationTray
+          title="Updates for you"
+          notifications={notifications}
+          unreadCount={unreadCount}
+          onPressNotification={handleNotificationPress}
+        />
 
         <Card
           style={[
@@ -182,231 +253,219 @@ export default function ProviderDashboardScreen({ navigation }) {
             isOnline ? styles.statusCardOnline : styles.statusCardOffline,
           ]}
         >
-          <View style={styles.statusInfo}>
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: isOnline ? '#10b981' : '#94a3b8' },
-              ]}
-            />
-            <View style={styles.statusTextWrap}>
-              <Text style={styles.statusTitle}>{isOnline ? 'Online' : 'Offline'}</Text>
+          <View style={styles.statusLeft}>
+            <View style={[styles.statusGlow, isOnline ? styles.statusGlowOnline : styles.statusGlowOffline]} />
+            <View style={styles.statusCopy}>
+              <Text style={styles.statusTitle}>{isOnline ? 'Online and visible' : 'Offline right now'}</Text>
               <Text style={styles.statusSubtitle}>
-                {isOnline ? 'Accepting bookings' : 'Not accepting bookings'}
+                {isOnline ? 'Patients can send new requests to you.' : 'Pause visibility until you are ready.'}
               </Text>
             </View>
           </View>
+
           <Switch
+            value={isOnline}
+            onValueChange={toggleAvailability}
+            disabled={changingStatus}
             trackColor={{ false: '#cbd5e1', true: '#86efac' }}
             thumbColor={isOnline ? '#10b981' : '#f8fafc'}
             ios_backgroundColor="#cbd5e1"
-            onValueChange={toggleAvailability}
-            value={isOnline}
-            disabled={changingStatus}
           />
         </Card>
 
-        <View style={styles.metricsContainer}>
+        <View style={styles.metricsRow}>
           <Card style={styles.metricCard}>
-            <View style={styles.metricIcon}>
-              <Ionicons name="cash-outline" size={22} color="#10b981" />
+            <View style={styles.metricIconWrap}>
+              <Ionicons name="cash-outline" size={20} color="#10b981" />
             </View>
             <Text style={styles.metricLabel}>Completed Earnings</Text>
             <Text style={styles.metricValue}>Rs {metrics.earnings}</Text>
           </Card>
 
           <Card style={styles.metricCard}>
-            <View style={styles.metricIcon}>
-              <Ionicons name="checkmark-done-circle-outline" size={22} color="#10b981" />
+            <View style={styles.metricIconWrap}>
+              <Ionicons name="checkmark-done-circle-outline" size={20} color="#10b981" />
             </View>
             <Text style={styles.metricLabel}>Completed Jobs</Text>
             <Text style={styles.metricValue}>{metrics.completed}</Text>
           </Card>
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Incoming Requests</Text>
-            {requests.length > 0 ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{requests.length}</Text>
-              </View>
-            ) : null}
-          </View>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Incoming Requests</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Requests')} activeOpacity={0.86}>
+            <Text style={styles.sectionLink}>Open all</Text>
+          </TouchableOpacity>
+        </View>
 
-          {requests.length === 0 ? (
-            <View style={styles.emptyRequest}>
-              <Ionicons name="inbox-outline" size={48} color="#cbd5e1" />
-              <Text style={styles.emptyRequestText}>No pending requests</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={requests}
-              keyExtractor={(item) => item._id}
-              renderItem={renderRequestCard}
-              scrollEnabled={false}
-            />
-          )}
+        {requests.length === 0 ? (
+          <EmptyState
+            icon="sparkles-outline"
+            title="No pending requests"
+            description="New booking requests will appear here as soon as patients reach out."
+            actionText="Refresh"
+            onAction={onRefresh}
+          />
+        ) : (
+          <FlatList
+            data={requests}
+            keyExtractor={(item) => item._id}
+            renderItem={renderRequestCard}
+            scrollEnabled={false}
+          />
+        )}
 
-          {requests.length > 0 ? (
+        <View style={styles.snapshotRow}>
+          <Card style={styles.snapshotCard}>
+            <Text style={styles.snapshotValue}>{metrics.active}</Text>
+            <Text style={styles.snapshotLabel}>Active Jobs</Text>
+          </Card>
+          <Card style={styles.snapshotCard}>
+            <Text style={styles.snapshotValue}>{allBookings.length}</Text>
+            <Text style={styles.snapshotLabel}>Total Bookings</Text>
+          </Card>
+        </View>
+
+        <Card style={styles.ctaCard}>
+          <Text style={styles.ctaTitle}>Keep the workflow moving</Text>
+          <Text style={styles.ctaText}>
+            Review open requests quickly, then keep your profile polished so patients trust the experience.
+          </Text>
+
+          <View style={styles.ctaActions}>
             <Button
-              title="View All Requests"
-              icon="arrow-forward"
+              title="Visit Profile"
+              icon="person-outline"
               variant="secondary"
               size="small"
-              onPress={() => navigation.navigate('Requests')}
-              style={styles.viewAllButton}
+              onPress={() => navigation.navigate('Profile')}
+              style={styles.flexAction}
             />
-          ) : null}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Current Snapshot</Text>
-          <View style={styles.snapshotGrid}>
-            <Card style={styles.snapshotCard}>
-              <Text style={styles.snapshotValue}>{metrics.active}</Text>
-              <Text style={styles.snapshotLabel}>Active Jobs</Text>
-            </Card>
-            <Card style={styles.snapshotCard}>
-              <Text style={styles.snapshotValue}>{allBookings.length}</Text>
-              <Text style={styles.snapshotLabel}>Total Bookings</Text>
-            </Card>
+            <Button
+              title="Open Requests"
+              icon="list-outline"
+              size="small"
+              onPress={() => navigation.navigate('Requests')}
+              style={styles.flexAction}
+            />
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Button
-            title="Visit Profile"
-            icon="person-outline"
-            variant="secondary"
-            size="medium"
-            onPress={() => navigation.navigate('Profile')}
-            style={styles.actionButton}
-          />
-          <Button
-            title="Open Requests"
-            icon="list-outline"
-            variant="secondary"
-            size="medium"
-            onPress={() => navigation.navigate('Requests')}
-          />
-        </View>
+        </Card>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f4f7fb',
   },
-  centerContainer: {
+  header: {
+    marginBottom: 18,
+  },
+  eyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.2,
+    fontWeight: '700',
+    color: '#10b981',
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  subtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#64748b',
+    maxWidth: 320,
+  },
+  centerState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollContent: {
-    paddingBottom: 32,
-  },
-  headerSection: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  greeting: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-  },
-  logoutBtn: {
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: '#fef2f2',
-  },
   statusCard: {
-    marginHorizontal: 24,
-    marginBottom: 20,
+    marginBottom: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
+    paddingVertical: 18,
   },
   statusCardOnline: {
-    backgroundColor: '#d1fae5',
-    borderColor: '#6ee7b7',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
   },
   statusCardOffline: {
-    backgroundColor: '#f1f5f9',
-    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+    borderColor: '#dbe4f0',
   },
-  statusInfo: {
+  statusLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    paddingRight: 16,
   },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  statusGlow: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
   },
-  statusTextWrap: {
-    marginLeft: 12,
+  statusGlowOnline: {
+    backgroundColor: '#10b981',
+  },
+  statusGlowOffline: {
+    backgroundColor: '#94a3b8',
+  },
+  statusCopy: {
+    marginLeft: 14,
     flex: 1,
   },
   statusTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0f172a',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   statusSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 18,
     color: '#64748b',
-    fontWeight: '500',
   },
-  metricsContainer: {
+  metricsRow: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 24,
-    marginBottom: 24,
+    gap: 14,
+    marginBottom: 20,
   },
   metricCard: {
     flex: 1,
     alignItems: 'center',
+    paddingVertical: 22,
   },
-  metricIcon: {
+  metricIconWrap: {
     width: 44,
     height: 44,
-    borderRadius: 10,
+    borderRadius: 15,
     backgroundColor: '#ecfdf5',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#94a3b8',
-    fontWeight: '600',
-    marginBottom: 4,
+    fontWeight: '700',
+    marginBottom: 6,
     textAlign: 'center',
   },
   metricValue: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '800',
     color: '#10b981',
     textAlign: 'center',
-  },
-  section: {
-    paddingHorizontal: 24,
-    marginBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -415,116 +474,119 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 23,
     fontWeight: '800',
     color: '#0f172a',
   },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: '#10b981',
-  },
-  badgeText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 11,
+  sectionLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#10b981',
   },
   requestCard: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   requestHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 10,
+    gap: 12,
+    marginBottom: 12,
   },
-  requestIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+  requestIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: '#ecfdf5',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ecfdf5',
   },
-  requestText: {
+  requestCopy: {
     flex: 1,
   },
-  requestTitle: {
-    fontSize: 14,
+  requestPatient: {
+    fontSize: 16,
     fontWeight: '800',
     color: '#0f172a',
-    marginBottom: 3,
+    marginBottom: 4,
   },
-  requestSubtitle: {
-    fontSize: 12,
+  requestService: {
+    fontSize: 13,
+    fontWeight: '700',
     color: '#94a3b8',
   },
-  requestPrice: {
+  requestAmount: {
     fontSize: 13,
     fontWeight: '800',
     color: '#10b981',
   },
   requestDivider: {
     height: 1,
-    backgroundColor: '#f1f5f9',
-    marginVertical: 10,
+    backgroundColor: '#eef2f7',
+    marginVertical: 12,
   },
-  requestDetails: {
-    gap: 8,
-    marginBottom: 10,
+  requestMeta: {
+    gap: 10,
+    marginBottom: 14,
   },
-  detailItem: {
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  detailText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#475569',
-  },
-  actionButtons: {
-    flexDirection: 'row',
     gap: 10,
   },
-  flexButton: {
+  metaText: {
     flex: 1,
-  },
-  emptyRequest: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyRequestText: {
-    marginTop: 8,
-    color: '#94a3b8',
     fontSize: 13,
+    lineHeight: 18,
+    color: '#475569',
     fontWeight: '600',
   },
-  viewAllButton: {
-    marginTop: 12,
-  },
-  snapshotGrid: {
+  requestActions: {
     flexDirection: 'row',
     gap: 12,
+  },
+  flexAction: {
+    flex: 1,
+  },
+  snapshotRow: {
+    flexDirection: 'row',
+    gap: 14,
+    marginTop: 8,
+    marginBottom: 18,
   },
   snapshotCard: {
     flex: 1,
     alignItems: 'center',
+    paddingVertical: 20,
   },
   snapshotValue: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: '800',
     color: '#10b981',
     marginBottom: 6,
   },
   snapshotLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#94a3b8',
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
-  actionButton: {
-    marginBottom: 10,
+  ctaCard: {
+    marginTop: 4,
+  },
+  ctaTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 8,
+  },
+  ctaText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#64748b',
+    marginBottom: 16,
+  },
+  ctaActions: {
+    flexDirection: 'row',
+    gap: 12,
   },
 });

@@ -56,6 +56,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const refreshUser = async () => {
+    const res = await authService.getMe();
+    if (res.data?.success) {
+      setUser(res.data.data.user);
+      setProviderProfile(res.data.data.providerProfile || null);
+      return res.data.data.user;
+    }
+    return null;
+  };
+
+  const updateProfile = async (payload) => {
+    const res = await authService.updateProfile(payload);
+    if (res.data?.success) {
+      setUser(res.data.data.user);
+      return res.data.data.user;
+    }
+    return null;
+  };
+
   const performLogout = async () => {
     await AsyncStorage.removeItem('rivo_access_token');
     await AsyncStorage.removeItem('rivo_refresh_token');
@@ -74,6 +93,8 @@ export const AuthProvider = ({ children }) => {
       loading,
       isAuthenticated: !!user,
       login,
+      refreshUser,
+      updateProfile,
       logout,
       isProvider: user?.role === 'provider',
     }}>

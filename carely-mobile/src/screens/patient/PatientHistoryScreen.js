@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -25,6 +25,8 @@ const STATUS_META = {
   cancelled: { bg: '#fee2e2', text: '#991b1b', border: '#fecaca', icon: 'close-circle-outline', label: 'Cancelled' },
 };
 
+const PAGE_SIZE = 5;
+
 export default function PatientHistoryScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const [bookings, setBookings] = useState([]);
@@ -33,16 +35,19 @@ export default function PatientHistoryScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('all');
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchBookings = async () => {
     try {
       const [bookingResponse, notificationResponse] = await Promise.all([
         bookingService.getMyBookings(),
-        notificationService.getAll(3),
+        notificationService.getAll(5),
       ]);
 
       if (bookingResponse.data?.success) {
-        setBookings(bookingResponse.data.data.bookings || []);
+        const nextBookings = bookingResponse.data.data.bookings || [];
+        nextBookings.sort((left, right) => new Date(right.scheduledAt || 0) - new Date(left.scheduledAt || 0));
+        setBookings(nextBookings);
       }
 
       if (notificationResponse.data?.success) {
@@ -79,6 +84,13 @@ export default function PatientHistoryScreen({ navigation }) {
     });
   }, [activeTab, bookings]);
 
+  const pageCount = Math.max(1, Math.ceil(filteredBookings.length / PAGE_SIZE));
+  const paginatedBookings = filteredBookings.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, bookings.length]);
+
   const paymentPrompts = useMemo(() => {
     return bookings.filter(
       (booking) => booking.status === 'confirmed' && booking.paymentStatus !== 'PAID'
@@ -88,6 +100,10 @@ export default function PatientHistoryScreen({ navigation }) {
   const onRefresh = () => {
     setRefreshing(true);
     fetchBookings();
+  };
+
+  const openBookingDetails = (booking) => {
+    navigation.navigate('BookingDetails', { booking, context: 'patient' });
   };
 
   const handleNotificationPress = async (notification) => {
@@ -102,6 +118,18 @@ export default function PatientHistoryScreen({ navigation }) {
     } catch (error) {
       console.warn('Failed to mark notification as read:', error.response?.data?.message || error.message);
     }
+
+    if (notification.linkId) {
+      const matchingBooking = bookings.find((item) => item._id === notification.linkId);
+      if (matchingBooking) {
+        openBookingDetails(matchingBooking);
+        return;
+      }
+    }
+
+    if (paymentPrompts.length > 0) {
+      openBookingDetails(paymentPrompts[0]);
+    }
   };
 
   const renderBooking = ({ item }) => {
@@ -109,7 +137,7 @@ export default function PatientHistoryScreen({ navigation }) {
     const showPaymentPrompt = item.status === 'confirmed' && item.paymentStatus !== 'PAID';
 
     return (
-      <Card variant="outlined">
+      <Card variant="outlined" pressable onPress={() => openBookingDetails(item)}>
         <View style={styles.cardHeader}>
           <View style={styles.cardIcon}>
             <Ionicons name="medkit-outline" size={20} color="#10b981" />
@@ -168,15 +196,15 @@ export default function PatientHistoryScreen({ navigation }) {
             <View style={styles.paymentCopy}>
               <Text style={styles.paymentTitle}>Payment pending</Text>
               <Text style={styles.paymentSubtitle}>
-                Your provider has accepted this booking. Complete payment to lock it in.
+                Your provider has accepted this booking. Review the booking and prepare payment.
               </Text>
             </View>
             <TouchableOpacity
               style={styles.paymentButton}
-              onPress={() => handleNotificationPress({ _id: item._id, isRead: true })}
+              onPress={() => openBookingDetails(item)}
               activeOpacity={0.88}
             >
-              <Text style={styles.paymentButtonText}>Review</Text>
+              <Text style={styles.paymentButtonText}>Open</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -200,7 +228,7 @@ export default function PatientHistoryScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <FlatList
-        data={filteredBookings}
+        data={paginatedBookings}
         keyExtractor={(item) => item._id}
         renderItem={renderBooking}
         showsVerticalScrollIndicator={false}
@@ -217,6 +245,16 @@ export default function PatientHistoryScreen({ navigation }) {
               notifications={notifications}
               unreadCount={unreadCount}
               onPressNotification={handleNotificationPress}
+              actionLabel={unreadCount > 0 ? 'Mark all read' : null}
+              onPressAction={async () => {
+                try {
+                  await notificationService.markAllAsRead();
+                  setNotifications((current) => current.map((item) => ({ ...item, isRead: true })));
+                  setUnreadCount(0);
+                } catch (error) {
+                  console.warn('Failed to mark notifications as read:', error.response?.data?.message || error.message);
+                }
+              }}
             />
 
             {paymentPrompts.length > 0 ? (
@@ -247,6 +285,17 @@ export default function PatientHistoryScreen({ navigation }) {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {filteredBookings.length > 0 ? (
+              <View style={styles.paginationSummary}>
+                <Text style={styles.paginationSummaryText}>
+                  Page {currentPage} of {pageCount}
+                </Text>
+                <Text style={styles.paginationSummaryText}>
+                  {filteredBookings.length} booking{filteredBookings.length > 1 ? 's' : ''}
+                </Text>
+              </View>
+            ) : null}
           </>
         )}
         ListEmptyComponent={(
@@ -258,6 +307,29 @@ export default function PatientHistoryScreen({ navigation }) {
             onAction={() => navigation.navigate('Booking')}
           />
         )}
+        ListFooterComponent={filteredBookings.length > PAGE_SIZE ? (
+          <View style={styles.paginationRow}>
+            <TouchableOpacity
+              style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+              onPress={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="chevron-back" size={16} color={currentPage === 1 ? '#94a3b8' : '#0f172a'} />
+              <Text style={[styles.paginationButtonText, currentPage === 1 && styles.paginationButtonTextDisabled]}>Previous</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.paginationButton, currentPage === pageCount && styles.paginationButtonDisabled]}
+              onPress={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+              disabled={currentPage === pageCount}
+              activeOpacity={0.88}
+            >
+              <Text style={[styles.paginationButtonText, currentPage === pageCount && styles.paginationButtonTextDisabled]}>Next</Text>
+              <Ionicons name="chevron-forward" size={16} color={currentPage === pageCount ? '#94a3b8' : '#0f172a'} />
+            </TouchableOpacity>
+          </View>
+        ) : <View style={styles.footerGap} />}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -317,7 +389,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   tab: {
     paddingVertical: 11,
@@ -338,6 +410,17 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#ffffff',
+  },
+  paginationSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  paginationSummaryText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -436,5 +519,38 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '800',
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  paginationButton: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dbe4ee',
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#f8fafc',
+  },
+  paginationButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  paginationButtonTextDisabled: {
+    color: '#94a3b8',
+  },
+  footerGap: {
+    height: 12,
   },
 });

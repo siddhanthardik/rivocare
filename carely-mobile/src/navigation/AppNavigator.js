@@ -17,6 +17,8 @@ import ProfileScreen from '../screens/patient/ProfileScreen';
 // Provider Screens
 import ProviderDashboardScreen from '../screens/provider/ProviderDashboardScreen';
 import ProviderRequestsScreen from '../screens/provider/ProviderRequestsScreen';
+import SettingsDetailScreen from '../screens/shared/SettingsDetailScreen';
+import BookingDetailsScreen from '../screens/shared/BookingDetailsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -91,6 +93,8 @@ const PatientNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="MainTabs" component={PatientTabs} />
     <Stack.Screen name="Booking" component={PatientBookingScreen} options={{ presentation: 'modal' }} />
+    <Stack.Screen name="SettingsDetail" component={SettingsDetailScreen} />
+    <Stack.Screen name="BookingDetails" component={BookingDetailsScreen} />
   </Stack.Navigator>
 );
 
@@ -120,6 +124,14 @@ const ProviderTabs = () => {
   );
 };
 
+const ProviderNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="ProviderMainTabs" component={ProviderTabs} />
+    <Stack.Screen name="SettingsDetail" component={SettingsDetailScreen} />
+    <Stack.Screen name="BookingDetails" component={BookingDetailsScreen} />
+  </Stack.Navigator>
+);
+
 export default function AppNavigator() {
   const { isAuthenticated, isProvider, loading } = useAuth();
 
@@ -132,7 +144,7 @@ export default function AppNavigator() {
       {!isAuthenticated ? (
         <AuthNavigator />
       ) : isProvider ? (
-        <ProviderTabs />
+        <ProviderNavigator />
       ) : (
         <PatientNavigator />
       )}

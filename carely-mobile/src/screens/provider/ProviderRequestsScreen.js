@@ -1,16 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { bookingService } from '../../api';
+import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { bookingService, notificationService } from '../../api';
+import Card from '../../components/Card';
+import EmptyState from '../../components/EmptyState';
+import NotificationTray from '../../components/NotificationTray';
+import { formatScheduleWindow } from '../../utils/dateTime';
 
 const STATUS_META = {
   pending: { bg: '#fef3c7', text: '#b45309', border: '#fcd34d', icon: 'time-outline', label: 'Pending' },
@@ -20,36 +25,30 @@ const STATUS_META = {
   cancelled: { bg: '#fee2e2', text: '#991b1b', border: '#fecaca', icon: 'close-circle-outline', label: 'Cancelled' },
 };
 
-const formatSchedule = (booking) => {
-  const start = booking?.scheduledAt ? new Date(booking.scheduledAt) : null;
-  if (!start || Number.isNaN(start.getTime())) {
-    return 'Schedule unavailable';
-  }
-
-  const hours = Number(booking.durationHours) || 1;
-  const end = new Date(start.getTime() + hours * 60 * 60 * 1000);
-
-  return `${start.toLocaleDateString()} • ${start.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })} - ${end.toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`;
-};
-
-export default function ProviderRequestsScreen() {
+export default function ProviderRequestsScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('pending');
   const [updatingId, setUpdatingId] = useState('');
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  const fetchBookings = async () => {
+  const fetchRequests = async () => {
     try {
-      const response = await bookingService.getMyBookings();
-      if (response.data?.success) {
-        setBookings(response.data.data.bookings || []);
+      const [bookingResponse, notificationResponse] = await Promise.all([
+        bookingService.getMyBookings(),
+        notificationService.getAll(4),
+      ]);
+
+      if (bookingResponse.data?.success) {
+        setBookings(bookingResponse.data.data.bookings || []);
+      }
+
+      if (notificationResponse.data?.success) {
+        setNotifications(notificationResponse.data.data.notifications || []);
+        setUnreadCount(notificationResponse.data.data.unreadCount || 0);
       }
     } catch (error) {
       console.warn('Failed to fetch provider requests:', error.response?.data?.message || error.message);
@@ -59,9 +58,12 @@ export default function ProviderRequestsScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchRequests();
+    }, [])
+  );
 
   const filteredBookings = useMemo(() => {
     return bookings.filter((booking) => {
@@ -77,6 +79,33 @@ export default function ProviderRequestsScreen() {
       return true;
     });
   }, [activeTab, bookings]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchRequests();
+  };
+
+  const handleNotificationPress = async (notification) => {
+    try {
+      if (!notification.isRead) {
+        await notificationService.markAsRead(notification._id);
+        setNotifications((current) =>
+          current.map((item) => (item._id === notification._id ? { ...item, isRead: true } : item))
+        );
+        setUnreadCount((count) => Math.max(count - 1, 0));
+      }
+    } catch (error) {
+      console.warn('Failed to mark notification as read:', error.response?.data?.message || error.message);
+    }
+
+    if (notification.linkId) {
+      const matchingBooking = bookings.find((item) => item._id === notification.linkId);
+      if (matchingBooking) {
+        navigation.navigate('BookingDetails', { booking: matchingBooking, context: 'provider' });
+        return;
+      }
+    }
+  };
 
   const updateStatus = async (id, status) => {
     setUpdatingId(id);
@@ -95,23 +124,24 @@ export default function ProviderRequestsScreen() {
   const renderActionArea = (item) => {
     if (item.status === 'pending') {
       return (
-        <View style={styles.actionsBox}>
+        <View style={styles.actionsRow}>
           <TouchableOpacity
             style={[styles.secondaryAction, updatingId === item._id && styles.buttonDisabled]}
             onPress={() => updateStatus(item._id, 'cancelled')}
             disabled={updatingId === item._id}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
             <Ionicons name="close" size={18} color="#ef4444" />
             <Text style={styles.secondaryActionText}>Decline</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.primaryAction, updatingId === item._id && styles.buttonDisabled]}
             onPress={() => updateStatus(item._id, 'confirmed')}
             disabled={updatingId === item._id}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
-            <Ionicons name="checkmark" size={18} color="#fff" />
+            <Ionicons name="checkmark" size={18} color="#ffffff" />
             <Text style={styles.primaryActionText}>Accept</Text>
           </TouchableOpacity>
         </View>
@@ -124,9 +154,9 @@ export default function ProviderRequestsScreen() {
           style={[styles.infoAction, updatingId === item._id && styles.buttonDisabled]}
           onPress={() => updateStatus(item._id, 'in-progress')}
           disabled={updatingId === item._id}
-          activeOpacity={0.85}
+          activeOpacity={0.88}
         >
-          <Ionicons name="play-circle" size={18} color="#fff" />
+          <Ionicons name="play-circle" size={18} color="#ffffff" />
           <Text style={styles.primaryActionText}>Start Service</Text>
         </TouchableOpacity>
       );
@@ -138,9 +168,9 @@ export default function ProviderRequestsScreen() {
           style={[styles.primaryAction, updatingId === item._id && styles.buttonDisabled]}
           onPress={() => updateStatus(item._id, 'completed')}
           disabled={updatingId === item._id}
-          activeOpacity={0.85}
+          activeOpacity={0.88}
         >
-          <Ionicons name="checkmark-done-circle" size={18} color="#fff" />
+          <Ionicons name="checkmark-done-circle" size={18} color="#ffffff" />
           <Text style={styles.primaryActionText}>Mark Completed</Text>
         </TouchableOpacity>
       );
@@ -153,35 +183,34 @@ export default function ProviderRequestsScreen() {
     const statusMeta = STATUS_META[item.status] || STATUS_META.pending;
 
     return (
-      <View style={styles.card}>
+      <Card
+        variant="outlined"
+        style={styles.card}
+        pressable
+        onPress={() => navigation.navigate('BookingDetails', { booking: item, context: 'provider' })}
+      >
         <View style={styles.cardHeader}>
-          <View style={styles.cardText}>
+          <View style={styles.patientIcon}>
+            <Ionicons name="person-outline" size={18} color="#10b981" />
+          </View>
+
+          <View style={styles.cardCopy}>
             <Text style={styles.patientName}>{item.patient?.name || 'Patient'}</Text>
             <Text style={styles.serviceName}>{item.service?.toUpperCase() || 'SERVICE'}</Text>
           </View>
 
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: statusMeta.bg, borderColor: statusMeta.border },
-            ]}
-          >
-            <Ionicons
-              name={statusMeta.icon}
-              size={14}
-              color={statusMeta.text}
-              style={styles.statusIcon}
-            />
-            <Text style={[styles.statusText, { color: statusMeta.text }]}>
-              {statusMeta.label}
-            </Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusMeta.bg, borderColor: statusMeta.border }]}>
+            <Ionicons name={statusMeta.icon} size={13} color={statusMeta.text} style={styles.statusIcon} />
+            <Text style={[styles.statusText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
           </View>
         </View>
 
-        <View style={styles.cardDetails}>
+        <View style={styles.detailsBlock}>
           <View style={styles.detailRow}>
             <Ionicons name="calendar-outline" size={16} color="#10b981" />
-            <Text style={styles.detailText}>{formatSchedule(item)}</Text>
+            <Text style={styles.detailText}>
+              {formatScheduleWindow(item.scheduledAt, item.durationHours)}
+            </Text>
           </View>
 
           <View style={styles.detailRow}>
@@ -200,182 +229,198 @@ export default function ProviderRequestsScreen() {
         </View>
 
         {renderActionArea(item)}
-      </View>
+      </Card>
     );
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Service Requests</Text>
-      </View>
-
-      <View style={styles.tabContainer}>
-        {[
-          { key: 'pending', label: 'Pending' },
-          { key: 'active', label: 'Active' },
-          { key: 'completed', label: 'Completed' },
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {loading ? (
-        <View style={styles.centerContainer}>
+  if (loading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>REQUESTS</Text>
+          <Text style={styles.title}>Service Requests</Text>
+        </View>
+        <View style={styles.centerState}>
           <ActivityIndicator size="large" color="#10b981" />
         </View>
-      ) : filteredBookings.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="inbox-outline" size={64} color="#cbd5e1" />
-          <Text style={styles.emptyTitle}>No {activeTab} requests</Text>
-          <Text style={styles.emptySubtitle}>Requests will appear here</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredBookings}
-          keyExtractor={(item) => item._id}
-          renderItem={renderRequestCard}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                setRefreshing(true);
-                fetchBookings();
-              }}
-              tintColor="#10b981"
-              colors={['#10b981']}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={filteredBookings}
+        keyExtractor={(item) => item._id}
+        renderItem={renderRequestCard}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingTop: insets.top + 18,
+          paddingHorizontal: 20,
+          paddingBottom: insets.bottom + 140,
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#10b981"
+            colors={['#10b981']}
+          />
+        }
+        ListHeaderComponent={(
+          <>
+            <View style={styles.header}>
+              <Text style={styles.eyebrow}>REQUESTS</Text>
+              <Text style={styles.title}>Service Requests</Text>
+              <Text style={styles.subtitle}>Accept, start, and complete bookings without fighting the interface.</Text>
+            </View>
+
+            <NotificationTray
+              title="Latest alerts"
+              notifications={notifications}
+              unreadCount={unreadCount}
+              onPressNotification={handleNotificationPress}
             />
-          }
-        />
-      )}
-    </SafeAreaView>
+
+            <View style={styles.tabRow}>
+              {[
+                { key: 'pending', label: 'Pending' },
+                { key: 'active', label: 'Active' },
+                { key: 'completed', label: 'Completed' },
+              ].map((tab) => (
+                <TouchableOpacity
+                  key={tab.key}
+                  style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+                  onPress={() => setActiveTab(tab.key)}
+                  activeOpacity={0.88}
+                >
+                  <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+        ListEmptyComponent={(
+          <EmptyState
+            icon="inbox-outline"
+            title={`No ${activeTab} requests`}
+            description="As new bookings move through the workflow, they will show up here."
+            actionText="Refresh"
+            onAction={onRefresh}
+          />
+        )}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f4f7fb',
   },
   header: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    marginBottom: 18,
+  },
+  eyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.2,
+    fontWeight: '700',
+    color: '#10b981',
+    marginBottom: 4,
   },
   title: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '800',
     color: '#0f172a',
   },
-  tabContainer: {
+  subtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#64748b',
+    maxWidth: 320,
+  },
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabRow: {
     flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    gap: 12,
+    gap: 10,
+    marginBottom: 16,
   },
   tab: {
-    paddingVertical: 10,
+    paddingVertical: 11,
     paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#fff',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
   tabActive: {
-    backgroundColor: '#10b981',
-    borderColor: '#10b981',
+    backgroundColor: '#0f172a',
+    borderColor: '#0f172a',
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#64748b',
   },
   tabTextActive: {
-    color: '#fff',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  emptyTitle: {
-    marginTop: 16,
-    marginBottom: 8,
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#94a3b8',
-  },
-  listContent: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    paddingBottom: 32,
+    color: '#ffffff',
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 16,
+    marginBottom: 14,
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  cardText: {
+  patientIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: '#ecfdf5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardCopy: {
     flex: 1,
   },
   patientName: {
-    fontWeight: '800',
     fontSize: 16,
+    fontWeight: '800',
     color: '#0f172a',
     marginBottom: 4,
   },
   serviceName: {
-    fontSize: 12,
+    fontSize: 13,
+    fontWeight: '700',
     color: '#94a3b8',
-    fontWeight: '500',
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
   },
   statusIcon: {
     marginRight: 4,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
   },
-  cardDetails: {
-    gap: 12,
+  detailsBlock: {
+    gap: 10,
     marginBottom: 14,
   },
   detailRow: {
@@ -386,16 +431,17 @@ const styles = StyleSheet.create({
   detailText: {
     flex: 1,
     fontSize: 13,
+    lineHeight: 18,
     color: '#475569',
-    fontWeight: '500',
+    fontWeight: '600',
   },
-  actionsBox: {
+  actionsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   primaryAction: {
-    minHeight: 46,
-    borderRadius: 10,
+    minHeight: 50,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
@@ -403,34 +449,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#10b981',
   },
   infoAction: {
-    minHeight: 46,
-    borderRadius: 10,
+    minHeight: 50,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
     gap: 8,
-    backgroundColor: '#3b82f6',
+    backgroundColor: '#2563eb',
   },
   secondaryAction: {
     flex: 1,
-    minHeight: 46,
-    borderRadius: 10,
+    minHeight: 50,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
     gap: 8,
-    backgroundColor: '#fef2f2',
+    backgroundColor: '#fff1f2',
     borderWidth: 1,
-    borderColor: '#fecaca',
+    borderColor: '#fecdd3',
   },
   primaryActionText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: '#ffffff',
+    fontWeight: '800',
     fontSize: 14,
   },
   secondaryActionText: {
-    color: '#ef4444',
-    fontWeight: '700',
+    color: '#e11d48',
+    fontWeight: '800',
     fontSize: 14,
   },
   buttonDisabled: {

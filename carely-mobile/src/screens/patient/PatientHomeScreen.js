@@ -96,6 +96,14 @@ export default function PatientHomeScreen({ navigation }) {
       console.warn('Failed to mark notification as read:', error.response?.data?.message || error.message);
     }
 
+    if (notification.linkId) {
+      const matchingBooking = bookings.find((item) => item._id === notification.linkId);
+      if (matchingBooking) {
+        navigation.navigate('BookingDetails', { booking: matchingBooking, context: 'patient' });
+        return;
+      }
+    }
+
     navigation.navigate('History');
   };
 
