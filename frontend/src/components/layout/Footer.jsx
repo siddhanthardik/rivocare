@@ -44,15 +44,13 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Column 3: Company */}
           <div>
             <h4 className="text-white font-bold mb-4 text-sm">Company</h4>
             <ul className="space-y-3">
               <li><Link to="/about-us" className="text-xs hover:text-blue-400 transition-colors">About Us</Link></li>
-              <li><Link to="/about-us" className="text-xs hover:text-blue-400 transition-colors">Why Rivo Care</Link></li>
-              <li><Link to="/careers" className="text-xs hover:text-blue-400 transition-colors">Careers</Link></li>
-              <li><Link to="/" className="text-xs hover:text-blue-400 transition-colors">Blog</Link></li>
-              <li><Link to="/contact-us" className="text-xs hover:text-blue-400 transition-colors">Press & Media</Link></li>
+              <li><Link to="/blog" className="text-xs hover:text-blue-400 transition-colors">Blog</Link></li>
+              <li><Link to="/contact-us" className="text-xs hover:text-blue-400 transition-colors">Contact Us</Link></li>
+              <li><Link to="/contact-us" className="text-xs hover:text-blue-400 transition-colors">Press &amp; Media</Link></li>
             </ul>
           </div>
 

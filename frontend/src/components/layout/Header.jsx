@@ -57,15 +57,23 @@ export default function Header() {
         {/* Nav Links (Desktop) */}
         <nav className="hidden lg:flex items-center gap-8">
           <Link to="/" className="text-[15px] font-semibold text-blue-600 border-b-2 border-blue-600 pb-1">Home</Link>
-          <div className="relative group cursor-pointer">
-            <span className="flex items-center gap-1 text-[15px] font-medium text-slate-600 hover:text-blue-600 transition pb-1">
-              Services <ChevronDown size={14} className="mt-0.5" />
-            </span>
-          </div>
           <Link to="/about-us" className="text-[15px] font-medium text-slate-600 hover:text-blue-600 transition pb-1">About Us</Link>
-          <Link to="/about-us" className="text-[15px] font-medium text-slate-600 hover:text-blue-600 transition pb-1">Why Rivo Care</Link>
-          <Link to="/" className="text-[15px] font-medium text-slate-600 hover:text-blue-600 transition pb-1">Blog</Link>
-          <Link to="/careers" className="text-[15px] font-medium text-slate-600 hover:text-blue-600 transition pb-1">Careers</Link>
+          <div className="relative group cursor-pointer">
+            <Link to="/services" className="flex items-center gap-1 text-[15px] font-medium text-slate-600 hover:text-blue-600 transition pb-1">
+              Services <ChevronDown size={14} className="mt-0.5" />
+            </Link>
+            {/* Dropdown */}
+            <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 py-2 z-50">
+              <Link to="/services/nursing-care" className="block px-4 py-2.5 text-sm text-slate-700 hover:text-blue-600 hover:bg-blue-50">Home Nursing</Link>
+              <Link to="/services/physiotherapy" className="block px-4 py-2.5 text-sm text-slate-700 hover:text-blue-600 hover:bg-blue-50">Physiotherapy</Link>
+              <Link to="/services/doctor-at-home" className="block px-4 py-2.5 text-sm text-slate-700 hover:text-blue-600 hover:bg-blue-50">Doctor at Home</Link>
+              <Link to="/services/elder-care" className="block px-4 py-2.5 text-sm text-slate-700 hover:text-blue-600 hover:bg-blue-50">Elder Care</Link>
+              <div className="border-t border-slate-100 mt-1 pt-1">
+                <Link to="/services" className="block px-4 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-50">View All Services →</Link>
+              </div>
+            </div>
+          </div>
+          <Link to="/blog" className="text-[15px] font-medium text-slate-600 hover:text-blue-600 transition pb-1">Blog</Link>
           <Link to="/contact-us" className="text-[15px] font-medium text-slate-600 hover:text-blue-600 transition pb-1">Contact Us</Link>
         </nav>
 

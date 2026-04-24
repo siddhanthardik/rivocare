@@ -20,6 +20,7 @@ import AboutUs from './pages/company/AboutUs';
 import ContactUs from './pages/company/ContactUs';
 import Careers from './pages/company/Careers';
 import Sitemap from './pages/company/Sitemap';
+import Blog from './pages/Blog';
 
 // Services
 import Services from './pages/services/Services';
@@ -106,6 +107,7 @@ export default function App() {
       <Route path="/about-us" element={<><Header /><AboutUs /><Footer /></>} />
       <Route path="/contact-us" element={<><Header /><ContactUs /><Footer /></>} />
       <Route path="/careers" element={<><Header /><Careers /><Footer /></>} />
+      <Route path="/blog" element={<><Header /><Blog /><Footer /></>} />
       <Route path="/sitemap" element={<><Header /><Sitemap /><Footer /></>} />
       <Route path="/terms-of-service" element={<><Header /><TermsOfService /><Footer /></>} />
       <Route path="/terms-and-conditions" element={<Navigate to="/terms-of-service" replace />} />
