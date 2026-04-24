@@ -1,182 +1,201 @@
-import { Mail, MapPin, MessageCircle, Phone, Clock3, ArrowRight, LifeBuoy, FileText, HelpCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
-
-const contactCards = [
-  {
-    icon: Phone,
-    title: 'Priority Phone Support',
-    detail: '+91 98765 43210',
-    note: 'For urgent booking coordination, real-time tracking, and immediate assistance.',
-    href: 'tel:+919876543210',
-    color: 'from-emerald-400 to-emerald-600',
-    bg: 'bg-emerald-50 text-emerald-600 border-emerald-100'
-  },
-  {
-    icon: MessageCircle,
-    title: 'WhatsApp Concierge',
-    detail: 'Chat instantly',
-    note: 'The fastest way to get answers, modify bookings, or request service details.',
-    href: 'https://wa.me/919876543210',
-    color: 'from-blue-400 to-blue-600',
-    bg: 'bg-blue-50 text-blue-600 border-blue-100'
-  },
-  {
-    icon: Mail,
-    title: 'Email Correspondence',
-    detail: 'care@rivocare.in',
-    note: 'For account queries, provider onboarding, legal requests, and billing support.',
-    href: 'mailto:care@rivocare.in',
-    color: 'from-violet-400 to-violet-600',
-    bg: 'bg-violet-50 text-violet-600 border-violet-100'
-  },
-];
-
-const faqs = [
-  {
-    q: "How fast can a provider reach me?",
-    a: "In serviceable areas, providers can arrive in as little as 60 minutes for urgent nursing or doctor visits, depending on real-time availability."
-  },
-  {
-    q: "Are the healthcare providers verified?",
-    a: "Absolutely. 100% of our providers undergo strict KYC, medical credential verification, and background checks before they can accept bookings."
-  },
-  {
-    q: "How do I cancel or reschedule?",
-    a: "You can modify your bookings directly from your Patient Dashboard. Cancellations made 2 hours prior to the slot are fully refunded."
-  }
-];
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ChevronRight, Phone, Mail, MessageCircle, MapPin, Facebook, Instagram, Linkedin, Send } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function ContactUs() {
+  const [form, setForm] = useState({ name: '', phone: '', email: '', message: '' });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      toast.success('Message sent! We\'ll get back to you shortly.');
+      setForm({ name: '', phone: '', email: '', message: '' });
+      setLoading(false);
+    }, 1000);
+  };
+
   return (
-    <div className="bg-slate-50 min-h-screen">
-      {/* ── HERO SECTION ── */}
-      <section className="relative overflow-hidden bg-slate-950 pt-24 pb-32">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/40 via-slate-950 to-slate-950" />
-        
-        <div className="relative mx-auto max-w-5xl px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-emerald-500/20 border border-white/10 mb-8 backdrop-blur-md">
-               <LifeBuoy size={32} className="text-emerald-400" />
+    <div className="bg-white min-h-screen font-sans">
+
+      {/* Breadcrumb */}
+      <div className="bg-slate-50 border-b border-slate-200">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-2 text-sm text-slate-500">
+          <Link to="/" className="hover:text-blue-600">Home</Link>
+          <ChevronRight size={14} />
+          <span className="text-slate-800 font-medium">Contact Us</span>
+        </div>
+      </div>
+
+      {/* Header */}
+      <section className="max-w-6xl mx-auto px-4 py-10">
+        <h1 className="text-4xl font-bold text-slate-900 mb-2" style={{ fontFamily: 'Poppins,sans-serif' }}>Contact Us</h1>
+        <p className="text-slate-500 text-base">We're here to help and support nursing care at anytime.</p>
+      </section>
+
+      {/* Main Grid */}
+      <section className="max-w-6xl mx-auto px-4 pb-14 grid lg:grid-cols-2 gap-10">
+
+        {/* Left: Contact Info */}
+        <div className="space-y-6">
+          {/* Phone */}
+          <div className="bg-slate-50 rounded-2xl p-5 flex items-start gap-4 border border-slate-100">
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+              <Phone size={18} className="text-blue-600" />
             </div>
-            <h1 className="text-4xl font-black tracking-tight text-white sm:text-6xl mb-6">
-              We're here when you <br className="hidden sm:block" /> need us most.
-            </h1>
-            <p className="max-w-2xl mx-auto text-lg leading-relaxed text-slate-300">
-              Healthcare requires empathy and urgency. Our dedicated support concierge is ready to assist you with bookings, provider coordination, and account management.
-            </p>
-          </motion.div>
-        </div>
-      </section>
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm mb-0.5">Call Us</h3>
+              <p className="text-slate-500 text-xs mb-1">24/7 Support</p>
+              <a href="tel:+911234567890" className="text-blue-600 font-semibold text-sm">+91 98765 43210</a>
+            </div>
+          </div>
 
-      {/* ── CONTACT CARDS ── */}
-      <section className="relative -mt-16 z-10 mx-auto max-w-6xl px-6 pb-20">
-        <div className="grid gap-6 md:grid-cols-3">
-          {contactCards.map((card, i) => {
-            const Icon = card.icon;
-            return (
-              <motion.a
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                key={card.title}
-                href={card.href}
-                target={card.href.startsWith('http') ? '_blank' : undefined}
-                rel={card.href.startsWith('http') ? 'noreferrer' : undefined}
-                className="group relative rounded-[2rem] bg-white p-8 shadow-xl shadow-slate-200/50 border border-slate-200 transition-all hover:-translate-y-2 hover:shadow-2xl overflow-hidden block"
-              >
-                {/* Decorative background gradient */}
-                <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${card.color}`} />
-                <div className="absolute -right-10 -top-10 w-40 h-40 bg-slate-50 rounded-full group-hover:scale-150 transition-transform duration-500 ease-out" />
-                
-                <div className="relative z-10">
-                  <div className={`mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl border ${card.bg}`}>
-                    <Icon size={26} strokeWidth={2.5} />
-                  </div>
-                  <h2 className="text-xl font-black text-slate-900 mb-2">{card.title}</h2>
-                  <p className="text-lg font-bold text-slate-700 mb-4">{card.detail}</p>
-                  <p className="text-sm leading-relaxed text-slate-500">{card.note}</p>
-                  
-                  <div className="mt-8 flex items-center gap-2 text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                    Connect Now <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </motion.a>
-            );
-          })}
-        </div>
-      </section>
+          {/* Email */}
+          <div className="bg-slate-50 rounded-2xl p-5 flex items-start gap-4 border border-slate-100">
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+              <Mail size={18} className="text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm mb-0.5">Email Us</h3>
+              <p className="text-slate-500 text-xs mb-1">We reply within 2 hours</p>
+              <a href="mailto:info@rivocare.in" className="text-blue-600 font-semibold text-sm">info@rivocare.in</a>
+            </div>
+          </div>
 
-      {/* ── INFO SPLIT SECTION ── */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
-        <div className="grid lg:grid-cols-2 gap-12">
-          
-          {/* FAQ Area */}
+          {/* WhatsApp */}
+          <div className="bg-slate-50 rounded-2xl p-5 flex items-start gap-4 border border-slate-100">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center shrink-0">
+              <MessageCircle size={18} className="text-green-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm mb-0.5">WhatsApp Us</h3>
+              <p className="text-slate-500 text-xs mb-1">Quick response on WhatsApp</p>
+              <a href="https://wa.me/919876543210" target="_blank" rel="noreferrer" className="text-green-600 font-semibold text-sm">+91 98765 43210</a>
+            </div>
+          </div>
+
+          {/* Office */}
+          <div className="bg-slate-50 rounded-2xl p-5 flex items-start gap-4 border border-slate-100">
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+              <MapPin size={18} className="text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm mb-0.5">Our Office</h3>
+              <p className="text-slate-600 text-sm leading-relaxed">
+                Rivo Care Private Limited<br />
+                Delhi, India, 110001
+              </p>
+            </div>
+          </div>
+
+          {/* Social */}
           <div>
-            <div className="flex items-center gap-2 text-blue-600 font-bold uppercase tracking-widest text-xs mb-4">
-              <HelpCircle size={16} /> Quick Answers
-            </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-8">Frequently Asked</h2>
-            <div className="space-y-6">
-              {faqs.map((faq, i) => (
-                <div key={i} className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-900 mb-2">{faq.q}</h3>
-                  <p className="text-slate-600 text-sm leading-relaxed">{faq.a}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Details Area */}
-          <div className="space-y-6">
-            <div className="rounded-3xl bg-slate-900 p-10 text-white shadow-xl">
-              <h3 className="text-2xl font-bold mb-8">Headquarters</h3>
-              <div className="space-y-8">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-white/10 border border-white/20">
-                     <MapPin size={24} className="text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg mb-1">Delhi NCR</p>
-                    <p className="text-slate-400 text-sm leading-relaxed">
-                      Sector 62, Noida<br />Uttar Pradesh 201309<br />India
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-xl bg-white/10 border border-white/20">
-                     <Clock3 size={24} className="text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg mb-1">Operating Hours</p>
-                    <p className="text-slate-400 text-sm leading-relaxed">
-                      Support: 24/7 for urgent bookings.<br />
-                      Corporate Office: Mon - Sat, 9 AM - 7 PM.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-3xl bg-white p-8 border border-slate-200 flex items-center justify-between group cursor-pointer hover:border-blue-300 hover:shadow-md transition-all">
-              <div className="flex items-center gap-4">
-                 <div className="p-3 rounded-xl bg-slate-100 text-slate-600">
-                   <FileText size={24} />
-                 </div>
-                 <div>
-                   <p className="font-bold text-slate-900">Legal & Privacy</p>
-                   <p className="text-slate-500 text-sm">Review our platform terms</p>
-                 </div>
-              </div>
-              <ArrowRight size={20} className="text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+            <h3 className="font-bold text-slate-800 text-sm mb-3">Follow Us</h3>
+            <div className="flex gap-3">
+              <a href="#" className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white hover:bg-blue-700 transition">
+                <Facebook size={16} />
+              </a>
+              <a href="#" className="w-9 h-9 bg-pink-600 rounded-full flex items-center justify-center text-white hover:bg-pink-700 transition">
+                <Instagram size={16} />
+              </a>
+              <a href="#" className="w-9 h-9 bg-blue-700 rounded-full flex items-center justify-center text-white hover:bg-blue-800 transition">
+                <Linkedin size={16} />
+              </a>
             </div>
           </div>
-          
+        </div>
+
+        {/* Right: Contact Form */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8">
+          <h2 className="text-xl font-bold text-slate-900 mb-6" style={{ fontFamily: 'Poppins,sans-serif' }}>Send Us a Message</h2>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
+              <input
+                type="text"
+                placeholder="Enter your name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+              <input
+                type="tel"
+                placeholder="Enter phone number"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
+              <input
+                type="email"
+                placeholder="Enter your email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                required
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Message</label>
+              <textarea
+                rows={4}
+                placeholder="Type your message here..."
+                value={form.message}
+                onChange={(e) => setForm({ ...form, message: e.target.value })}
+                required
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition flex items-center justify-center gap-2 text-sm"
+            >
+              {loading ? 'Sending...' : <><Send size={15} /> Send Message</>}
+            </button>
+          </form>
         </div>
       </section>
+
+      {/* Map */}
+      <section className="max-w-6xl mx-auto px-4 pb-14">
+        <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-64">
+          <iframe
+            title="Rivo Care Office Location"
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d224345.83923192776!2d77.06889754725782!3d28.52758200617607!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390cfd5b347eb62d%3A0x52c2b7494e204dce!2sNew%20Delhi%2C%20Delhi!5e0!3m2!1sen!2sin!4v1677000000000!5m2!1sen!2sin"
+            width="100%"
+            height="100%"
+            style={{ border: 0 }}
+            allowFullScreen=""
+            loading="lazy"
+          />
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="bg-blue-600 py-10">
+        <div className="max-w-4xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div>
+            <h2 className="text-white text-xl font-bold mb-1" style={{ fontFamily: 'Poppins,sans-serif' }}>Need Immediate Assistance?</h2>
+            <p className="text-blue-100 text-sm">Our support team is available 24/7 to help you.</p>
+          </div>
+          <a
+            href="tel:+919876543210"
+            className="shrink-0 inline-flex items-center gap-2 bg-white text-blue-600 font-bold px-6 py-3 rounded-lg hover:bg-blue-50 transition text-sm"
+          >
+            <Phone size={15} /> Call Now
+          </a>
+        </div>
+      </section>
+
     </div>
   );
 }

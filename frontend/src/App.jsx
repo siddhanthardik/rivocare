@@ -22,6 +22,7 @@ import Careers from './pages/company/Careers';
 import Sitemap from './pages/company/Sitemap';
 
 // Services
+import Services from './pages/services/Services';
 import NursingCare from './pages/services/NursingCare';
 import Physiotherapy from './pages/services/Physiotherapy';
 import DoctorAtHome from './pages/services/DoctorAtHome';
@@ -96,6 +97,7 @@ export default function App() {
       <Routes>
       {/* Public */}
       <Route path="/" element={<><Header /><Landing /></>} />
+      <Route path="/services" element={<><Header /><Services /><Footer /></>} />
       <Route path="/services/nursing-care" element={<><Header /><NursingCare /><Footer /></>} />
       <Route path="/services/physiotherapy" element={<><Header /><Physiotherapy /><Footer /></>} />
       <Route path="/services/doctor-at-home" element={<><Header /><DoctorAtHome /><Footer /></>} />

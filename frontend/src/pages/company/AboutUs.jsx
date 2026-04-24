@@ -1,189 +1,178 @@
 import { Link } from 'react-router-dom';
-import { ShieldCheck, Heart, Clock, Activity, ArrowRight, CheckCircle2, Award, Users } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ShieldCheck, Users, Clock, Award, CheckCircle2, ChevronRight, Star, TrendingUp, Heart } from 'lucide-react';
 
 const stats = [
-  { label: 'Verified Professionals', value: '1,000+' },
-  { label: 'Cities Served', value: '15+' },
-  { label: 'Patient Satisfaction', value: '98%' },
-  { label: 'Support Availability', value: '24/7' },
+  { value: '10,000+', label: 'Families Served' },
+  { value: '500+', label: 'Care Experts' },
+  { value: '24/7', label: 'Support' },
+  { value: '98%', label: 'Satisfaction' },
 ];
 
-const values = [
-  {
-    icon: ShieldCheck,
-    title: 'Uncompromising Safety',
-    text: 'Every provider undergoes stringent background checks and medical credential verification. Your family\'s security is the foundation of our platform.',
-  },
-  {
-    icon: Heart,
-    title: 'Empathetic Care',
-    text: 'We understand that inviting someone into your home requires immense trust. Our matching algorithms prioritize compassion alongside clinical excellence.',
-  },
-  {
-    icon: Clock,
-    title: 'Time-Critical Reliability',
-    text: 'Healthcare needs don\'t wait. We engineered our dispatch systems to minimize wait times and provide real-time tracking for ultimate peace of mind.',
-  },
+const trustPillars = [
+  { icon: ShieldCheck, title: 'Verified & Trained', desc: 'All professionals are background verified and medically trained.' },
+  { icon: ShieldCheck, title: 'Safety & Hygiene First', desc: 'Strict safety protocols for infection control and hygiene.' },
+  { icon: CheckCircle2, title: 'Personalized Care Plans', desc: 'Customized care plans tailored to each patient\'s needs.' },
+  { icon: Award, title: 'Transparent Pricing', desc: 'No hidden fees. Upfront pricing for all services.' },
+  { icon: Clock, title: '24/7 Support', desc: 'Round-the-clock support from our patient coordination team.' },
 ];
 
-const pillars = [
-  { title: 'Clinical Excellence', text: 'Partnering only with certified nurses, expert physiotherapists, and licensed physicians.' },
-  { title: 'Absolute Transparency', text: 'Clear, upfront pricing with zero hidden fees. You see exactly what you pay for before confirming.' },
-  { title: 'Continuous Support', text: 'A dedicated patient coordination team available around the clock to assist with your ongoing care.' },
-  { title: 'Seamless Technology', text: 'A frictionless app experience for booking, tracking, and communicating with your care team.' },
+const journey = [
+  { year: '2019', title: 'Founded', desc: 'Rivo was founded with a vision to make professional home healthcare accessible.' },
+  { year: '2021', title: 'Expanded', desc: 'Expanded our services and reached 5,000+ families across Delhi NCR.' },
+  { year: '2023', title: 'Launched 24/7', desc: 'Launched across multiple cities with 24/7 support.' },
+  { year: '2024', title: 'Growing', desc: '10,000+ families served and counting.' },
+];
+
+const leadership = [
+  { name: 'Rohit Verma', role: 'CEO & Founder', initials: 'RV' },
+  { name: 'Dr. Neha Sharma', role: 'Head of Medical', initials: 'NS' },
+  { name: 'Ankit Agarwal', role: 'Head of Operations', initials: 'AA' },
+  { name: 'Priya Nair', role: 'Head of Finance', initials: 'PN' },
 ];
 
 export default function AboutUs() {
   return (
-    <div className="bg-slate-50 min-h-screen">
-      {/* ── HERO SECTION ── */}
-      <section className="relative overflow-hidden bg-slate-950 pt-24 pb-32">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/40 via-slate-950 to-slate-950" />
-        <div className="absolute top-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
-        
-        <div className="relative mx-auto max-w-6xl px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <span className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold tracking-widest text-blue-400 uppercase mb-6">
-              <Activity size={14} /> Our Mission
-            </span>
-            <h1 className="max-w-4xl mx-auto text-5xl font-black tracking-tight text-white sm:text-6xl lg:text-7xl">
-              Bringing <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">world-class healthcare</span> to your doorstep.
-            </h1>
-            <p className="mt-8 max-w-2xl mx-auto text-lg leading-relaxed text-slate-300">
-              RIVO is redefining home healthcare by bridging the gap between families and top-tier medical professionals through trust, transparency, and technology.
-            </p>
-          </motion.div>
+    <div className="bg-white min-h-screen font-sans">
+
+      {/* Breadcrumb */}
+      <div className="bg-slate-50 border-b border-slate-200">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-2 text-sm text-slate-500">
+          <Link to="/" className="hover:text-blue-600">Home</Link>
+          <ChevronRight size={14} />
+          <span className="text-slate-800 font-medium">About Us</span>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <section className="max-w-6xl mx-auto px-4 py-14 grid lg:grid-cols-2 gap-12 items-center">
+        <div>
+          <h1 className="text-4xl font-bold text-slate-900 mb-4 leading-tight" style={{fontFamily:'Poppins,sans-serif'}}>
+            About <span className="text-blue-600">Rivo Care</span>
+          </h1>
+          <p className="text-slate-600 text-base leading-relaxed mb-4">
+            Rivo Care is India's trusted home healthcare partner delivering compassionate, professional, and affordable care to your doorstep. We combine technology, compassion and clinical excellence to ensure patients receive comfort and care within their own home.
+          </p>
+          <p className="text-slate-500 text-sm leading-relaxed">
+            Our experienced and verified nursing professionals provide expert medical care for post-surgery recovery, physiotherapy, wound care and more — right at your home in Delhi NCR.
+          </p>
+          <div className="flex gap-4 mt-8">
+            <Link to="/book" className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition text-sm">
+              Book a Service <ChevronRight size={16} />
+            </Link>
+            <Link to="/contact-us" className="inline-flex items-center gap-2 border border-blue-600 text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition text-sm">
+              Contact Us
+            </Link>
+          </div>
+        </div>
+        <div className="rounded-2xl overflow-hidden shadow-xl">
+          <img src="/images/about-hero.png" alt="Rivo Care — Nurse with patient" className="w-full h-80 object-cover" />
         </div>
       </section>
 
-      {/* ── STATS ROW ── */}
-      <section className="relative -mt-16 z-10 mx-auto max-w-6xl px-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-2xl shadow-slate-200/50">
-          <div className="grid grid-cols-2 gap-8 md:grid-cols-4 divide-x divide-slate-100">
-            {stats.map((stat, i) => (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.1 * i }}
-                key={stat.label} 
-                className="text-center px-4"
-              >
-                <p className="text-4xl font-black tracking-tight text-slate-900">{stat.value}</p>
-                <p className="mt-2 text-sm font-semibold text-slate-500 uppercase tracking-wide">{stat.label}</p>
-              </motion.div>
+      {/* Stats */}
+      <section className="bg-slate-50 py-10 border-y border-slate-100">
+        <div className="max-w-6xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-6">
+          {stats.map((s) => (
+            <div key={s.label} className="text-center">
+              <p className="text-3xl font-bold text-blue-600" style={{fontFamily:'Poppins,sans-serif'}}>{s.value}</p>
+              <p className="text-slate-600 text-sm mt-1 font-medium">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Mission & Vision */}
+      <section className="max-w-6xl mx-auto px-4 py-14 grid lg:grid-cols-2 gap-12 items-center">
+        <div>
+          <img src="/images/service-eldercare.png" alt="Mission" className="rounded-2xl shadow-lg w-full h-72 object-cover" />
+        </div>
+        <div>
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-3" style={{fontFamily:'Poppins,sans-serif'}}>Our Mission</h2>
+            <p className="text-slate-600 leading-relaxed">
+              To provide quality home healthcare that is accessible and affordable for every family at home. We believe every patient deserves the dignity of recovering in the comfort of their own home.
+            </p>
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-3" style={{fontFamily:'Poppins,sans-serif'}}>Our Vision</h2>
+            <p className="text-slate-600 leading-relaxed">
+              To become the most trusted home healthcare platform in India — where technology and human compassion work together so that every home can have hospital-quality healthcare.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Journey Timeline */}
+      <section className="bg-slate-50 py-14">
+        <div className="max-w-6xl mx-auto px-4">
+          <h2 className="text-2xl font-bold text-slate-900 mb-10 text-center" style={{fontFamily:'Poppins,sans-serif'}}>Our Journey</h2>
+          <div className="relative grid md:grid-cols-4 gap-6">
+            {/* line */}
+            <div className="hidden md:block absolute top-6 left-0 right-0 h-0.5 bg-blue-200 z-0" />
+            {journey.map((j) => (
+              <div key={j.year} className="relative z-10 text-center">
+                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm mx-auto mb-3">{j.year}</div>
+                <h4 className="font-bold text-slate-800 text-sm mb-1">{j.title}</h4>
+                <p className="text-slate-500 text-xs leading-relaxed">{j.desc}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── CORE VALUES ── */}
-      <section className="mx-auto max-w-6xl px-6 py-24">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">The philosophy driving our care</h2>
-          <p className="mt-4 text-lg text-slate-600">We don't just facilitate bookings; we engineer peace of mind for families during their most vulnerable moments.</p>
-        </div>
-
-        <div className="grid gap-8 md:grid-cols-3">
-          {values.map((value, i) => {
-            const Icon = value.icon;
-            return (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                key={value.title} 
-                className="group rounded-3xl border border-slate-200 bg-white p-8 transition-all hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full opacity-50 group-hover:scale-110 transition-transform" />
-                <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
-                  <Icon size={26} strokeWidth={2.5} />
-                </div>
-                <h3 className="text-xl font-bold text-slate-900">{value.title}</h3>
-                <p className="mt-4 text-base leading-relaxed text-slate-600">{value.text}</p>
-              </motion.div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* ── OUR COMMITMENT SPLIT ── */}
-      <section className="mx-auto max-w-6xl px-6 pb-24">
-        <div className="rounded-[2.5rem] bg-slate-900 overflow-hidden relative">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-blue-900/40 via-transparent to-transparent" />
-          
-          <div className="grid lg:grid-cols-2 relative z-10">
-            <div className="p-12 lg:p-16 flex flex-col justify-center">
-              <span className="flex items-center gap-2 text-emerald-400 font-bold uppercase tracking-widest text-xs mb-4">
-                <Award size={16} /> Our Standard
-              </span>
-              <h2 className="text-3xl font-black text-white sm:text-4xl leading-tight mb-6">
-                Elevating the standard of home healthcare delivery.
-              </h2>
-              <p className="text-slate-300 text-lg leading-relaxed mb-8">
-                RIVO was built on a simple premise: acquiring high-quality medical care at home should be as seamless and reliable as requesting a premium ride. We handle the heavy lifting of vetting and coordination so you can focus on healing.
-              </p>
-              
-              <div className="grid sm:grid-cols-2 gap-6">
-                {pillars.map((pillar) => (
-                  <div key={pillar.title} className="flex gap-3">
-                    <CheckCircle2 size={20} className="text-emerald-400 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="text-white font-bold text-sm mb-1">{pillar.title}</h4>
-                      <p className="text-slate-400 text-sm leading-relaxed">{pillar.text}</p>
-                    </div>
+      {/* Why Families Trust Rivo */}
+      <section className="bg-[#1E293B] py-14">
+        <div className="max-w-6xl mx-auto px-4">
+          <h2 className="text-2xl font-bold text-white mb-10 text-center" style={{fontFamily:'Poppins,sans-serif'}}>Why Families Trust Rivo Care</h2>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+            {trustPillars.map((p) => {
+              const Icon = p.icon;
+              return (
+                <div key={p.title} className="text-center">
+                  <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Icon size={22} className="text-blue-400" />
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="hidden lg:flex items-center justify-center bg-slate-800/50 p-12">
-              <div className="relative w-full max-w-md aspect-square rounded-3xl bg-gradient-to-br from-blue-500/20 to-emerald-500/20 border border-white/10 flex items-center justify-center backdrop-blur-sm p-8">
-                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
-                 <div className="text-center space-y-6 relative z-10">
-                   <div className="w-20 h-20 mx-auto bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 backdrop-blur-md">
-                     <Users size={36} className="text-white" />
-                   </div>
-                   <div>
-                     <h3 className="text-2xl font-bold text-white mb-2">Join the Revolution</h3>
-                     <p className="text-slate-300 text-sm">We are rapidly expanding our network of elite care providers.</p>
-                   </div>
-                 </div>
-              </div>
-            </div>
+                  <h4 className="font-bold text-white text-xs mb-1">{p.title}</h4>
+                  <p className="text-slate-400 text-xs leading-relaxed">{p.desc}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* ── CTA SECTION ── */}
-      <section className="bg-white border-t border-slate-200">
-        <div className="mx-auto max-w-4xl px-6 py-20 text-center">
-          <h2 className="text-3xl font-black tracking-tight text-slate-900 mb-4">Ready to experience better care?</h2>
-          <p className="text-lg text-slate-600 mb-8">
-            Create an account today to explore services, view pricing, and book your first verified provider.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/register"
-              className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-8 text-base font-bold text-white transition hover:bg-blue-700 shadow-xl shadow-blue-600/20 hover:-translate-y-0.5"
-            >
-              Book a Service
-              <ArrowRight size={18} />
+      {/* Leadership */}
+      <section className="max-w-6xl mx-auto px-4 py-14">
+        <h2 className="text-2xl font-bold text-slate-900 mb-10 text-center" style={{fontFamily:'Poppins,sans-serif'}}>Our Leadership</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {leadership.map((l) => (
+            <div key={l.name} className="text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-700 font-bold text-xl shadow-md">
+                {l.initials}
+              </div>
+              <h4 className="font-bold text-slate-800 text-sm">{l.name}</h4>
+              <p className="text-slate-500 text-xs mt-0.5">{l.role}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA Banner */}
+      <section className="bg-blue-600 py-14">
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <h2 className="text-2xl font-bold text-white mb-4" style={{fontFamily:'Poppins,sans-serif'}}>Ready to Experience Better Care at Home?</h2>
+          <p className="text-blue-100 mb-8 text-base">Book a verified care professional today and experience the Rivo difference.</p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link to="/book" className="inline-flex items-center justify-center gap-2 bg-white text-blue-600 font-bold px-8 py-3 rounded-lg hover:bg-blue-50 transition text-sm">
+              Book a Service <ChevronRight size={16} />
             </Link>
-            <Link
-              to="/contact-us"
-              className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-slate-100 px-8 text-base font-bold text-slate-900 transition hover:bg-slate-200 border border-slate-200"
-            >
-              Speak with our team
+            <Link to="/contact-us" className="inline-flex items-center justify-center gap-2 border border-white text-white font-bold px-8 py-3 rounded-lg hover:bg-blue-700 transition text-sm">
+              Talk to an Expert
             </Link>
           </div>
         </div>
       </section>
+
     </div>
   );
 }
