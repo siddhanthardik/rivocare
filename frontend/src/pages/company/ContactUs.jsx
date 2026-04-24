@@ -48,7 +48,7 @@ export default function ContactUs() {
             <div>
               <h3 className="font-bold text-slate-800 text-sm mb-0.5">Call Us</h3>
               <p className="text-slate-500 text-xs mb-1">24/7 Support</p>
-              <a href="tel:+911234567890" className="text-blue-600 font-semibold text-sm">+91 98765 43210</a>
+              <a href="tel:+917838033664" className="text-blue-600 font-semibold text-sm">+91 78380 33664</a>
             </div>
           </div>
 
@@ -60,7 +60,7 @@ export default function ContactUs() {
             <div>
               <h3 className="font-bold text-slate-800 text-sm mb-0.5">Email Us</h3>
               <p className="text-slate-500 text-xs mb-1">We reply within 2 hours</p>
-              <a href="mailto:info@rivocare.in" className="text-blue-600 font-semibold text-sm">info@rivocare.in</a>
+              <a href="mailto:support@rivocare.com" className="text-blue-600 font-semibold text-sm">support@rivocare.com</a>
             </div>
           </div>
 
@@ -72,7 +72,7 @@ export default function ContactUs() {
             <div>
               <h3 className="font-bold text-slate-800 text-sm mb-0.5">WhatsApp Us</h3>
               <p className="text-slate-500 text-xs mb-1">Quick response on WhatsApp</p>
-              <a href="https://wa.me/919876543210" target="_blank" rel="noreferrer" className="text-green-600 font-semibold text-sm">+91 98765 43210</a>
+              <a href="https://wa.me/917838033664" target="_blank" rel="noreferrer" className="text-green-600 font-semibold text-sm">+91 78380 33664</a>
             </div>
           </div>
 
@@ -188,8 +188,7 @@ export default function ContactUs() {
             <p className="text-blue-100 text-sm">Our support team is available 24/7 to help you.</p>
           </div>
           <a
-            href="tel:+919876543210"
-            className="shrink-0 inline-flex items-center gap-2 bg-white text-blue-600 font-bold px-6 py-3 rounded-lg hover:bg-blue-50 transition text-sm"
+            href="tel:+917838033664" className="shrink-0 inline-flex items-center gap-2 bg-white text-blue-600 font-bold px-6 py-3 rounded-lg hover:bg-blue-50 transition text-sm"
           >
             <Phone size={15} /> Call Now
           </a>

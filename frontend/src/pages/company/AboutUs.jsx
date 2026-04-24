@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ShieldCheck, Users, Clock, Award, CheckCircle2, ChevronRight, Star, TrendingUp, Heart } from 'lucide-react';
+import { ShieldCheck, Clock, Award, CheckCircle2, ChevronRight } from 'lucide-react';
 
 const stats = [
   { value: '10,000+', label: 'Families Served' },
@@ -23,12 +23,7 @@ const journey = [
   { year: '2024', title: 'Growing', desc: '10,000+ families served and counting.' },
 ];
 
-const leadership = [
-  { name: 'Rohit Verma', role: 'CEO & Founder', initials: 'RV' },
-  { name: 'Dr. Neha Sharma', role: 'Head of Medical', initials: 'NS' },
-  { name: 'Ankit Agarwal', role: 'Head of Operations', initials: 'AA' },
-  { name: 'Priya Nair', role: 'Head of Finance', initials: 'PN' },
-];
+
 
 export default function AboutUs() {
   return (
@@ -141,21 +136,7 @@ export default function AboutUs() {
         </div>
       </section>
 
-      {/* Leadership */}
-      <section className="max-w-6xl mx-auto px-4 py-14">
-        <h2 className="text-2xl font-bold text-slate-900 mb-10 text-center" style={{fontFamily:'Poppins,sans-serif'}}>Our Leadership</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {leadership.map((l) => (
-            <div key={l.name} className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-700 font-bold text-xl shadow-md">
-                {l.initials}
-              </div>
-              <h4 className="font-bold text-slate-800 text-sm">{l.name}</h4>
-              <p className="text-slate-500 text-xs mt-0.5">{l.role}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+
 
       {/* CTA Banner */}
       <section className="bg-blue-600 py-14">

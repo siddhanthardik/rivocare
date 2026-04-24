@@ -29,17 +29,14 @@ export default function Header() {
           </div>
           <div className="flex items-center gap-2">
             <Phone size={13} className="opacity-80" />
-            <a href="tel:+918123123123" className="hover:text-blue-300 transition">+91 8123 123 123</a>
+            <a href="tel:+917838033664" className="hover:text-blue-300 transition">+91 78380 33664</a>
           </div>
           <div className="flex items-center gap-2">
             <Mail size={13} className="opacity-80" />
-            <a href="mailto:care@rivocare.com" className="hover:text-blue-300 transition">care@rivocare.com</a>
+            <a href="mailto:support@rivocare.com" className="hover:text-blue-300 transition">support@rivocare.com</a>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-6">
-          <Link to="/careers" className="flex items-center gap-1.5 hover:text-blue-300 transition">
-            <BriefcaseIcon /> We're Hiring!
-          </Link>
           <Link to="/refer" className="flex items-center gap-1.5 hover:text-blue-300 transition">
             <GiftIcon /> Refer & Earn
           </Link>
@@ -84,7 +81,7 @@ export default function Header() {
               <Link to="/register" className="hidden sm:flex items-center gap-2 bg-[#0f52ba] text-white text-[15px] font-semibold px-6 py-2.5 rounded-lg hover:bg-blue-700 transition shadow-md shadow-blue-500/20">
                 Book Now <ArrowRight size={16} />
               </Link>
-              <a href="https://wa.me/918123123123" target="_blank" rel="noreferrer" className="flex items-center justify-center w-10 h-10 border-2 border-emerald-500 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
+              <a href="https://wa.me/917838033664" target="_blank" rel="noreferrer" className="flex items-center justify-center w-10 h-10 border-2 border-emerald-500 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
                 <WhatsAppIcon />
               </a>
             </div>
