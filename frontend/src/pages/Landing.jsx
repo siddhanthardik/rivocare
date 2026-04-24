@@ -1,43 +1,19 @@
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
-import {
-  HeartPulse, ChevronRight, ChevronDown, Star, CheckCircle2,
-  Shield, Clock, Stethoscope, Activity, Users, Phone,
-  MapPin, ArrowRight, MessageCircle, Zap, Heart, Award
-} from 'lucide-react';
+import { ChevronRight, Star, Shield, Plus, Minus, Phone, ArrowRight, MapPin } from 'lucide-react';
 import Footer from '../components/layout/Footer';
-import { bookingService } from '../services';
 
-// ─── Animation Variants ───────────────────────────────────────
-const fadeUp = {
-  hidden: { opacity: 0, y: 32 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } },
-};
-const fadeLeft = {
-  hidden: { opacity: 0, x: -32 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.6, ease: 'easeOut' } },
-};
-const fadeRight = {
-  hidden: { opacity: 0, x: 32 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.6, ease: 'easeOut' } },
-};
-const staggerContainer = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.12 } },
-};
-
-// ─── Scroll-triggered section wrapper ────────────────────────
-function FadeSection({ children, className = '', variants = fadeUp, delay = 0 }) {
+// ─── Animation Wrapper ───────────────────────────────────────
+function FadeSection({ children, className = '', delay = 0 }) {
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-60px' });
+  const inView = useInView(ref, { once: true, margin: '-40px' });
   return (
     <motion.div
       ref={ref}
-      initial="hidden"
-      animate={inView ? 'visible' : 'hidden'}
-      variants={variants}
-      transition={{ delay }}
+      initial={{ opacity: 0, y: 30 }}
+      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
+      transition={{ duration: 0.6, ease: 'easeOut', delay }}
       className={className}
     >
       {children}
@@ -45,454 +21,409 @@ function FadeSection({ children, className = '', variants = fadeUp, delay = 0 })
   );
 }
 
-// ─── Data ──────────────────────────────────────────────────────
 const services = [
-  {
-    icon: <Stethoscope className="w-7 h-7" />,
-    color: 'bg-blue-50 text-blue-600',
-    border: 'group-hover:border-blue-200',
-    name: 'Nursing Care',
-    desc: 'Wound care, injections, IV drips & vital sign monitoring at your home.',
-    price: 'From ₹400/hr',
-  },
-  {
-    icon: <Activity className="w-7 h-7" />,
-    color: 'bg-emerald-50 text-emerald-600',
-    border: 'group-hover:border-emerald-200',
-    name: 'Physiotherapy',
-    desc: 'Post-surgery rehab, pain management & mobility exercises.',
-    price: 'From ₹500/hr',
-  },
-  {
-    icon: <HeartPulse className="w-7 h-7" />,
-    color: 'bg-rose-50 text-rose-600',
-    border: 'group-hover:border-rose-200',
-    name: 'Doctor Visit',
-    desc: 'GP consultations, diagnosis & prescription at your doorstep.',
-    price: 'From ₹700/visit',
-  },
-  {
-    icon: <Heart className="w-7 h-7" />,
-    color: 'bg-amber-50 text-amber-600',
-    border: 'group-hover:border-amber-200',
-    name: 'Elder Care',
-    desc: 'Daily care assistance, companionship & personal hygiene support.',
-    price: 'From ₹300/hr',
-  },
-];
-
-const trustPoints = [
-  { icon: <Shield className="w-6 h-6" />, title: 'Verified Professionals', desc: 'Every provider is background-checked, licensed & re-verified every 6 months.', color: 'text-blue-600 bg-blue-50' },
-  { icon: <Clock className="w-6 h-6" />, title: '24/7 Support', desc: 'Our care team is available round the clock to assist you and your family.', color: 'text-violet-600 bg-violet-50' },
-  { icon: <Heart className="w-6 h-6" />, title: 'Care at Home', desc: 'Skip the hospital. Get the same professional care from your own bed.', color: 'text-rose-600 bg-rose-50' },
-  { icon: <Zap className="w-6 h-6" />, title: 'Affordable Pricing', desc: 'Transparent pricing with no hidden charges. Pay only for what you book.', color: 'text-amber-600 bg-amber-50' },
+  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcNurseIcon />, title: 'Nurse', desc: 'Trained nurses for post-surgery, wound care & injections.' },
+  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcDoctorIcon />, title: 'Doctor', desc: 'Consult experienced doctors at home for illness & follow-up.' },
+  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcPhysioIcon />, title: 'Physiotherapy', desc: 'Pain management, mobility training and rehabilitation.' },
+  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcLabIcon />, title: 'Lab Test', desc: 'Book lab tests at home with accurate reports & fast collection.' },
+  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcElderIcon />, title: 'Elder Care', desc: 'Compassionate elder care services including daily assistance.' },
+  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcCaregiverIcon />, title: 'Caregiver', desc: 'Trained attendants for patient care, elder & newborn care.' },
+  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcAmbulanceIcon />, title: 'Ambulance', desc: 'Quick and reliable transport services for medical needs.' },
+  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcEmergencyIcon />, title: 'Emergency', desc: 'Immediate medical response and critical care support.' },
 ];
 
 const steps = [
-  { num: '01', icon: <Stethoscope className="w-8 h-8" />, title: 'Choose a Service', desc: 'Select the type of care you need — nursing, physio, doctor, or elder care.' },
-  { num: '02', icon: <MapPin className="w-8 h-8" />, title: 'Book Appointment', desc: 'Enter your location and pick a convenient date and time slot.' },
-  { num: '03', icon: <HeartPulse className="w-8 h-8" />, title: 'Get Care at Home', desc: 'Your verified professional arrives on time and delivers expert care.' },
+  { num: '1', title: 'Book Request', desc: 'Choose your service and schedule a convenient time.', icon: <CalendarIcon /> },
+  { num: '2', title: 'Expert Assigned', desc: 'We assign the best care expert as per your requirements.', icon: <UserAssignIcon /> },
+  { num: '3', title: 'Care Begins at Home', desc: 'Our expert arrives on time and care begins at your home.', icon: <HomeHeartIcon /> },
 ];
 
 const testimonials = [
-  {
-    name: 'Anjali Sharma', city: 'Mumbai', rating: 5,
-    text: 'RIVO connected me with a fantastic nurse in under 10 minutes. Absolute lifesaver for my father\'s post-op recovery.',
-    avatar: 'AS',
-    avatarColor: 'bg-blue-500',
-  },
-  {
-    name: 'Rohan Mehta', city: 'Pune', rating: 5,
-    text: 'Booked a physiotherapist for my knee surgery rehab. Professional, punctual, and incredibly skilled.',
-    avatar: 'RM',
-    avatarColor: 'bg-emerald-500',
-  },
-  {
-    name: 'Priya Nair', city: 'Bangalore', rating: 5,
-    text: 'The doctor visit was seamless. No travel, no waiting rooms — I\'m never going back to clinics for minor issues!',
-    avatar: 'PN',
-    avatarColor: 'bg-rose-500',
-  },
+  { text: "The nurse was very professional and took great care of my mother during her recovery. Highly recommended!", name: "Anita Sharma", location: "Delhi", avatar: "https://i.pravatar.cc/150?img=5", rating: 5 },
+  { text: "Rivo Care's physiotherapy service helped my father recover faster than we expected.", name: "Rahul Mehta", location: "Gurgaon", avatar: "https://i.pravatar.cc/150?img=11", rating: 5 },
+  { text: "Very reliable and compassionate team. They truly care for your loved ones.", name: "Sneha Iyer", location: "Noida", avatar: "https://i.pravatar.cc/150?img=9", rating: 5 },
 ];
 
-const stats = [
-  { value: '200+', label: 'Verified Providers', icon: <Users className="w-5 h-5" /> },
-  { value: '5K+', label: 'Bookings Completed', icon: <CheckCircle2 className="w-5 h-5" /> },
-  { value: '4.8★', label: 'Average Rating', icon: <Star className="w-5 h-5" /> },
-  { value: '12+', label: 'Cities Served', icon: <MapPin className="w-5 h-5" /> },
+const faqs = [
+  { q: 'How do I book a service?', a: 'You can book a service directly through our website by clicking "Book Now" or by calling our 24/7 support line.' },
+  { q: 'Are your caregivers verified?', a: 'Yes, all our professionals undergo strict background checks and medical credential verification.' },
+  { q: 'What areas do you serve?', a: 'We currently serve major cities including Bangalore, Mumbai, Delhi, Hyderabad, Chennai, Pune, Kolkata, and Ahmedabad.' },
+  { q: 'Is there 24/7 support available?', a: 'Absolutely. Our care coordination team is available round the clock.' },
+  { q: 'Can I change or reschedule a booking?', a: 'Yes, you can easily manage your bookings through your patient dashboard.' },
+  { q: 'Do you provide medical equipment?', a: 'We arrange necessary medical equipment for services like ICU at home through our partners.' },
 ];
 
 export default function Landing() {
-  const [pincode, setPincode] = useState('');
-  const [pincodeResult, setPincodeResult] = useState(null); // null | 'available' | 'unavailable'
-  const [areaDetails, setAreaDetails] = useState(null);
-  const [checkingPin, setCheckingPin] = useState(false);
-
-  const checkPincode = async () => {
-    if (pincode.length !== 6) return;
-    setCheckingPin(true);
-    try {
-      const res = await bookingService.checkPincode(pincode);
-      if (res.data.isServiceable) {
-        setPincodeResult('available');
-        setAreaDetails(res.data.data);
-      } else {
-        setPincodeResult('unavailable');
-        setAreaDetails(null);
-      }
-    } catch(err) {
-      setPincodeResult('unavailable');
-      setAreaDetails(null);
-    } finally {
-      setCheckingPin(false);
-    }
-  };
+  const [openFaq, setOpenFaq] = useState(null);
 
   return (
-    <div className="min-h-screen bg-white overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 font-sans overflow-x-hidden text-slate-800">
 
-      {/* ── HERO ─────────────────────────────────────────── */}
-      <section className="relative min-h-[88vh] flex items-center bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 text-white overflow-hidden">
-        {/* Decorative blobs */}
-        <div className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full bg-blue-500/30 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-[400px] h-[400px] rounded-full bg-indigo-600/30 blur-3xl pointer-events-none" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-blue-400/10 blur-3xl pointer-events-none" />
+      {/* ── HERO SECTION ── */}
+      <section className="relative bg-gradient-to-br from-[#f8fafc] to-[#f1f5f9] overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24">
+        {/* Decorative Grid Background */}
+        <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-20" style={{ backgroundImage: 'radial-gradient(#cbd5e1 2px, transparent 2px)', backgroundSize: '30px 30px' }} />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 md:py-28 w-full relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* Left */}
-            <motion.div initial="hidden" animate="visible" variants={staggerContainer}>
-              <motion.div variants={fadeUp}
-                className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
-                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                200+ verified healthcare professionals
-              </motion.div>
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-6 relative z-10 flex flex-col lg:flex-row items-center gap-12">
 
-              <motion.h1 variants={fadeUp} className="text-4xl sm:text-5xl md:text-6xl font-bold leading-[1.1] mb-6 tracking-tight">
-                Healthcare at Home,{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-cyan-300">
-                  Simplified
-                </span>
-              </motion.h1>
+          {/* Left Content */}
+          <div className="w-full lg:w-[45%]">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
+              <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-600 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider mb-8 border border-primary-100">
+                <Shield size={14} className="text-primary-500" /> India's Trusted Home Healthcare Partner
+              </div>
 
-              <motion.p variants={fadeUp} className="text-lg sm:text-xl text-blue-100 mb-8 max-w-xl leading-relaxed">
-                Book verified nurses, doctors, physiotherapists and caretakers — professional care delivered right to your doorstep.
-              </motion.p>
+              <h1 className="font-poppins text-[44px] sm:text-[56px] lg:text-[64px] font-black leading-[1.05] tracking-tight text-[#1E293B] mb-6">
+                Care, Reimagined at <span className="text-[#2563EB]">Home</span>
+              </h1>
 
-              <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 mb-10">
-                <Link to="/register"
-                  className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-bold px-8 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-blue-900/30 hover:shadow-2xl hover:shadow-blue-900/40 hover:-translate-y-0.5 active:translate-y-0 duration-200">
-                  Book Now <ChevronRight size={18} />
+              <p className="text-lg text-slate-600 mb-10 max-w-lg leading-relaxed font-medium">
+                Professional nursing, elderly care, doctor visits and recovery support delivered to your doorstep.
+              </p>
+
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-6 mb-10 pb-10 border-b border-slate-200">
+                <div>
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary-50 text-primary-600 mb-2">
+                    <UserGroupIcon />
+                  </div>
+                  <p className="font-bold text-[#1E293B] text-xl">10,000+</p>
+                  <p className="text-xs text-slate-500 font-medium">Families Served</p>
+                </div>
+                <div className="h-12 w-px bg-slate-200 hidden sm:block" />
+                <div>
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary-50 text-primary-600 mb-2">
+                    <ClockOutlineIcon />
+                  </div>
+                  <p className="font-bold text-[#1E293B] text-xl">24/7</p>
+                  <p className="text-xs text-slate-500 font-medium">Support</p>
+                </div>
+                <div className="h-12 w-px bg-slate-200 hidden sm:block" />
+                <div>
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary-50 text-primary-600 mb-2">
+                    <DoctorIcon />
+                  </div>
+                  <p className="font-bold text-[#1E293B] text-xl">500+</p>
+                  <p className="text-xs text-slate-500 font-medium">Care Experts</p>
+                </div>
+                <div className="h-12 w-px bg-slate-200 hidden lg:block" />
+                <div>
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary-50 text-primary-600 mb-2">
+                    <StarOutlineIcon />
+                  </div>
+                  <p className="font-bold text-[#1E293B] text-xl">4.8/5</p>
+                  <p className="text-xs text-slate-500 font-medium">Customer Rating</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+                <Link to="/register" className="inline-flex items-center justify-center gap-2 bg-[#2563EB] text-white font-bold px-8 py-4 rounded-xl hover:bg-primary-800 transition-all shadow-xl shadow-primary-500/20 text-base">
+                  Book Consultation <ChevronRight size={18} />
                 </Link>
-                <a href="#services"
-                  className="inline-flex items-center justify-center gap-2 border border-white/30 text-white font-semibold px-8 py-4 rounded-2xl hover:bg-white/10 transition-all duration-200">
-                  Explore Services <ChevronDown size={18} />
+                <a href="#services" className="inline-flex items-center justify-center gap-2 border-2 border-[#2563EB] text-[#2563EB] font-bold px-8 py-4 rounded-xl hover:bg-primary-50 transition-all text-base">
+                  Explore Services <ChevronRight size={18} />
                 </a>
-              </motion.div>
+              </div>
 
-              {/* Pincode Checker */}
-              <motion.div variants={fadeUp} className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-4">
-                <p className="text-sm text-blue-200 mb-2 font-medium flex items-center gap-1.5">
-                  <MapPin size={14} /> Check availability in your area
+              <div className="flex items-center gap-3">
+                <div className="flex -space-x-3">
+                  <img src="https://i.pravatar.cc/100?img=1" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm" alt="user" />
+                  <img src="https://i.pravatar.cc/100?img=2" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm" alt="user" />
+                  <img src="https://i.pravatar.cc/100?img=3" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm" alt="user" />
+                  <img src="https://i.pravatar.cc/100?img=4" className="w-10 h-10 rounded-full border-2 border-white object-cover shadow-sm" alt="user" />
+                </div>
+                <p className="text-sm text-slate-600 font-medium text-left">
+                  Trusted by <span className="font-bold text-slate-900">10,000+</span> families across Delhi NCR
                 </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={pincode}
-                    onChange={e => { setPincode(e.target.value.replace(/\D/g, '')); setPincodeResult(null); }}
-                    placeholder="Enter your pincode"
-                    className="flex-1 bg-white/20 backdrop-blur-sm border border-white/20 text-white placeholder-blue-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-white/50 focus:bg-white/25 transition"
-                    onKeyDown={e => e.key === 'Enter' && checkPincode()}
-                  />
-                  <button
-                    onClick={checkPincode}
-                    disabled={pincode.length !== 6 || checkingPin}
-                    className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-5 py-2.5 rounded-xl transition-all duration-150 text-sm whitespace-nowrap">
-                    {checkingPin ? '...' : 'Check'}
-                  </button>
-                </div>
-                {pincodeResult === 'available' && (
-                  <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                    className="text-emerald-300 text-sm mt-2 flex items-center gap-1.5 font-medium">
-                    <CheckCircle2 size={14} /> Great! RIVO is available in {areaDetails?.areaName ? `${areaDetails.areaName}, ${areaDetails.city}` : 'your area'}.
-                  </motion.p>
-                )}
-                {pincodeResult === 'unavailable' && (
-                  <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                    className="text-amber-300 text-sm mt-2">
-                    We're expanding soon! We'll notify you when we launch here.
-                  </motion.p>
-                )}
-              </motion.div>
-            </motion.div>
-
-            {/* Right — Decorative UI mock */}
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ duration: 0.7, ease: 'easeOut', delay: 0.2 }}
-              className="hidden lg:block relative">
-              <div className="relative w-full max-w-sm mx-auto">
-                {/* Main card */}
-                <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
-                  <div className="bg-gradient-to-r from-blue-500 to-indigo-500 p-5 text-white">
-                    <p className="text-xs font-semibold opacity-70 mb-1">TODAY'S BOOKING</p>
-                    <h3 className="text-lg font-bold">Nurse Home Visit</h3>
-                    <p className="text-sm opacity-80 mt-0.5">10:30 AM · Your Home</p>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    {[
-                      { avatar: 'SS', name: 'Siddhi S.', role: 'Registered Nurse', rating: '4.9', color: 'bg-blue-400' },
-                      { avatar: 'AM', name: 'Arjun M.', role: 'Physiotherapist', rating: '5.0', color: 'bg-emerald-400' },
-                    ].map(p => (
-                      <div key={p.name} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                        <div className={`w-10 h-10 ${p.color} rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0`}>{p.avatar}</div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-slate-800 flex items-center gap-1">{p.name} <Shield size={12} className="text-emerald-500" /></p>
-                          <p className="text-xs text-slate-500">{p.role}</p>
-                        </div>
-                        <div className="text-xs font-bold text-amber-500">⭐ {p.rating}</div>
-                      </div>
-                    ))}
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-                      <p className="text-xs text-emerald-600 font-semibold">✅ Arrival confirmed — 8 min away</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Floating badge 1 */}
-                <motion.div
-                  animate={{ y: [0, -8, 0] }} transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-                  className="absolute -top-4 -right-4 bg-white rounded-2xl shadow-xl px-4 py-2.5 flex items-center gap-2">
-                  <span className="text-emerald-500 text-lg">✅</span>
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">Background Verified</p>
-                    <p className="text-[10px] text-slate-400">All providers</p>
-                  </div>
-                </motion.div>
-
-                {/* Floating badge 2 */}
-                <motion.div
-                  animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut', delay: 0.5 }}
-                  className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-xl px-4 py-2.5 flex items-center gap-2">
-                  <Award className="w-5 h-5 text-blue-500" />
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">5,000+ Bookings</p>
-                    <p className="text-[10px] text-slate-400">This month</p>
-                  </div>
-                </motion.div>
               </div>
             </motion.div>
           </div>
+
+          {/* Right Image */}
+          <div className="w-full lg:w-[55%] relative">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.7, delay: 0.2 }}>
+              <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl">
+                {/* Hero Image */}
+                <img src="/images/hero-nurse.png" alt="Nurse with elderly patient" className="w-full h-auto object-cover" />
+
+                {/* Floating Badge */}
+                <div className="absolute bottom-8 right-8 bg-white/95 backdrop-blur-md px-5 py-4 rounded-2xl shadow-xl flex items-center gap-4 border border-slate-100">
+                  <div>
+                    <p className="font-bold text-[#1E293B] leading-tight mb-1 text-sm">Background Verified</p>
+                    <p className="text-[11px] text-slate-500 font-medium leading-none">Care Professionals</p>
+                  </div>
+                  <div className="w-10 h-10 bg-[#22c55e] rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20">
+                    <ShieldCheckIconSmall className="text-white" />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
         </div>
       </section>
 
-      {/* ── STATS BAR ────────────────────────────────────── */}
-      <FadeSection>
-        <section className="bg-white border-b border-slate-100 shadow-sm">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {stats.map((s) => (
-                <div key={s.label} className="flex flex-col items-center text-center gap-1">
-                  <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center mb-1">{s.icon}</div>
-                  <span className="text-2xl font-bold text-slate-900">{s.value}</span>
-                  <span className="text-xs text-slate-500 font-medium">{s.label}</span>
+      {/* ── COMPREHENSIVE CARE AT HOME ── */}
+      <section id="services" className="py-20 bg-white">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
+          <FadeSection className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-600 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider mb-4 border border-primary-100">
+              <span className="w-2 h-2 rounded-full bg-primary-500"></span> Our Services
+            </div>
+            <h2 className="font-poppins text-[32px] sm:text-[40px] font-black text-[#1E293B] mb-4 tracking-tight">Comprehensive Care at Home</h2>
+            <p className="text-slate-500 text-base max-w-2xl mx-auto font-medium">From everyday support to advanced medical care, we bring hospital-quality services to your home.</p>
+          </FadeSection>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {services.map((svc, i) => (
+              <FadeSection key={i} delay={i * 0.05}>
+                <Link to="/register" className="group block bg-white border border-slate-200 rounded-3xl p-6 hover:shadow-xl hover:border-primary-200 transition-all duration-300">
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform ${svc.bgClass || 'bg-slate-50'}`}>
+                    {svc.icon}
+                  </div>
+                  <h3 className="font-poppins font-bold text-[#1E293B] text-lg mb-3">{svc.title}</h3>
+                  <p className="text-sm text-slate-500 leading-relaxed mb-6 font-medium">{svc.desc}</p>
+                  <p className="text-xs font-bold text-[#2563EB] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    Learn More <ChevronRight size={14} />
+                  </p>
+                </Link>
+              </FadeSection>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── WHY CHOOSE RIVO CARE ── */}
+      <section className="py-24 bg-[#f8fafc]">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+
+            {/* Left */}
+            <FadeSection>
+              <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-600 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider mb-6 border border-primary-100">
+                <CheckCircleOutlineIcon /> Why Choose Rivo Care
+              </div>
+              <h2 className="font-poppins text-[36px] sm:text-[48px] font-black text-[#1E293B] leading-[1.1] mb-6 tracking-tight">
+                Trusted Care.<br />Every Time.
+              </h2>
+              <p className="text-slate-600 text-lg mb-8 leading-relaxed font-medium">
+                We combine technology, compassion and clinical excellence to deliver the best care experience.
+              </p>
+
+              <div className="space-y-4">
+                {['NABH aligned practices', 'Verified & Trained Care Experts', 'Transparent Pricing', '24/7 Customer Support'].map((pt, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 shrink-0">
+                      <CheckIconSmall />
+                    </div>
+                    <span className="text-[#1E293B] font-semibold">{pt}</span>
+                  </div>
+                ))}
+              </div>
+            </FadeSection>
+
+            {/* Right - Grid */}
+            <FadeSection delay={0.2} className="grid grid-cols-2 gap-4 sm:gap-6">
+              {[
+                { val: '500+', label: 'Care Experts', icon: <DoctorIcon /> },
+                { val: '10,000+', label: 'Families Served', icon: <UserGroupIcon /> },
+                { val: '98%', label: 'Satisfaction Rate', icon: <CheckCircleOutlineIcon /> },
+                { val: '4.8/5', label: 'Google Rating', icon: <StarOutlineIcon /> }
+              ].map((stat, i) => (
+                <div key={i} className="bg-white rounded-[2rem] p-8 text-center shadow-lg shadow-slate-200/50 border border-slate-100 hover:-translate-y-2 transition-transform">
+                  <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 text-[#2563EB]">
+                    {stat.icon}
+                  </div>
+                  <h3 className="font-poppins text-3xl font-black text-[#1E293B] mb-1">{stat.val}</h3>
+                  <p className="text-sm font-semibold text-slate-500">{stat.label}</p>
                 </div>
+              ))}
+            </FadeSection>
+
+          </div>
+        </div>
+      </section>
+
+      {/* ── HEALTHCARE IN 3 SIMPLE STEPS ── */}
+      <section className="py-24 bg-white">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
+          <FadeSection className="text-center mb-20">
+            <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-600 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider mb-4 border border-primary-100">
+              How It Works
+            </div>
+            <h2 className="font-poppins text-[32px] sm:text-[40px] font-black text-[#1E293B] mb-4 tracking-tight">Healthcare in 3 Simple Steps</h2>
+          </FadeSection>
+
+          <div className="relative max-w-5xl mx-auto">
+            <div className="hidden md:block absolute top-10 left-[15%] right-[15%] h-[2px] border-t-2 border-dashed border-primary-200" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
+              {steps.map((step, i) => (
+                <FadeSection key={i} delay={i * 0.15} className="relative z-10 flex flex-col items-center">
+                  <div className="relative mb-6">
+                    <div className="w-20 h-20 bg-white rounded-full border border-primary-100 flex items-center justify-center text-[#2563EB] shadow-xl shadow-blue-100">
+                      {step.icon}
+                    </div>
+                    <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-[#2563EB] text-white flex items-center justify-center font-bold text-sm shadow-md">
+                      {step.num}
+                    </div>
+                  </div>
+                  <h3 className="font-poppins text-xl font-bold text-[#1E293B] mb-3">{step.title}</h3>
+                  <p className="text-sm text-slate-500 font-medium leading-relaxed max-w-[250px]">{step.desc}</p>
+                </FadeSection>
               ))}
             </div>
           </div>
-        </section>
-      </FadeSection>
-
-      {/* ── SERVICES ─────────────────────────────────────── */}
-      <section id="services" className="py-20 bg-slate-50/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <FadeSection className="text-center mb-14">
-            <p className="text-sm font-semibold text-blue-600 uppercase tracking-widest mb-3">What We Offer</p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">Professional Care for Every Need</h2>
-            <p className="text-slate-500 text-lg max-w-2xl mx-auto">From daily nursing to specialized therapy — RIVO brings certified professionals to your home.</p>
-          </FadeSection>
-
-          <motion.div
-            ref={useRef(null)}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-60px' }}
-            variants={staggerContainer}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {services.map((svc) => (
-              <motion.div key={svc.name} variants={fadeUp}
-                whileHover={{ scale: 1.04, y: -4 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                className={`group bg-white rounded-2xl p-6 border-2 border-slate-100 ${svc.border} shadow-sm hover:shadow-xl transition-all duration-300 cursor-default`}>
-                <div className={`w-14 h-14 ${svc.color} rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}>
-                  {svc.icon}
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">{svc.name}</h3>
-                <p className="text-sm text-slate-500 leading-relaxed mb-4">{svc.desc}</p>
-                <span className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">{svc.price}</span>
-              </motion.div>
-            ))}
-          </motion.div>
         </div>
       </section>
 
-      {/* ── TRUST ────────────────────────────────────────── */}
-      <section className="py-20 bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white overflow-hidden relative">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(59,130,246,0.15),transparent_70%)]" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
-          <FadeSection className="text-center mb-14">
-            <p className="text-sm font-semibold text-blue-400 uppercase tracking-widest mb-3">Built on Trust</p>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Why Families Choose RIVO</h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">We set the highest standard of safety, reliability, and compassion in home healthcare.</p>
+      {/* ── STORIES OF TRUST & CARE ── */}
+      <section className="py-24 bg-[#f8fafc] border-t border-slate-100">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
+          <FadeSection className="mb-12">
+            <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-600 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider mb-4 border border-primary-100">
+              <CheckCircleOutlineIcon /> What Families Say
+            </div>
+            <h2 className="font-poppins text-[32px] sm:text-[40px] font-black text-[#1E293B] tracking-tight">Stories of Trust & Care</h2>
           </FadeSection>
 
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-60px' }}
-            variants={staggerContainer}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {trustPoints.map((pt) => (
-              <motion.div key={pt.title} variants={fadeUp}
-                whileHover={{ y: -6 }}
-                className="bg-white/5 border border-white/10 backdrop-blur-sm rounded-2xl p-6 hover:bg-white/10 transition-all duration-300">
-                <div className={`w-12 h-12 ${pt.color} rounded-xl flex items-center justify-center mb-4`}>{pt.icon}</div>
-                <h3 className="font-bold text-white mb-2">{pt.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">{pt.desc}</p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ── HOW IT WORKS ─────────────────────────────────── */}
-      <section className="py-20 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <FadeSection className="text-center mb-14">
-            <p className="text-sm font-semibold text-blue-600 uppercase tracking-widest mb-3">Simple Process</p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">Get Care in 3 Easy Steps</h2>
-            <p className="text-slate-500 text-lg">From search to doorstep — it takes less than 5 minutes.</p>
-          </FadeSection>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-60px' }}
-            variants={staggerContainer}
-            className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            {/* Connector line (desktop) */}
-            <div className="hidden md:block absolute top-12 left-[17%] right-[17%] h-0.5 bg-gradient-to-r from-blue-200 via-blue-400 to-blue-200" />
-
-            {steps.map((step, i) => (
-              <motion.div key={step.num} variants={fadeUp}
-                className="flex flex-col items-center text-center relative z-10">
-                <motion.div
-                  whileHover={{ scale: 1.08, rotate: 3 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
-                  className="w-24 h-24 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex flex-col items-center justify-center mb-6 shadow-xl shadow-blue-200">
-                  {step.icon}
-                  <span className="text-xs font-bold mt-1 opacity-70">{step.num}</span>
-                </motion.div>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">{step.title}</h3>
-                <p className="text-sm text-slate-500 leading-relaxed max-w-xs">{step.desc}</p>
-              </motion.div>
-            ))}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ── TESTIMONIALS ─────────────────────────────── */}
-      <section className="py-20 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <FadeSection className="text-center mb-14">
-            <p className="text-sm font-semibold text-blue-600 uppercase tracking-widest mb-3">Real Experiences</p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-4">Trusted by Thousands of Families</h2>
-            <p className="text-slate-500 text-lg">See what our patients and their families have to say.</p>
-          </FadeSection>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-60px' }}
-            variants={staggerContainer}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((t) => (
-              <motion.div key={t.name} variants={fadeUp}
-                whileHover={{ y: -5, scale: 1.01 }}
-                className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-lg transition-all duration-300">
-                {/* Stars */}
-                <div className="flex gap-1 mb-4">
-                  {Array(t.rating).fill(0).map((_, i) => (
-                    <Star key={i} size={15} className="fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-                <p className="text-slate-600 leading-relaxed mb-6 text-sm">"{t.text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 ${t.avatarColor} rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0`}>{t.avatar}</div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">{t.name}</p>
-                    <p className="text-xs text-slate-400">{t.city}</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {testimonials.map((t, i) => (
+              <FadeSection key={i} delay={i * 0.1} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                <QuoteIcon className="text-blue-100 mb-6 w-10 h-10" />
+                <p className="text-slate-600 italic leading-relaxed mb-8 font-medium">"{t.text}"</p>
+                <div className="flex items-center justify-between border-t border-slate-100 pt-6">
+                  <div className="flex items-center gap-3">
+                    <img src={t.avatar} alt={t.name} className="w-12 h-12 rounded-full" />
+                    <div>
+                      <p className="font-bold text-[#1E293B] text-sm">{t.name}</p>
+                      <p className="text-xs text-slate-500 font-medium">{t.location}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-0.5">
+                    {[...Array(5)].map((_, idx) => (
+                      <Star key={idx} size={14} className={idx < t.rating ? "fill-amber-400 text-amber-400" : "fill-slate-200 text-slate-200"} />
+                    ))}
                   </div>
                 </div>
-              </motion.div>
+              </FadeSection>
             ))}
-          </motion.div>
+          </div>
+          <div className="flex justify-center gap-2 mt-8">
+            <div className="w-2.5 h-2.5 rounded-full bg-[#2563EB]"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-slate-200"></div>
+            <div className="w-2.5 h-2.5 rounded-full bg-slate-200"></div>
+          </div>
         </div>
       </section>
 
-      {/* ── FINAL CTA ────────────────────────────────────── */}
-      <section className="py-24 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 text-white relative overflow-hidden">
-        <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-indigo-600/30 rounded-full blur-3xl pointer-events-none" />
-        <FadeSection className="max-w-3xl mx-auto px-4 sm:px-6 text-center relative z-10">
-          <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/20">
-            <HeartPulse className="w-8 h-8 text-white" />
+      {/* ── DARK BLUE TRUST BANNER ── */}
+      <section className="bg-[#1e293b] text-white">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-6 py-12">
+          <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center justify-between gap-8 divide-y md:divide-y-0 md:divide-x divide-slate-700">
+            {[
+              { icon: <ShieldCheckIcon />, title: "Verified Care Experts", desc: "All caregivers are background verified and trained" },
+              { icon: <SirenIcon />, title: "Emergency Support", desc: "24/7 support for all your urgent care needs" },
+              { icon: <SparklesIcon />, title: "Hygiene & Safety", desc: "Strict hygiene protocols for your safety" },
+              { icon: <TagIcon />, title: "Transparent Pricing", desc: "No hidden charges. What you see is what you pay." },
+              { icon: <LockIcon />, title: "Data Privacy", desc: "Your data is safe and protected" }
+            ].map((item, i) => (
+              <div key={i} className="flex-1 min-w-[200px] flex items-start gap-4 pt-6 md:pt-0 md:px-4 first:pl-0 last:pr-0">
+                <div className="text-[#38bdf8] shrink-0 opacity-80">{item.icon}</div>
+                <div>
+                  <h4 className="font-poppins font-bold text-sm mb-1">{item.title}</h4>
+                  <p className="text-xs text-slate-400 leading-relaxed font-medium">{item.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
-          <h2 className="text-3xl sm:text-5xl font-bold mb-4 leading-tight">
-            Book Trusted Care Today
-          </h2>
-          <p className="text-blue-100 text-lg mb-10 max-w-xl mx-auto">
-            Join 5,000+ families who trust RIVO for safe, professional, and affordable home healthcare.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/register"
-              className="inline-flex items-center justify-center gap-2 bg-white text-blue-700 font-bold px-10 py-4 rounded-2xl hover:bg-blue-50 transition-all shadow-xl shadow-blue-900/30 hover:-translate-y-0.5 duration-200 text-base">
-              Create Free Account <ArrowRight size={18} />
-            </Link>
-            <Link to="/login"
-              className="inline-flex items-center justify-center gap-2 border border-white/30 text-white font-semibold px-10 py-4 rounded-2xl hover:bg-white/10 transition-all text-base">
-              Already have an account?
-            </Link>
-          </div>
-        </FadeSection>
+        </div>
       </section>
 
-      {/* ── FOOTER ───────────────────────────────────────── */}
+      {/* ── NEED URGENT CARE TODAY BANNER ── */}
+      <section className="py-16 bg-white">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
+          <div className="relative rounded-[2rem] bg-gradient-to-r from-[#2563EB] to-blue-600 overflow-hidden shadow-2xl flex flex-col md:flex-row items-center justify-between p-10 lg:p-14">
+            <div className="relative z-10 w-full md:w-2/3">
+              <h2 className="font-poppins text-3xl md:text-5xl font-black text-white mb-4 tracking-tight">Need Urgent Care Today?</h2>
+              <p className="text-blue-100 text-lg mb-8 font-medium">Get immediate assistance from our care experts.</p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link to="/register" className="inline-flex items-center justify-center gap-2 bg-white text-[#2563EB] font-bold px-8 py-4 rounded-xl hover:bg-primary-50 transition-colors shadow-lg">
+                  Book Now <ArrowRight size={18} />
+                </Link>
+                <a href="tel:+918123123123" className="inline-flex items-center justify-center gap-2 bg-primary-700 text-white font-bold px-8 py-4 rounded-xl border border-primary-500 hover:bg-primary-800 transition-colors">
+                  Call Now <Phone size={18} />
+                </a>
+              </div>
+            </div>
+            {/* Absolute positioned doctor image on the right */}
+            <div className="absolute right-0 bottom-0 top-0 w-1/3 hidden md:block">
+              <img src="/images/doctor-banner.png" alt="Doctor" className="absolute bottom-0 right-10 h-[120%] object-contain object-bottom" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+
+      {/* ── FAQ ── */}
+      <section className="py-24 bg-white">
+        <div className="max-w-4xl mx-auto px-4 lg:px-6">
+          <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-600 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider mb-6 border border-primary-100">
+            FAQs
+          </div>
+          <h2 className="font-poppins text-3xl font-black text-[#1E293B] mb-10 tracking-tight">Frequently Asked Questions</h2>
+
+          <div className="space-y-4">
+            {faqs.map((faq, i) => (
+              <div key={i} className="border border-slate-200 rounded-2xl overflow-hidden bg-[#f8fafc] transition-colors hover:bg-slate-50">
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full flex items-center justify-between p-6 text-left"
+                >
+                  <span className="font-bold text-[#1E293B] pr-4">{faq.q}</span>
+                  <div className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center transition-colors ${openFaq === i ? 'bg-[#2563EB] text-white' : 'bg-primary-100 text-[#2563EB]'}`}>
+                    {openFaq === i ? <Minus size={14} /> : <Plus size={14} />}
+                  </div>
+                </button>
+                {openFaq === i && (
+                  <div className="px-6 pb-6 text-slate-600 font-medium text-sm leading-relaxed border-t border-slate-100 pt-4">
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <Footer />
-
-      {/* ── FLOATING WHATSAPP ────────────────────────────── */}
-      <motion.a
-        href="https://wa.me/919999999999?text=Hi%2C%20I%20need%20home%20healthcare%20assistance."
-        target="_blank"
-        rel="noreferrer"
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ delay: 1.5, type: 'spring', stiffness: 200 }}
-        whileHover={{ scale: 1.12 }}
-        whileTap={{ scale: 0.95 }}
-        title="Chat with us on WhatsApp"
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full shadow-2xl shadow-emerald-500/50 flex items-center justify-center transition-colors duration-200">
-        <MessageCircle className="w-7 h-7" />
-      </motion.a>
-
-      {/* ── MOBILE STICKY BOOK NOW ───────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 sm:hidden px-4 pb-4 pt-2 bg-white/95 backdrop-blur-md border-t border-slate-100 shadow-xl">
-        <Link to="/register"
-          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold w-full py-4 rounded-2xl transition-colors shadow-lg shadow-blue-200 text-base">
-          <Phone size={18} /> Book Now
-        </Link>
-      </div>
-
     </div>
   );
 }
+
+// Internal SVG Icons to match mockup
+function UserGroupIcon() { return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>; }
+function ClockOutlineIcon() { return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>; }
+function DoctorIcon() { return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M19 8v6"></path><path d="M22 11h-6"></path></svg>; }
+function StarOutlineIcon() { return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>; }
+function CheckCircleOutlineIcon() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>; }
+function CheckIconSmall() { return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>; }
+function CalendarIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>; }
+function UserAssignIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>; }
+function HomeHeartIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg>; }
+function QuoteIcon(props) { return <svg viewBox="0 0 24 24" fill="currentColor" {...props}><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" /></svg>; }
+function ShieldCheckIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>; }
+function SirenIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M5 5l1.5 1.5"></path><path d="M17.5 17.5L19 19"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M5 19l1.5-1.5"></path><path d="M17.5 6.5L19 5"></path><circle cx="12" cy="12" r="5"></circle></svg>; }
+function SparklesIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path></svg>; }
+function TagIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>; }
+function LockIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>; }
+
+// Service Custom Icons matching Rivo Brand Kit (Exact match to reference)
+function SvcNurseIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 9 L6 3.5 H18 L20.5 9" /><path d="M3.5 9 C8 11 16 11 20.5 9" /><path d="M12 4.5 V7.5 M10.5 6 H13.5" /><path d="M4.5 10 C3 14 4 18 6 18 C7 18 8 16 8 14" /><path d="M19.5 10 C21 14 20 18 18 18 C17 18 16 16 16 14" /><path d="M8 12.5 C8 17 16 17 16 12.5" /></svg>; }
+function SvcDoctorIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4 A1 1 0 1 0 7 2 A1 1 0 1 0 7 4 Z" /><path d="M17 4 A1 1 0 1 0 17 2 A1 1 0 1 0 17 4 Z" /><path d="M7 4 C7 7 7 11 7 11 C7 16.5 17 16.5 17 11 C17 11 17 7 17 4" /><path d="M12 16.5 V20" /><path d="M10 20 C10 18 14 18 14 20 C14 22 10 22 10 20 Z" /></svg>; }
+function SvcPhysioIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 20 H8 M10 20 H21" /><circle cx="16" cy="5" r="2" /><path d="M15 7 L12 13" /><path d="M14 9 L11 14 L11 19" /><path d="M12 13 L9 20" /><path d="M12 13 L14 15 L14 20" /></svg>; }
+function SvcLabIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3 H15 M10 3 V7 L4.5 18 A2 2 0 0 0 6 21 H18 A2 2 0 0 0 19.5 18 L14 7 V3" /><path d="M6 15 Q10 13 12 15 T18 15" stroke="#6EE7B7" /><circle cx="11" cy="18" r="0.5" fill="#6EE7B7" stroke="none" /><circle cx="14" cy="17" r="0.5" fill="#6EE7B7" stroke="none" /></svg>; }
+function SvcElderIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="5" r="2.5" /><path d="M4 14 C4 10 14 10 14 14" /><path d="M6 14 V21 M10 14 V21" /><path d="M14 14 V16 L16 16" /><path d="M18 15 A2 2 0 0 0 14 15 V21" /></svg>; }
+function SvcCaregiverIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16 C8 13 6 9 8 6 C9.5 4 12 6 12 8 C12 6 14.5 4 16 6 C18 9 16 13 12 16 Z" stroke="#6EE7B7" /><path d="M3 13 Q3 19 10 21 L12 19" /><path d="M6 15 L9 17" /><path d="M21 13 Q21 19 14 21 L12 19" /><path d="M18 15 L15 17" /></svg>; }
+function SvcAmbulanceIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 16 V8 C2 7 3 6 4 6 H14 V16 Z" /><path d="M14 8 H17 L21 12 V16 H14 Z" /><circle cx="6" cy="16" r="2" /><circle cx="17" cy="16" r="2" /><path d="M15 9 H17 L19 12 H15 Z" /><path d="M8 9.5 L8.5 11 H10 L8.5 12 L9 13.5 L8 12.5 L7 13.5 L7.5 12 L6 11 H7.5 Z" /></svg>; }
+function SvcEmergencyIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 16 C6 9 18 9 18 16" /><path d="M4 16 H20 M3 19 H21" /><path d="M5 16 V19 M19 16 V19" /><path d="M12 9 V16" stroke="#6EE7B7" /><path d="M12 2 V5 M5 6 L7 8 M19 6 L17 8" stroke="#6EE7B7" /></svg>; }
+function ShieldCheckIconSmall(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>; }

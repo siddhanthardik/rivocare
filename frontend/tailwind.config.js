@@ -5,22 +5,28 @@ export default {
     extend: {
       colors: {
         primary: {
-          50:  '#EFF6FF',
-          100: '#DBEAFE',
-          500: '#3B82F6',
-          600: '#2563EB',
-          700: '#1D4ED8',
-          900: '#1E3A8A',
+          50:  '#eff6ff',
+          100: '#dbeafe',
+          500: '#3b82f6',
+          600: '#2563EB', // Primary Blue
+          700: '#1d4ed8',
+          900: '#1e3a8a',
         },
-        accent: {
-          500: '#10B981',
+        mint: {
+          50: '#f0fdf4',
+          100: '#dcfce7',
+          500: '#6EE7B7', // Mint Green
           600: '#059669',
         },
+        navy: {
+          900: '#1E293B', // Deep Navy
+        },
         surface: '#FFFFFF',
-        'app-bg': '#F8FAFC',
+        'app-bg': '#F5F7FA', // Light Gray
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+        poppins: ['Poppins', 'sans-serif'],
       },
       boxShadow: {
         card: '0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04)',

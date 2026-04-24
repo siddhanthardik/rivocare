@@ -77,6 +77,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ── Sitemap (Dynamic XML) ───────────────────────────────────
+app.get('/sitemap.xml', require('./controllers/sitemapController').generateSitemap);
+
 // ── Routes ─────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/kyc', kycRoutes);

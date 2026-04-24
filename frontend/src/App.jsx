@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { GuestRoute, ProtectedRoute } from './components/layout/RouteGuards';
 import Header from './components/layout/Header';
 import DashboardLayout from './components/layout/DashboardLayout';
+import ScrollToTop from './components/layout/ScrollToTop';
 
 // Pages
 import Landing from './pages/Landing';
@@ -11,10 +12,20 @@ import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
 import BookingWizard from './pages/booking/BookingWizard';
 import JoinProvider from './pages/JoinProvider';
+import Footer from './components/layout/Footer';
 
 import TermsOfService from './pages/legal/TermsOfService';
 import PrivacyPolicy from './pages/legal/PrivacyPolicy';
+import AboutUs from './pages/company/AboutUs';
+import ContactUs from './pages/company/ContactUs';
+import Careers from './pages/company/Careers';
+import Sitemap from './pages/company/Sitemap';
 
+// Services
+import NursingCare from './pages/services/NursingCare';
+import Physiotherapy from './pages/services/Physiotherapy';
+import DoctorAtHome from './pages/services/DoctorAtHome';
+import ElderCare from './pages/services/ElderCare';
 // Patient Dashboard
 import PatientOverview from './pages/dashboard/patient/Overview';
 import PatientBookings from './pages/dashboard/patient/Bookings';
@@ -80,12 +91,23 @@ const adminNav = [
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
       {/* Public */}
       <Route path="/" element={<><Header /><Landing /></>} />
+      <Route path="/services/nursing-care" element={<><Header /><NursingCare /><Footer /></>} />
+      <Route path="/services/physiotherapy" element={<><Header /><Physiotherapy /><Footer /></>} />
+      <Route path="/services/doctor-at-home" element={<><Header /><DoctorAtHome /><Footer /></>} />
+      <Route path="/services/elder-care" element={<><Header /><ElderCare /><Footer /></>} />
       <Route path="/join" element={<><Header /><JoinProvider /></>} />
-      <Route path="/terms-of-service" element={<><Header /><TermsOfService /></>} />
-      <Route path="/privacy-policy" element={<><Header /><PrivacyPolicy /></>} />
+      <Route path="/about-us" element={<><Header /><AboutUs /><Footer /></>} />
+      <Route path="/contact-us" element={<><Header /><ContactUs /><Footer /></>} />
+      <Route path="/careers" element={<><Header /><Careers /><Footer /></>} />
+      <Route path="/sitemap" element={<><Header /><Sitemap /><Footer /></>} />
+      <Route path="/terms-of-service" element={<><Header /><TermsOfService /><Footer /></>} />
+      <Route path="/terms-and-conditions" element={<Navigate to="/terms-of-service" replace />} />
+      <Route path="/privacy-policy" element={<><Header /><PrivacyPolicy /><Footer /></>} />
 
       {/* Guest-only */}
       <Route element={<GuestRoute />}>
@@ -140,5 +162,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
