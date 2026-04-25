@@ -318,6 +318,33 @@ exports.updateBookingStatus = async (req, res, next) => {
         provider.totalEarnings += booking.totalAmount;
         await provider.save();
 
+        // 💰 Stage 3: Referral First Booking Bonus (₹100)
+        if (provider.completedBookings === 1 && provider.referredByCode) {
+          try {
+            const referrer = await Provider.findOne({ referralCode: provider.referredByCode });
+            if (referrer) {
+              const Wallet = require('../models/Wallet');
+              const Transaction = require('../models/Transaction');
+              
+              let referrerWallet = await Wallet.findOne({ user: referrer.user });
+              if (!referrerWallet) referrerWallet = await Wallet.create({ user: referrer.user, balance: 0 });
+
+              referrerWallet.balance += 100;
+              await referrerWallet.save();
+
+              await Transaction.create({
+                wallet: referrerWallet._id,
+                type: 'CREDIT',
+                amount: 100,
+                description: `Referral First Booking Bonus (Provider: ${req.user.name})`,
+                referenceId: booking._id,
+              });
+            }
+          } catch (err) {
+            console.error('Failed to credit Stage 3 referral bonus', err);
+          }
+        }
+
         // 🔔 Notify both parties
         const pNotif = await Notification.create({
           user: booking.patient,

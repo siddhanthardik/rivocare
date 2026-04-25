@@ -1,6 +1,8 @@
 const ProviderLead = require('../models/ProviderLead');
 const Provider = require('../models/Provider');
 const ServiceablePincode = require('../models/ServiceablePincode');
+const Wallet = require('../models/Wallet');
+const Transaction = require('../models/Transaction');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @POST /api/providers/lead  (PUBLIC — no auth required)
@@ -45,6 +47,30 @@ exports.captureProviderLead = async (req, res, next) => {
       referredBy,
       referralCode: referralCode || null,
     });
+
+    // 💰 Stage 1: Referral Signup Bonus (₹25)
+    if (referredBy) {
+      try {
+        const referrerProvider = await Provider.findById(referredBy);
+        if (referrerProvider) {
+          let wallet = await Wallet.findOne({ user: referrerProvider.user });
+          if (!wallet) wallet = await Wallet.create({ user: referrerProvider.user, balance: 0 });
+
+          wallet.balance += 25;
+          await wallet.save();
+
+          await Transaction.create({
+            wallet: wallet._id,
+            type: 'CREDIT',
+            amount: 25,
+            description: `Referral Signup Bonus (Lead: ${lead.name})`,
+            referenceId: lead._id, // Using lead ID as reference
+          });
+        }
+      } catch (err) {
+        console.error('Failed to credit Stage 1 referral bonus', err);
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -120,12 +146,37 @@ exports.updateLeadStatus = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Invalid status' });
     }
 
-    const lead = await ProviderLead.findByIdAndUpdate(
-      req.params.id,
-      { ...(status && { status }), ...(notes !== undefined && { notes }) },
-      { new: true }
-    );
+    const lead = await ProviderLead.findById(req.params.id);
     if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+
+    const oldStatus = lead.status;
+    lead.status = status || lead.status;
+    if (notes !== undefined) lead.notes = notes;
+    await lead.save();
+
+    // 💰 Stage 2: Referral Onboarding Bonus (₹75)
+    if (status === 'ONBOARDED' && oldStatus !== 'ONBOARDED' && lead.referredBy) {
+      try {
+        const referrerProvider = await Provider.findById(lead.referredBy);
+        if (referrerProvider) {
+          let wallet = await Wallet.findOne({ user: referrerProvider.user });
+          if (!wallet) wallet = await Wallet.create({ user: referrerProvider.user, balance: 0 });
+
+          wallet.balance += 75;
+          await wallet.save();
+
+          await Transaction.create({
+            wallet: wallet._id,
+            type: 'CREDIT',
+            amount: 75,
+            description: `Referral Onboarding Bonus (Lead: ${lead.name})`,
+            referenceId: lead._id,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to credit Stage 2 referral bonus', err);
+      }
+    }
 
     res.json({ success: true, message: 'Lead updated', data: { lead } });
   } catch (err) {

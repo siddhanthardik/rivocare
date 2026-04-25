@@ -46,14 +46,30 @@ export default function ProviderReferrals() {
           <Gift size={120} />
         </div>
         
-        <div className="relative z-10 max-w-lg">
+        <div className="relative z-10 max-w-2xl">
           <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-sm font-semibold mb-4 backdrop-blur-sm">
-            Provider Referral Program
+            Tiered Referral Program
           </span>
-          <h2 className="text-3xl font-extrabold mb-3">Earn ₹1,000 per referral</h2>
-          <p className="text-indigo-100 mb-6 text-lg">
-            Share your unique link. When your colleague joins RIVO and completes their first booking, you both get a reward!
-          </p>
+          <h2 className="text-3xl font-extrabold mb-3">Earn up to ₹200 per referral</h2>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 mt-6">
+            <div className="bg-white/10 p-3 rounded-xl border border-white/20 backdrop-blur-sm text-center">
+              <p className="text-[10px] uppercase font-bold text-indigo-200">Stage 1</p>
+              <p className="text-xl font-bold">₹25</p>
+              <p className="text-[10px] text-indigo-100">On Signup</p>
+            </div>
+            <div className="bg-white/10 p-3 rounded-xl border border-white/20 backdrop-blur-sm text-center">
+              <p className="text-[10px] uppercase font-bold text-indigo-200">Stage 2</p>
+              <p className="text-xl font-bold">₹75</p>
+              <p className="text-[10px] text-indigo-100">On Onboarding</p>
+            </div>
+            <div className="bg-white/10 p-3 rounded-xl border border-white/20 backdrop-blur-sm text-center">
+              <p className="text-[10px] uppercase font-bold text-indigo-200">Stage 3</p>
+              <p className="text-xl font-bold">₹100</p>
+              <p className="text-[10px] text-indigo-100">On First Booking</p>
+            </div>
+          </div>
+
 
           <div className="bg-white/10 p-4 rounded-xl border border-white/20 backdrop-blur-md">
             <p className="text-xs text-indigo-200 uppercase tracking-wider font-semibold mb-2">Your Unique Link</p>
@@ -86,8 +102,9 @@ export default function ProviderReferrals() {
             <Users size={24} />
           </div>
           <div>
-            <p className="text-sm font-semibold text-slate-500 mb-1">Total Referrals (Clicks & Signups)</p>
+            <p className="text-sm font-semibold text-slate-500 mb-1">Total Referrals (Signups)</p>
             <h3 className="text-3xl font-bold text-slate-800">{data.totalLeads}</h3>
+            <p className="text-xs text-slate-400 mt-1">₹25 earned per signup</p>
           </div>
         </div>
 
@@ -99,8 +116,9 @@ export default function ProviderReferrals() {
             <p className="text-sm font-semibold text-slate-500 mb-1">Successfully Onboarded</p>
             <div className="flex items-end gap-3">
               <h3 className="text-3xl font-bold text-slate-800">{data.onboarded}</h3>
-              <p className="text-emerald-600 font-semibold mb-1">Earned: ₹{data.onboarded * 1000}</p>
+              <p className="text-emerald-600 font-semibold mb-1">₹75 more per lead</p>
             </div>
+            <p className="text-xs text-slate-400 mt-1">₹100 extra on their first booking</p>
           </div>
         </div>
       </div>
