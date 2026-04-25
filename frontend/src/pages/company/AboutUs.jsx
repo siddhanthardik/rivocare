@@ -16,12 +16,7 @@ const trustPillars = [
   { icon: Clock, title: '24/7 Support', desc: 'Round-the-clock support from our patient coordination team.' },
 ];
 
-const journey = [
-  { year: '2019', title: 'Founded', desc: 'Rivo was founded with a vision to make professional home healthcare accessible.' },
-  { year: '2021', title: 'Expanded', desc: 'Expanded our services and reached 5,000+ families across Delhi NCR.' },
-  { year: '2023', title: 'Launched 24/7', desc: 'Launched across multiple cities with 24/7 support.' },
-  { year: '2024', title: 'Growing', desc: '10,000+ families served and counting.' },
-];
+
 
 
 
@@ -97,23 +92,7 @@ export default function AboutUs() {
         </div>
       </section>
 
-      {/* Journey Timeline */}
-      <section className="bg-slate-50 py-14">
-        <div className="max-w-6xl mx-auto px-4">
-          <h2 className="text-2xl font-bold text-slate-900 mb-10 text-center" style={{fontFamily:'Poppins,sans-serif'}}>Our Journey</h2>
-          <div className="relative grid md:grid-cols-4 gap-6">
-            {/* line */}
-            <div className="hidden md:block absolute top-6 left-0 right-0 h-0.5 bg-blue-200 z-0" />
-            {journey.map((j) => (
-              <div key={j.year} className="relative z-10 text-center">
-                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm mx-auto mb-3">{j.year}</div>
-                <h4 className="font-bold text-slate-800 text-sm mb-1">{j.title}</h4>
-                <p className="text-slate-500 text-xs leading-relaxed">{j.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+
 
       {/* Why Families Trust Rivo */}
       <section className="bg-[#1E293B] py-14">
