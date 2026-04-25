@@ -25,6 +25,21 @@ const {
   setAdminPrice,
   getProviderDetails,
 } = require('../controllers/adminController');
+const { upload } = require('../utils/cloudinary');
+const {
+  createPage,
+  listPages,
+  getPage,
+  updatePage,
+  deletePage,
+  uploadPageHero,
+  createBlog,
+  listBlogs,
+  getBlog,
+  updateBlog,
+  deleteBlog,
+  uploadBlogHero,
+} = require('../controllers/adminController');
 const {
   getProviderLeads,
   updateLeadStatus,
@@ -83,5 +98,21 @@ router.get('/leads', getProviderLeads);
 router.put('/leads/:id', updateLeadStatus);
 router.put('/providers/:id/onboarding-status', updateProviderOnboardingStatus);
 router.get('/supply-gaps', getSupplyGaps);
+
+// Content Management: Pages
+router.post('/content/pages', createPage);
+router.get('/content/pages', listPages);
+router.get('/content/pages/:id', getPage);
+router.put('/content/pages/:id', updatePage);
+router.delete('/content/pages/:id', deletePage);
+router.post('/content/pages/:id/hero', upload.single('image'), uploadPageHero);
+
+// Content Management: Blogs
+router.post('/blogs', createBlog);
+router.get('/blogs', listBlogs);
+router.get('/blogs/:id', getBlog);
+router.put('/blogs/:id', updateBlog);
+router.delete('/blogs/:id', deleteBlog);
+router.post('/blogs/:id/hero', upload.single('image'), uploadBlogHero);
 
 module.exports = router;

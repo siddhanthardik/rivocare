@@ -85,6 +85,20 @@ export const adminService = {
   updateLeadStatus: (id, data) => api.put(`/admin/leads/${id}`, data),
   updateProviderOnboarding: (id, data) => api.put(`/admin/providers/${id}/onboarding-status`, data),
   getSupplyGaps: () => api.get('/admin/supply-gaps'),
+  // Content Management
+  createPage: (data) => api.post('/admin/content/pages', data),
+  listPages: (params) => api.get('/admin/content/pages', { params }),
+  getPage: (id) => api.get(`/admin/content/pages/${id}`),
+  updatePage: (id, data) => api.put(`/admin/content/pages/${id}`, data),
+  deletePage: (id) => api.delete(`/admin/content/pages/${id}`),
+  uploadPageHero: (id, formData) => api.post(`/admin/content/pages/${id}/hero`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+
+  createBlog: (data) => api.post('/admin/blogs', data),
+  listBlogs: (params) => api.get('/admin/blogs', { params }),
+  getBlog: (id) => api.get(`/admin/blogs/${id}`),
+  updateBlog: (id, data) => api.put(`/admin/blogs/${id}`, data),
+  deleteBlog: (id) => api.delete(`/admin/blogs/${id}`),
+  uploadBlogHero: (id, formData) => api.post(`/admin/blogs/${id}/hero`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 };
 
 export const kycService = {

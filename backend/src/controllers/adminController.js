@@ -788,3 +788,144 @@ exports.setAdminPrice = async (req, res, next) => {
     });
   } catch (err) { next(err); }
 };
+
+// ---------------------- CMS: Pages & Blogs ----------------------
+const Page = require('../models/Page');
+const Blog = require('../models/Blog');
+
+// @POST /api/admin/content/pages
+exports.createPage = async (req, res, next) => {
+  try {
+    const { title, slug, content, meta, isActive } = req.body;
+    const existing = await Page.findOne({ slug });
+    if (existing) return res.status(400).json({ success: false, message: 'Slug already in use' });
+    const page = await Page.create({ title, slug, content, meta, isActive, createdBy: req.user._id });
+    res.status(201).json({ success: true, message: 'Page created', data: { page } });
+  } catch (err) { next(err); }
+};
+
+// @GET /api/admin/content/pages
+exports.listPages = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, search } = req.query;
+    const filter = {};
+    if (search) filter.$or = [ { title: { $regex: search, $options: 'i' } }, { slug: { $regex: search, $options: 'i' } } ];
+    const total = await Page.countDocuments(filter);
+    const pages = await Page.find(filter).sort({ createdAt: -1 }).limit(Number(limit)).skip((Number(page)-1)*Number(limit));
+    res.json({ success: true, data: { pages, total, page: Number(page), totalPages: Math.ceil(total/limit) } });
+  } catch (err) { next(err); }
+};
+
+// @GET /api/admin/content/pages/:id
+exports.getPage = async (req, res, next) => {
+  try {
+    const page = await Page.findById(req.params.id);
+    if (!page) return res.status(404).json({ success: false, message: 'Page not found' });
+    res.json({ success: true, data: { page } });
+  } catch (err) { next(err); }
+};
+
+// @PUT /api/admin/content/pages/:id
+exports.updatePage = async (req, res, next) => {
+  try {
+    const update = { ...req.body, updatedBy: req.user._id };
+    const page = await Page.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (!page) return res.status(404).json({ success: false, message: 'Page not found' });
+    res.json({ success: true, message: 'Page updated', data: { page } });
+  } catch (err) { next(err); }
+};
+
+// @DELETE /api/admin/content/pages/:id
+exports.deletePage = async (req, res, next) => {
+  try {
+    const page = await Page.findByIdAndDelete(req.params.id);
+    if (!page) return res.status(404).json({ success: false, message: 'Page not found' });
+    res.json({ success: true, message: 'Page deleted' });
+  } catch (err) { next(err); }
+};
+
+// @POST /api/admin/content/pages/:id/hero (multipart form-data file: image)
+exports.uploadPageHero = async (req, res, next) => {
+  try {
+    const page = await Page.findById(req.params.id);
+    if (!page) return res.status(404).json({ success: false, message: 'Page not found' });
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+    // multer-storage-cloudinary exposes file.path as URL in many configs
+    const url = req.file.path || req.file.secure_url || req.file.url;
+    const publicId = req.file.filename || req.file.public_id || req.file.publicId;
+    page.heroImage = { url, publicId };
+    await page.save();
+    res.json({ success: true, message: 'Hero image uploaded', data: { page } });
+  } catch (err) { next(err); }
+};
+
+// ---------------- Blogs ----------------
+// @POST /api/admin/blogs
+exports.createBlog = async (req, res, next) => {
+  try {
+    const { title, slug, excerpt, content, tags = [], status } = req.body;
+    const existing = await Blog.findOne({ slug });
+    if (existing) return res.status(400).json({ success: false, message: 'Slug already in use' });
+    const blog = await Blog.create({ title, slug, excerpt, content, tags, status: status || 'DRAFT', author: req.user._id, createdBy: req.user._id });
+    if (blog.status === 'PUBLISHED') blog.publishedAt = new Date();
+    await blog.save();
+    res.status(201).json({ success: true, message: 'Blog created', data: { blog } });
+  } catch (err) { next(err); }
+};
+
+// @GET /api/admin/blogs
+exports.listBlogs = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, status, search } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+    if (search) filter.$or = [ { title: { $regex: search, $options: 'i' } }, { slug: { $regex: search, $options: 'i' } }, { excerpt: { $regex: search, $options: 'i' } } ];
+    const total = await Blog.countDocuments(filter);
+    const blogs = await Blog.find(filter).populate('author', 'name email').sort({ createdAt: -1 }).limit(Number(limit)).skip((Number(page)-1)*Number(limit));
+    res.json({ success: true, data: { blogs, total, page: Number(page), totalPages: Math.ceil(total/limit) } });
+  } catch (err) { next(err); }
+};
+
+// @GET /api/admin/blogs/:id
+exports.getBlog = async (req, res, next) => {
+  try {
+    const blog = await Blog.findById(req.params.id).populate('author', 'name email');
+    if (!blog) return res.status(404).json({ success: false, message: 'Blog not found' });
+    res.json({ success: true, data: { blog } });
+  } catch (err) { next(err); }
+};
+
+// @PUT /api/admin/blogs/:id
+exports.updateBlog = async (req, res, next) => {
+  try {
+    const update = { ...req.body, updatedBy: req.user._id };
+    const blog = await Blog.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
+    if (!blog) return res.status(404).json({ success: false, message: 'Blog not found' });
+    if (blog.status === 'PUBLISHED' && !blog.publishedAt) blog.publishedAt = new Date();
+    await blog.save();
+    res.json({ success: true, message: 'Blog updated', data: { blog } });
+  } catch (err) { next(err); }
+};
+
+// @DELETE /api/admin/blogs/:id
+exports.deleteBlog = async (req, res, next) => {
+  try {
+    const blog = await Blog.findByIdAndDelete(req.params.id);
+    if (!blog) return res.status(404).json({ success: false, message: 'Blog not found' });
+    res.json({ success: true, message: 'Blog deleted' });
+  } catch (err) { next(err); }
+};
+
+// @POST /api/admin/blogs/:id/hero (multipart form-data file: image)
+exports.uploadBlogHero = async (req, res, next) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) return res.status(404).json({ success: false, message: 'Blog not found' });
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+    const url = req.file.path || req.file.secure_url || req.file.url;
+    const publicId = req.file.filename || req.file.public_id || req.file.publicId;
+    blog.heroImage = { url, publicId };
+    await blog.save();
+    res.json({ success: true, message: 'Hero image uploaded', data: { blog } });
+  } catch (err) { next(err); }
+};

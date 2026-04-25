@@ -57,6 +57,7 @@ import AdminServiceAreas from './pages/dashboard/admin/ServiceAreas';
 import AdminPlansPackages from './pages/dashboard/admin/PlansPackages';
 import AdminServicePricing from './pages/dashboard/admin/ServicePricing';
 import AdminSupplyExpansion from './pages/dashboard/admin/SupplyExpansion';
+import ContentManagement from './components/admin/ContentManagement';
 
 // Nav items
 import { LayoutDashboard, Calendar, User, ToggleLeft, TrendingUp, Users, ShieldCheck, BookOpen, UserCheck, BarChart2, ShieldAlert, MapPin, DollarSign } from 'lucide-react';
@@ -81,6 +82,7 @@ const adminNav = [
   { path: '/dashboard/admin', label: 'Overview', icon: LayoutDashboard, end: true },
   { path: '/dashboard/admin/revenue', label: 'Revenue', icon: BarChart2 },
   { path: '/dashboard/admin/plans', label: 'Plans & Packages', icon: BookOpen },
+  { path: '/dashboard/admin/content', label: 'Content Management', icon: BookOpen },
   { path: '/dashboard/admin/pricing', label: 'Service Pricing', icon: DollarSign },
   { path: '/dashboard/admin/supply', label: 'Supply Expansion', icon: Users },
   { path: '/dashboard/admin/users', label: 'Users', icon: Users },
@@ -153,6 +155,7 @@ export default function App() {
           <Route index element={<AdminOverview />} />
           <Route path="revenue" element={<AdminRevenueDashboard />} />
           <Route path="plans" element={<AdminPlansPackages />} />
+          <Route path="content" element={<ContentManagement />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="providers" element={<AdminProviders />} />
           <Route path="kyc" element={<AdminKYC />} />
