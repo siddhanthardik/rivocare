@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, Link } from 'react-router-dom';
 import { LogOut, HeartPulse, X, CheckCircle2, MessageCircle } from 'lucide-react';
 import { cn } from '../../utils';
 import { useAuth } from '../../context/AuthContext';
@@ -25,13 +25,10 @@ export default function Sidebar({ navItems, isOpen, onClose }) {
         'lg:static lg:shadow-none lg:h-auto lg:min-h-screen'
       )}>
         {/* Header/Logo */}
-        <div className="flex items-center justify-between px-7 py-6">
-          <div className="flex items-center gap-2.5 font-bold text-2xl text-blue-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-              <HeartPulse size={24} />
-            </div>
-            <span className="tracking-tight">rivo <span className="text-slate-400 font-normal">CARE</span></span>
-          </div>
+        <div className="flex items-center justify-between px-7 py-8">
+          <Link to="/" className="flex items-center">
+            <img src="/images/logo.png" alt="Rivo Care Logo" className="h-9 w-auto" />
+          </Link>
           <button onClick={onClose} className="lg:hidden p-2 rounded-xl text-slate-400 hover:bg-slate-100">
             <X size={20} />
           </button>
@@ -71,15 +68,19 @@ export default function Sidebar({ navItems, isOpen, onClose }) {
                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
               )}
             >
-              <item.icon size={20} className={cn(
-                'transition-colors',
-                isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
-              )} />
-              <span className="flex-1">{item.label}</span>
-              {item.badge && (
-                <span className="w-5 h-5 bg-blue-100 text-blue-600 text-[10px] font-bold rounded-full flex items-center justify-center border border-blue-200">
-                  {item.badge}
-                </span>
+              {({ isActive }) => (
+                <>
+                  <item.icon size={20} className={cn(
+                    'transition-colors',
+                    isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'
+                  )} />
+                  <span className="flex-1">{item.label}</span>
+                  {item.badge && (
+                    <span className="w-5 h-5 bg-blue-100 text-blue-600 text-[10px] font-bold rounded-full flex items-center justify-center border border-blue-200">
+                      {item.badge}
+                    </span>
+                  )}
+                </>
               )}
             </NavLink>
           ))}

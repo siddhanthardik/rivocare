@@ -62,7 +62,7 @@ export default function DashboardLayout({ navItems }) {
           </div>
         </header>
 
-        <main className="flex-1 p-6 lg:p-10 max-w-[1600px] w-full mx-auto">
+        <main className="flex-1 p-6 lg:p-10 max-w-[1600px] w-full mx-auto bg-slate-50/50">
           <Outlet />
         </main>
       </div>

@@ -1,102 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, cloneElement } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { 
+  Calendar, Search, Filter, MoreHorizontal, ChevronRight, 
+  MapPin, Clock, Star, CreditCard, CheckCircle, IndianRupee,
+  AlertCircle, ThumbsUp, ThumbsDown, ShieldAlert,
+  ArrowRight, ShieldCheck, UserCheck, MessageCircle, HelpCircle,
+  X, Info
+} from 'lucide-react';
 import { bookingService, reviewService, paymentService, walletService } from '../../../services';
-import { formatDateTime, formatCurrency, SERVICE_CONFIG } from '../../../utils';
+import { formatDateTime, formatCurrency, SERVICE_CONFIG, cn, formatDate } from '../../../utils';
 import { PageLoader, EmptyState } from '../../../components/ui/Feedback';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import RateModal from '../../../components/ui/RateModal';
 import StarRating from '../../../components/ui/StarRating';
-import {
-  Star, CreditCard, CheckCircle, IndianRupee,
-  TrendingUp, AlertCircle, ThumbsUp, ThumbsDown, ShieldAlert,
-} from 'lucide-react';
+import Avatar from '../../../components/ui/Avatar';
 import useRazorpay from '../../../hooks/useRazorpay';
-
-// ── Price Breakdown card shown on every booking ──────────────────
-function PriceBreakdownCard({ booking }) {
-  const base     = booking.basePrice       || 0;
-  const markup   = booking.providerMarkup  || 0;
-  const estimated = booking.estimatedPrice || booking.totalAmount || 0;
-  const final    = booking.finalPrice;
-
-  return (
-    <div className="mt-3 p-3 rounded-xl border bg-white text-xs space-y-1.5">
-      <p className="font-semibold text-slate-700 flex items-center gap-1 mb-1">
-        <IndianRupee size={12} className="text-slate-500" /> Price Breakdown
-      </p>
-      <div className="flex justify-between text-slate-500">
-        <span>Base Price</span><span>₹{base}</span>
-      </div>
-      <div className="flex justify-between text-slate-500">
-        <span>Provider Markup</span><span>₹{markup}</span>
-      </div>
-      <div className="border-t border-slate-200 pt-1.5 flex justify-between font-semibold text-slate-800">
-        <span>Estimated Total</span><span>₹{estimated}</span>
-      </div>
-      {final > 0 && final !== estimated && booking.pricingType !== 'OVERRIDE' && (
-        <div className="flex justify-between font-bold text-indigo-700 bg-indigo-50 px-2 py-1.5 rounded-lg mt-1">
-          <span>Updated Price</span><span>₹{final}</span>
-        </div>
-      )}
-      {booking.pricingType === 'OVERRIDE' && (
-        <div className="flex justify-between font-bold text-purple-700 bg-purple-50 px-2 py-1.5 rounded-lg mt-1 border border-purple-100">
-          <span className="flex items-center gap-1">👑 Admin Override</span><span>₹{booking.overridePrice}</span>
-        </div>
-      )}
-      {booking.overrideReason && booking.pricingType === 'OVERRIDE' && (
-        <p className="text-xs text-purple-600 italic px-1 mt-0.5">Reason: {booking.overrideReason}</p>
-      )}
-    </div>
-  );
-}
-
-// ── Price Update Approval Banner (shown when provider updated price) ──
-function PriceApprovalBanner({ booking, onApprove, onReject, approving, rejecting }) {
-  if (!booking.priceUpdated || booking.priceApprovedByPatient) return null;
-
-  return (
-    <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-xl animate-fade-in">
-      <div className="flex items-start gap-2 mb-3">
-        <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold text-amber-900 text-sm">Provider updated the price</p>
-          <p className="text-amber-700 text-xs mt-0.5">
-            New price: <strong>₹{booking.finalPrice}</strong> (was ₹{booking.estimatedPrice})
-          </p>
-          {booking.priceUpdateReason && (
-            <p className="text-amber-700 text-xs mt-1">
-              <strong>Reason:</strong> {booking.priceUpdateReason}
-            </p>
-          )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <p className="text-xs text-amber-700 flex-1">Do you agree to the updated price?</p>
-        <Button
-          size="sm"
-          variant="outline"
-          className="border-red-300 text-red-600 hover:bg-red-50 flex items-center gap-1"
-          onClick={onReject}
-          loading={rejecting}
-          disabled={approving}
-        >
-          <ThumbsDown size={13} /> Reject
-        </Button>
-        <Button
-          size="sm"
-          className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1"
-          onClick={onApprove}
-          loading={approving}
-          disabled={rejecting}
-        >
-          <ThumbsUp size={13} /> Approve
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export default function PatientBookings() {
   const [bookings, setBookings]         = useState([]);
@@ -104,6 +25,7 @@ export default function PatientBookings() {
   const [refresh, setRefresh]           = useState(0);
   const [reviewedMap, setReviewedMap]   = useState({});
   const [walletBalance, setWalletBalance] = useState(0);
+  const [activeTab, setActiveTab]       = useState('all');
 
   // Cancel Modal
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -237,7 +159,6 @@ export default function PatientBookings() {
   const handlePayment = async (booking) => {
     if (!isRazorpayLoaded) return toast.error('Payment gateway is loading. Please try again.');
 
-    // Block payment if price updated but not yet approved
     if (booking.priceUpdated && !booking.priceApprovedByPatient) {
       return toast.error('Please approve or reject the updated price before paying.');
     }
@@ -246,7 +167,6 @@ export default function PatientBookings() {
       ? booking.finalPrice
       : booking.estimatedPrice || booking.totalAmount;
 
-    // Check if wallet can cover it
     const canPayWithWallet = walletBalance >= effectivePrice;
 
     if (canPayWithWallet) {
@@ -271,7 +191,6 @@ export default function PatientBookings() {
       const res = await paymentService.createOrder(booking._id);
       const { order, keyId } = res.data.data;
 
-      // Use finalPrice if approved, else estimatedPrice
       const displayAmount = booking.finalPrice && booking.priceApprovedByPatient
         ? booking.finalPrice
         : booking.estimatedPrice || booking.totalAmount;
@@ -314,198 +233,286 @@ export default function PatientBookings() {
     }
   };
 
+  const filteredBookings = bookings.filter(b => {
+    if (activeTab === 'all') return true;
+    if (activeTab === 'upcoming') return ['pending', 'confirmed', 'in-progress'].includes(b.status);
+    if (activeTab === 'completed') return b.status === 'completed';
+    if (activeTab === 'cancelled') return b.status === 'cancelled';
+    return true;
+  });
+
+  const stats = {
+    total: bookings.length,
+    upcoming: bookings.filter(b => ['pending', 'confirmed', 'in-progress'].includes(b.status)).length,
+    completed: bookings.filter(b => b.status === 'completed').length,
+    cancelled: bookings.filter(b => b.status === 'cancelled').length
+  };
+
   if (loading) return <PageLoader />;
 
   return (
-    <div className="space-y-6">
-      {/* Launching Soon Banner */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-fade-in">
-        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div className="text-sm text-amber-800">
-          <p className="font-semibold uppercase tracking-wider text-[10px] mb-1">Coming Soon</p>
-          <p className="font-medium">We are launching soon in your location. Any Booking done will not be entertained. Keep checking for the updates.</p>
+    <div className="space-y-10 animate-fade-in max-w-[1600px] mx-auto px-4 lg:px-0">
+      
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900" style={{ fontFamily: 'Poppins, sans-serif' }}>My Bookings</h1>
+          <p className="text-slate-500 font-medium text-sm mt-1">View and manage all your appointments and bookings.</p>
         </div>
       </div>
 
-      <div>
-        <h1 className="page-title">My Bookings</h1>
-        <p className="text-slate-500">Manage your past and upcoming consultations.</p>
-      </div>
-
-      {/* Pending price approvals banner */}
-      {bookings.some(b => b.priceUpdated && !b.priceApprovedByPatient) && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-xl px-5 py-3">
-          <ShieldAlert size={18} className="text-amber-600 shrink-0" />
-          <p className="text-sm text-amber-800 font-medium">
-            You have <strong>{bookings.filter(b => b.priceUpdated && !b.priceApprovedByPatient).length}</strong> booking(s) with an updated price awaiting your approval.
-          </p>
-        </div>
-      )}
-
-      <div className="card">
-        {bookings.length === 0 ? (
-          <EmptyState title="No bookings found" description="You haven't made any bookings yet." />
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {bookings.map((b) => {
-              const effectivePrice = (b.priceUpdated && b.priceApprovedByPatient && b.finalPrice)
-                ? b.finalPrice
-                : b.estimatedPrice || b.totalAmount;
-
-              return (
-                <div
-                  key={b._id}
-                  className={`p-5 sm:p-6 flex flex-col sm:flex-row justify-between gap-6 transition-colors hover:bg-slate-50
-                    ${b.priceUpdated && !b.priceApprovedByPatient ? 'border-l-4 border-amber-400 bg-amber-50/10' : ''}
-                  `}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        
+        {/* Main Content Area: Tabs and Booking Cards */}
+        <div className="xl:col-span-8 space-y-6">
+          
+          {/* Tabs and Filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100">
+            <div className="flex gap-8 overflow-x-auto no-scrollbar">
+              {['all', 'upcoming', 'completed', 'cancelled'].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "pb-4 text-sm font-bold capitalize whitespace-nowrap transition-all border-b-2",
+                    activeTab === tab 
+                      ? "text-blue-600 border-blue-600" 
+                      : "text-slate-400 border-transparent hover:text-slate-600"
+                  )}
                 >
-                  {/* Left: details */}
-                  <div className="flex gap-4 sm:gap-6 flex-1 min-w-0">
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl shrink-0 ${SERVICE_CONFIG[b.service].color}`}>
-                      {SERVICE_CONFIG[b.service].icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-1 flex-wrap">
-                        <h4 className="font-semibold text-lg text-slate-800">{SERVICE_CONFIG[b.service].label}</h4>
-                        <Badge status={b.status} />
-                        {b.pricingType === 'OVERRIDE' && (
-                          <span className="flex items-center gap-1 bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs font-bold border border-purple-200">
-                            👑 Admin Priced
-                          </span>
-                        )}
-                        {b.priceUpdated && !b.priceApprovedByPatient && b.pricingType !== 'OVERRIDE' && (
-                          <span className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-bold animate-pulse">
-                            <AlertCircle size={11} /> Price Updated
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm font-medium text-slate-700 mb-0.5">{b.provider?.user?.name}</p>
-                      <p className="text-sm text-slate-500 mb-2">
-                        {formatDateTime(b.scheduledAt)} • {b.durationHours} hr{b.durationHours > 1 ? 's' : ''}
-                      </p>
-                      <div className="text-xs text-slate-500 space-y-1">
-                        <p><strong>Location:</strong> {b.address}, {b.pincode}</p>
-                        {b.notes && <p><strong>Notes:</strong> {b.notes}</p>}
-                        {b.status === 'cancelled' && b.cancelReason && (
-                          <p className="text-red-600"><strong>Cancel Reason:</strong> {b.cancelReason}</p>
-                        )}
-                        {b.paymentStatus === 'PAID' && (
-                          <p className="text-emerald-600 font-bold flex items-center gap-1">
-                            <CheckCircle size={12} /> PAID ONLINE
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Price breakdown */}
-                      {['pending', 'confirmed', 'in-progress', 'completed'].includes(b.status) && (
-                        <PriceBreakdownCard booking={b} />
-                      )}
-
-                      {/* Price Approval Banner */}
-                      <PriceApprovalBanner
-                        booking={b}
-                        onApprove={() => handleApprovePrice(b._id)}
-                        onReject={() => handleRejectPrice(b._id)}
-                        approving={approvingId === b._id}
-                        rejecting={rejectingId === b._id}
-                      />
-
-                      {/* Completion verification */}
-                      {b.status === 'completed' && b.patientVerifiedCompletion === null && (
-                        <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg flex flex-col sm:flex-row sm:items-center gap-3 justify-between animate-fade-in">
-                          <p className="text-sm font-medium text-blue-800">Did the provider complete this service?</p>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" className="bg-white border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleVerifyCompletion(b._id, false)}>No</Button>
-                            <Button size="sm" onClick={() => handleVerifyCompletion(b._id, true)}>Yes</Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Already reviewed */}
-                      {b.status === 'completed' && reviewedMap[b._id] && (
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <StarRating value={5} size="sm" />
-                          <span className="text-xs text-emerald-600 font-medium">Reviewed</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right: price + actions */}
-                  <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-3 shrink-0">
-                    <div className="text-right">
-                      <span className="text-lg font-bold text-slate-800 block">{formatCurrency(effectivePrice)}</span>
-                      {b.priceUpdated && b.priceApprovedByPatient && b.finalPrice !== b.estimatedPrice && (
-                        <span className="text-xs line-through text-slate-400">₹{b.estimatedPrice} est.</span>
-                      )}
-                    </div>
-
-                    {/* Cancel */}
-                    {b.status === 'pending' && (
-                      <Button variant="danger" size="sm" onClick={() => handleCancelClick(b)}>Cancel</Button>
-                    )}
-
-                    {/* Pay Now */}
-                    {b.status === 'confirmed' && b.paymentStatus !== 'PAID' && (
-                      <Button
-                        size="sm"
-                        onClick={() => handlePayment(b)}
-                        loading={processingPayment === b._id}
-                        disabled={b.priceUpdated && !b.priceApprovedByPatient}
-                        title={b.priceUpdated && !b.priceApprovedByPatient ? 'Approve the updated price first' : ''}
-                        className={`flex items-center gap-1.5 text-white disabled:opacity-50 ${walletBalance >= effectivePrice ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-                      >
-                        <CreditCard size={14} />
-                        {walletBalance >= effectivePrice ? 'Pay via Wallet' : `Pay ₹${effectivePrice}`}
-                      </Button>
-                    )}
-
-
-                    {/* Rate */}
-                    {b.status === 'completed' && b.patientVerifiedCompletion === true && !reviewedMap[b._id] && (
-                      <Button
-                        size="sm" variant="outline"
-                        onClick={() => handleRateClick(b)}
-                        className="flex items-center gap-1.5 border-amber-300 text-amber-600 hover:bg-amber-50"
-                      >
-                        <Star size={14} className="fill-amber-400 text-amber-400" />
-                        Rate Now
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                  {tab === 'all' ? 'All Bookings' : tab}
+                </button>
+              ))}
+            </div>
+            
+            <div className="flex items-center gap-3 pb-3 sm:pb-4">
+              <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-4 py-2 text-xs font-bold text-slate-600 shadow-sm cursor-pointer hover:bg-slate-50 transition-colors">
+                <Calendar size={14} className="text-slate-400" />
+                All Dates
+              </div>
+              <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-4 py-2 text-xs font-bold text-slate-600 shadow-sm cursor-pointer hover:bg-slate-50 transition-colors">
+                <Filter size={14} className="text-slate-400" />
+                Filter
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Booking Cards List */}
+          <div className="space-y-6">
+            {filteredBookings.length === 0 ? (
+              <div className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mb-6">
+                  <Calendar size={40} />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-2">No bookings found</h3>
+                <p className="text-slate-500 max-w-xs mb-8">You haven't made any bookings in this category yet.</p>
+                <Link to="/dashboard/patient/book">
+                  <Button className="bg-blue-600 text-white rounded-2xl px-8 py-3 font-bold shadow-lg shadow-blue-500/20">
+                    Book a Service Now
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              filteredBookings.map((b) => {
+                const effectivePrice = (b.priceUpdated && b.priceApprovedByPatient && b.finalPrice)
+                  ? b.finalPrice
+                  : b.estimatedPrice || b.totalAmount;
+
+                return (
+                  <div key={b._id} className="bg-white rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all relative group">
+                    <button className="absolute top-8 right-8 p-2 rounded-xl text-slate-400 hover:bg-slate-50 hover:text-slate-900 transition-colors">
+                      <MoreHorizontal size={20} />
+                    </button>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr_176px] gap-6 lg:gap-8 items-start">
+                      
+                      {/* Left: Provider Info */}
+                      <div className="flex items-center lg:items-start lg:flex-col gap-4">
+                        <div className="relative group/avatar">
+                          <img 
+                            src={b.provider?.user?.profileImage || `https://ui-avatars.com/api/?name=${b.provider?.user?.name || 'Care'}&background=random`} 
+                            alt="Provider" 
+                            className="w-20 h-20 md:w-24 md:h-24 rounded-[2rem] object-cover shadow-md group-hover/avatar:scale-105 transition-transform"
+                          />
+                          {b.status === 'confirmed' && (
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-4 border-white flex items-center justify-center">
+                              <CheckCircle size={10} className="text-white fill-white" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="lg:mt-3 lg:text-center">
+                          <h4 className="font-bold text-slate-900 text-base truncate max-w-[150px]">{b.provider?.user?.name || 'Assigning...'}</h4>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{SERVICE_CONFIG[b.service].label.split(' ')[0]}</p>
+                        </div>
+                      </div>
+
+                      {/* Center: Booking Details */}
+                      <div className="space-y-6">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h3 className="text-xl font-extrabold text-slate-900 leading-tight">{SERVICE_CONFIG[b.service].label}</h3>
+                          <span className={cn(
+                            "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider",
+                            b.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" : 
+                            b.status === 'pending' ? "bg-orange-100 text-orange-600" :
+                            b.status === 'cancelled' ? "bg-red-100 text-red-600" :
+                            "bg-blue-100 text-blue-600"
+                          )}>
+                            {b.status}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
+                          <DetailItem icon={<Calendar size={16} />} text={formatDate(b.scheduledAt)} label={new Date(b.scheduledAt).toLocaleDateString('en-GB', { weekday: 'short' })} />
+                          <DetailItem icon={<Clock size={16} />} text={formatDateTime(b.scheduledAt).split('at')[1]} label="Time Slot" />
+                          <DetailItem icon={<MapPin size={16} />} text="At Home" label={b.address.length > 20 ? b.address.substring(0, 20) + '...' : b.address} />
+                          <DetailItem icon={<UserCheck size={16} />} text={SERVICE_CONFIG[b.service].label} label="Provider Expert" />
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-2 text-xl font-black text-slate-900">
+                          <IndianRupee size={20} />
+                          {effectivePrice}
+                        </div>
+                      </div>
+
+                      {/* Right: Actions */}
+                      <div className="flex flex-col gap-3 self-end">
+                        <Button 
+                          className="w-full bg-slate-50 hover:bg-slate-100 text-blue-600 border border-slate-100 rounded-xl px-4 py-2.5 font-bold text-xs transition-all active:scale-95"
+                          onClick={() => toast.success('Booking details are being loaded...')}
+                        >
+                          View Details
+                        </Button>
+                        
+                        {(b.status === 'pending' || b.status === 'confirmed') && (
+                          <Button 
+                            className="w-full bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-xs transition-all active:scale-95"
+                            onClick={() => toast('Please contact support to reschedule.', { icon: '📅' })}
+                          >
+                            Reschedule
+                          </Button>
+                        )}
+
+                        {b.status === 'pending' && (
+                          <Button 
+                            variant="danger" 
+                            className="w-full rounded-xl py-2.5 text-xs font-bold transition-all active:scale-95" 
+                            onClick={() => handleCancelClick(b)}
+                          >
+                            Cancel Booking
+                          </Button>
+                        )}
+
+                        {b.status === 'completed' && !reviewedMap[b._id] && (
+                          <Button 
+                            className="w-full bg-blue-600 text-white rounded-xl py-2.5 text-xs font-bold shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 active:scale-95" 
+                            onClick={() => handleRateClick(b)}
+                          >
+                            Rate Service
+                          </Button>
+                        )}
+
+                        {b.status === 'confirmed' && b.paymentStatus !== 'PAID' && (
+                          <Button
+                            onClick={() => handlePayment(b)}
+                            loading={processingPayment === b._id}
+                            disabled={b.priceUpdated && !b.priceApprovedByPatient}
+                            className={cn(
+                              "w-full rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-all active:scale-95",
+                              walletBalance >= effectivePrice ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20'
+                            )}
+                          >
+                            {walletBalance >= effectivePrice ? 'Pay via Wallet' : `Pay ₹${effectivePrice}`}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right Sidebar Area */}
+        <div className="xl:col-span-4 space-y-8">
+          
+          {/* Booking Summary */}
+          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900 mb-6">Booking Summary</h3>
+            <div className="space-y-4">
+              <SummaryRow icon={<Calendar className="text-blue-600" />} label="Total Bookings" value={stats.total} />
+              <SummaryRow icon={<Clock className="text-indigo-600" />} label="Upcoming" value={stats.upcoming} />
+              <SummaryRow icon={<CheckCircle className="text-emerald-600" />} label="Completed" value={stats.completed} />
+              <SummaryRow icon={<X className="text-red-500" />} label="Cancelled" value={stats.cancelled} />
+            </div>
+          </div>
+
+          {/* Rebook Card */}
+          <div className="bg-blue-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-blue-500/20 relative overflow-hidden group">
+            <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+               <Calendar size={120} />
+            </div>
+            <div className="relative z-10">
+              <h3 className="text-lg font-bold mb-2">Need to book again?</h3>
+              <p className="text-blue-100 text-xs leading-relaxed mb-6">Rebook your previous service in just one click.</p>
+              <Link to="/dashboard/patient/book">
+                <Button className="w-full bg-white text-blue-600 font-bold rounded-2xl py-3 text-sm hover:bg-blue-50 transition-colors">
+                  Book Again
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Important Info */}
+          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900 mb-6">Important Information</h3>
+            <div className="space-y-6">
+              <InfoItem icon={<Clock size={16} className="text-blue-600" />} text="Please be available 15 mins before the scheduled time." />
+              <InfoItem icon={<ShieldCheck size={16} className="text-blue-600" />} text="Our expert will carry necessary equipment for your care." />
+              <InfoItem icon={<HelpCircle size={16} className="text-blue-600" />} text="Need to reschedule or cancel? Do it at least 2 hours in advance." />
+            </div>
+            <Link to="/dashboard/patient/support" className="mt-8 flex items-center justify-center gap-2 text-blue-600 font-bold text-sm hover:gap-3 transition-all">
+              View Booking Policy <ArrowRight size={16} />
+            </Link>
+          </div>
+
+          {/* Have questions? */}
+          <div className="bg-gradient-to-br from-white to-slate-50 rounded-[2.5rem] p-8 border border-slate-100 shadow-sm text-center">
+            <img src="https://i.pravatar.cc/100?img=68" alt="Support" className="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-white shadow-md" />
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Have questions?</h3>
+            <p className="text-slate-500 text-xs mb-6">We're here to help you.</p>
+            <Button className="w-full bg-slate-900 text-white rounded-2xl py-3 font-bold text-sm hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+              <MessageCircle size={16} /> Contact Support
+            </Button>
+          </div>
+        </div>
       </div>
 
-      {/* Cancel Modal */}
+      {/* Modals from original code logic */}
       <Modal
         isOpen={isCancelModalOpen}
         onClose={() => !canceling && setIsCancelModalOpen(false)}
         title="Cancel Booking"
         footer={
-          <>
+          <div className="flex gap-3 justify-end w-full">
             <Button variant="ghost" onClick={() => setIsCancelModalOpen(false)} disabled={canceling}>Close</Button>
-            <Button variant="danger" onClick={submitCancel} loading={canceling}>Confirm Cancel</Button>
-          </>
+            <Button variant="danger" onClick={submitCancel} loading={canceling} className="rounded-xl px-6">Confirm Cancel</Button>
+          </div>
         }
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
             Are you sure you want to cancel your{' '}
-            {selectedBooking && SERVICE_CONFIG[selectedBooking.service].label} appointment with{' '}
-            {selectedBooking?.provider?.user?.name}?
+            <strong>{selectedBooking && SERVICE_CONFIG[selectedBooking.service].label}</strong> appointment?
           </p>
           <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1">
-              Reason <span className="text-red-500">*</span>
+            <label className="text-sm font-bold text-slate-700 block mb-1.5">
+              Reason for cancellation <span className="text-red-500">*</span>
             </label>
             <textarea
-              className="input-base"
+              className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
               rows={3}
-              placeholder="Please let us know why you are cancelling..."
+              placeholder="e.g., I'm not available at this time..."
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
             />
@@ -513,13 +520,62 @@ export default function PatientBookings() {
         </div>
       </Modal>
 
-      {/* Rate Modal */}
       <RateModal
         isOpen={isRateModalOpen}
         onClose={() => setIsRateModalOpen(false)}
         booking={rateBooking}
         onSuccess={handleRateSuccess}
       />
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.6s ease-out forwards; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
+    </div>
+  );
+}
+
+// Helper Components
+function DetailItem({ icon, text, label }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 shrink-0">
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-bold text-slate-900 leading-tight">{text}</p>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ icon, label, value }) {
+  return (
+    <div className="flex items-center justify-between p-1">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
+          {cloneElement(icon, { size: 16 })}
+        </div>
+        <span className="text-sm font-bold text-slate-600">{label}</span>
+      </div>
+      <span className="text-lg font-black text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+function InfoItem({ icon, text }) {
+  return (
+    <div className="flex gap-4">
+      <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+        {icon}
+      </div>
+      <p className="text-[13px] font-medium text-slate-600 leading-relaxed">{text}</p>
     </div>
   );
 }

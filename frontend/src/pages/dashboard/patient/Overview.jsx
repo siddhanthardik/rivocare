@@ -45,14 +45,14 @@ export default function PatientOverview() {
           label="Total Consultations" 
           value={data?.total || 13} 
           subtext="All time"
-          bg="bg-blue-50/50"
+          bg="bg-white"
         />
         <StatCard 
           icon={<Calendar size={24} className="text-purple-600" />} 
           label="Upcoming Bookings" 
           value={upcomingBookings.length} 
           subtext="View all"
-          bg="bg-purple-50/50"
+          bg="bg-white"
           link="/dashboard/patient/bookings"
         />
         <StatCard 
@@ -60,14 +60,14 @@ export default function PatientOverview() {
           label="Active Since" 
           value={new Date(user.createdAt).getFullYear()} 
           subtext={`Member since ${new Date(user.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
-          bg="bg-emerald-50/50"
+          bg="bg-white"
         />
         <StatCard 
           icon={<Star size={24} className="text-orange-500 fill-orange-500/20" />} 
           label="Rivo Care Points" 
           value="Gold Member" 
           subtext="More benefits unlocked"
-          bg="bg-orange-50/50"
+          bg="bg-white"
         />
       </div>
 
