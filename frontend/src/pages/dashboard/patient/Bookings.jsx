@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
-import { bookingService, reviewService, paymentService } from '../../../services';
+import { bookingService, reviewService, paymentService, walletService } from '../../../services';
 import { formatDateTime, formatCurrency, SERVICE_CONFIG } from '../../../utils';
 import { PageLoader, EmptyState } from '../../../components/ui/Feedback';
 import Badge from '../../../components/ui/Badge';
@@ -103,6 +103,7 @@ export default function PatientBookings() {
   const [loading, setLoading]           = useState(true);
   const [refresh, setRefresh]           = useState(0);
   const [reviewedMap, setReviewedMap]   = useState({});
+  const [walletBalance, setWalletBalance] = useState(0);
 
   // Cancel Modal
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -145,7 +146,19 @@ export default function PatientBookings() {
     }
   }, []);
 
-  useEffect(() => { loadBookings(); }, [refresh, loadBookings]);
+  const loadWallet = useCallback(async () => {
+    try {
+      const res = await walletService.getInfo();
+      setWalletBalance(res.data.data.wallet.balance);
+    } catch (err) {
+      console.error('Failed to load wallet', err);
+    }
+  }, []);
+
+  useEffect(() => { 
+    loadBookings(); 
+    loadWallet();
+  }, [refresh, loadBookings, loadWallet]);
 
   // ── Approve price ──────────────────────────────────────────────
   const handleApprovePrice = async (bookingId) => {
@@ -227,6 +240,30 @@ export default function PatientBookings() {
     // Block payment if price updated but not yet approved
     if (booking.priceUpdated && !booking.priceApprovedByPatient) {
       return toast.error('Please approve or reject the updated price before paying.');
+    }
+
+    const effectivePrice = (booking.priceUpdated && booking.priceApprovedByPatient && booking.finalPrice)
+      ? booking.finalPrice
+      : booking.estimatedPrice || booking.totalAmount;
+
+    // Check if wallet can cover it
+    const canPayWithWallet = walletBalance >= effectivePrice;
+
+    if (canPayWithWallet) {
+      const confirmWallet = window.confirm(`You have ₹${walletBalance} in your wallet. Would you like to use your wallet balance to pay ₹${effectivePrice} for this booking?`);
+      if (confirmWallet) {
+        setProcessingPayment(booking._id);
+        try {
+          await paymentService.payWithWallet(booking._id);
+          toast.success('🎉 Paid successfully using wallet!');
+          setRefresh((r) => r + 1);
+          return;
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Wallet payment failed. Try online payment.');
+        } finally {
+          setProcessingPayment(null);
+        }
+      }
     }
 
     setProcessingPayment(booking._id);
@@ -416,12 +453,13 @@ export default function PatientBookings() {
                         loading={processingPayment === b._id}
                         disabled={b.priceUpdated && !b.priceApprovedByPatient}
                         title={b.priceUpdated && !b.priceApprovedByPatient ? 'Approve the updated price first' : ''}
-                        className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
+                        className={`flex items-center gap-1.5 text-white disabled:opacity-50 ${walletBalance >= effectivePrice ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
                       >
                         <CreditCard size={14} />
-                        Pay ₹{effectivePrice}
+                        {walletBalance >= effectivePrice ? 'Pay via Wallet' : `Pay ₹${effectivePrice}`}
                       </Button>
                     )}
+
 
                     {/* Rate */}
                     {b.status === 'completed' && b.patientVerifiedCompletion === true && !reviewedMap[b._id] && (

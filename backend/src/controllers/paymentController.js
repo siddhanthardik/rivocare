@@ -128,3 +128,72 @@ exports.verifyPayment = async (req, res, next) => {
     next(err);
   }
 };
+
+// @POST /api/payment/pay-with-wallet
+exports.payWithWallet = async (req, res, next) => {
+  try {
+    const { bookingId } = req.body;
+    const Wallet = require('../models/Wallet');
+    const Transaction = require('../models/Transaction');
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+    
+    if (booking.patient.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (booking.paymentStatus === 'PAID') {
+      return res.status(400).json({ success: false, message: 'Booking is already paid' });
+    }
+
+    // Amount to be paid
+    const payableAmount = (booking.priceUpdated && booking.priceApprovedByPatient && booking.finalPrice)
+      ? booking.finalPrice
+      : booking.totalAmount;
+
+    const wallet = await Wallet.findOne({ user: req.user._id });
+    if (!wallet || wallet.balance < payableAmount) {
+      return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
+    }
+
+    // Deduct from wallet
+    wallet.balance -= payableAmount;
+    await wallet.save();
+
+    // Create Transaction
+    await Transaction.create({
+      wallet: wallet._id,
+      type: 'DEBIT',
+      amount: payableAmount,
+      description: `Payment for Booking (Booking ID: ${booking._id})`,
+      referenceId: booking._id,
+    });
+
+    // Mark Booking Paid
+    booking.paymentStatus = 'PAID';
+    await booking.save();
+
+    // 🔔 Notify Provider
+    const Notification = require('../models/Notification');
+    const socketHelper = require('../socket');
+    const Provider = require('../models/Provider');
+    const provider = await Provider.findById(booking.provider);
+    if (provider) {
+      const pNotif = await Notification.create({
+        user: provider.user,
+        title: 'Payment Successful (Wallet)',
+        message: `Payment of ₹${payableAmount} received via patient wallet.`,
+        type: 'PAYMENT',
+        linkId: booking._id
+      });
+      try {
+        socketHelper.getIO().to(provider.user.toString()).emit('notification', pNotif);
+      } catch(e) {}
+    }
+
+    res.json({ success: true, message: 'Payment successful using wallet balance', data: { booking } });
+  } catch (err) {
+    next(err);
+  }
+};

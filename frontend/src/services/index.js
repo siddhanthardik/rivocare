@@ -127,6 +127,7 @@ export const reviewService = {
 export const paymentService = {
   createOrder: (bookingId) => api.post('/payment/create-order', { bookingId }),
   verifyPayment: (data) => api.post('/payment/verify', data),
+  payWithWallet: (bookingId) => api.post('/payment/pay-with-wallet', { bookingId }),
 };
 
 export const walletService = {

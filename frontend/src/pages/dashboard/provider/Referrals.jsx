@@ -122,6 +122,18 @@ export default function ProviderReferrals() {
           </div>
         </div>
       </div>
+      
+      {/* Withdrawal Note */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-500">
+        <p className="font-semibold text-slate-700 mb-1 flex items-center gap-1">
+          <CheckCircle size={14} className="text-emerald-500" /> Withdrawal Rules:
+        </p>
+        <ul className="list-disc pl-4 space-y-1">
+          <li>Minimum wallet balance of <strong>₹1,000</strong> is required to request a payout.</li>
+          <li>You must have completed at least <strong>1 service booking</strong> successfully to be eligible for payouts.</li>
+          <li>Payouts are processed manually to your registered bank account within 3-5 business days.</li>
+        </ul>
+      </div>
     </div>
   );
 }

@@ -55,13 +55,32 @@ const User = require('../models/User'); // Required to fetch provider details fo
 exports.requestPayout = async (req, res, next) => {
   try {
     const { amount } = req.body;
+
+    // 🔒 ROLE CHECK: Only providers can withdraw
+    if (req.user.role !== 'provider') {
+      return res.status(403).json({ success: false, message: 'Only providers can request payouts. Patient referral credits can only be used for service bookings.' });
+    }
+
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Valid amount required' });
+    }
+
+    // 🔒 MINIMUM THRESHOLD: ₹1,000 to prevent frequent small requests
+    const MIN_PAYOUT = 1000;
+    if (amount < MIN_PAYOUT) {
+      return res.status(400).json({ success: false, message: `Minimum payout amount is ₹${MIN_PAYOUT}` });
     }
 
     const wallet = await Wallet.findOne({ user: req.user._id });
     if (!wallet || wallet.balance < amount) {
       return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
+    }
+
+    // 🔒 SERVICE COMPLETION CHECK: Must have completed at least 1 booking to withdraw
+    const Provider = require('../models/Provider');
+    const providerProfile = await Provider.findOne({ user: req.user._id });
+    if (!providerProfile || providerProfile.completedBookings === 0) {
+      return res.status(400).json({ success: false, message: 'You must complete at least one booking to request a payout.' });
     }
 
     // Since this is a manual flow for now, we just deduct the balance and log a debit
