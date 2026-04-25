@@ -84,8 +84,8 @@ export default function ContactUs() {
             <div>
               <h3 className="font-bold text-slate-800 text-sm mb-0.5">Our Office</h3>
               <p className="text-slate-600 text-sm leading-relaxed">
-                Rivo Care Private Limited<br />
-                Delhi, India, 110001
+                Rivo Care<br />
+                Chhatrpur, New Delhi, India, 110074
               </p>
             </div>
           </div>
