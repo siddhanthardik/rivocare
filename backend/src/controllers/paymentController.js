@@ -60,7 +60,7 @@ exports.createOrder = async (req, res, next) => {
       razorpayOrderId: order.id,
     });
 
-    res.json({ success: true, data: { order, payment } });
+    res.json({ success: true, data: { order, payment, keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_dummykey' } });
   } catch (err) {
     next(err);
   }

@@ -232,7 +232,7 @@ export default function PatientBookings() {
     setProcessingPayment(booking._id);
     try {
       const res = await paymentService.createOrder(booking._id);
-      const { order } = res.data.data;
+      const { order, keyId } = res.data.data;
 
       // Use finalPrice if approved, else estimatedPrice
       const displayAmount = booking.finalPrice && booking.priceApprovedByPatient
@@ -240,7 +240,7 @@ export default function PatientBookings() {
         : booking.estimatedPrice || booking.totalAmount;
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_dummykey',
+        key: keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: 'RIVO Healthcare',
