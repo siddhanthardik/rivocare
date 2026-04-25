@@ -1,5 +1,6 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, User, LayoutDashboard, Phone, Mail, ChevronDown, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { LogOut, User, LayoutDashboard, Phone, Mail, ChevronDown, ArrowRight, Menu, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Avatar from '../ui/Avatar';
 import NotificationBell from '../ui/NotificationBell';
@@ -13,6 +14,8 @@ const DASHBOARD_PATHS = {
 export default function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -84,6 +87,13 @@ export default function Header() {
               <a href="https://wa.me/917838033664" target="_blank" rel="noreferrer" className="flex items-center justify-center w-10 h-10 border-2 border-emerald-500 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
                 <WhatsAppIcon />
               </a>
+              {/* Mobile Menu Toggle */}
+              <button 
+                className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg ml-1"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              >
+                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              </button>
             </div>
           ) : (
             <div className="flex items-center gap-2 sm:gap-4">
@@ -95,13 +105,67 @@ export default function Header() {
               <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
                 <Avatar name={user.name} size="sm" />
               </div>
-              <button onClick={handleLogout} title="Logout" className="p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors">
+              {/* Mobile Menu Toggle for logged-in user */}
+              <button 
+                className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg ml-1"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              >
+                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              </button>
+              
+              <button onClick={handleLogout} title="Logout" className="hidden sm:block p-2 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors">
                 <LogOut size={17} />
               </button>
             </div>
           )}
         </div>
       </div>
+
+      {/* ── MOBILE MENU OVERLAY ── */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden absolute top-[80px] left-0 w-full bg-white border-b border-slate-100 shadow-xl overflow-y-auto max-h-[calc(100vh-80px)]">
+          <nav className="flex flex-col p-4 space-y-1">
+            <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className={`px-4 py-3 rounded-lg font-medium ${location.pathname === '/' ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'}`}>Home</Link>
+            <Link to="/about-us" onClick={() => setIsMobileMenuOpen(false)} className={`px-4 py-3 rounded-lg font-medium ${location.pathname === '/about-us' ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'}`}>About Us</Link>
+            
+            <div className="px-4 py-3 rounded-lg font-medium text-slate-700">
+              <div className="mb-2 text-slate-400 text-xs uppercase tracking-wider font-bold">Services</div>
+              <div className="flex flex-col pl-2 space-y-1 border-l-2 border-blue-100 ml-1">
+                <Link to="/services/nursing-care" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-sm text-slate-600 hover:text-blue-600">Home Nursing</Link>
+                <Link to="/services/physiotherapy" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-sm text-slate-600 hover:text-blue-600">Physiotherapy</Link>
+                <Link to="/services/doctor-at-home" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-sm text-slate-600 hover:text-blue-600">Doctor at Home</Link>
+                <Link to="/services/elder-care" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-sm text-slate-600 hover:text-blue-600">Elder Care</Link>
+                <Link to="/services" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-sm font-semibold text-blue-600">View All Services →</Link>
+              </div>
+            </div>
+
+            <Link to="/blog" onClick={() => setIsMobileMenuOpen(false)} className={`px-4 py-3 rounded-lg font-medium ${location.pathname === '/blog' ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'}`}>Blog</Link>
+            <Link to="/contact-us" onClick={() => setIsMobileMenuOpen(false)} className={`px-4 py-3 rounded-lg font-medium ${location.pathname === '/contact-us' ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-slate-50'}`}>Contact Us</Link>
+            
+            <hr className="my-2 border-slate-100" />
+            
+            {!user ? (
+              <div className="p-2 space-y-2">
+                <Link to="/login" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-center w-full py-3 rounded-lg font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200">
+                  Log In
+                </Link>
+                <Link to="/register" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-center w-full py-3 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700">
+                  Book Now
+                </Link>
+              </div>
+            ) : (
+              <div className="p-2 space-y-2">
+                <Link to={DASHBOARD_PATHS[user.role]} onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-center w-full py-3 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700">
+                  Go to Dashboard
+                </Link>
+                <button onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} className="flex items-center justify-center gap-2 w-full py-3 rounded-lg font-semibold text-red-600 bg-red-50 hover:bg-red-100">
+                  <LogOut size={18} /> Logout
+                </button>
+              </div>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
