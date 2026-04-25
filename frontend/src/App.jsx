@@ -21,6 +21,7 @@ import ContactUs from './pages/company/ContactUs';
 import Careers from './pages/company/Careers';
 import Sitemap from './pages/company/Sitemap';
 import Blog from './pages/Blog';
+import ReferralLanding from './pages/ReferralLanding';
 
 // Services
 import Services from './pages/services/Services';
@@ -66,6 +67,7 @@ const patientNav = [
   { path: '/dashboard/patient', label: 'Overview', icon: LayoutDashboard, end: true },
   { path: '/dashboard/patient/plans', label: 'Plans & Packages', icon: BookOpen },
   { path: '/dashboard/patient/bookings', label: 'My Bookings', icon: Calendar },
+  { path: '/refer', label: 'Refer & Earn', icon: Users },
   { path: '/dashboard/patient/profile', label: 'Profile', icon: User },
 ];
 const providerNav = [
@@ -114,6 +116,7 @@ export default function App() {
       <Route path="/terms-of-service" element={<><Header /><TermsOfService /><Footer /></>} />
       <Route path="/terms-and-conditions" element={<Navigate to="/terms-of-service" replace />} />
       <Route path="/privacy-policy" element={<><Header /><PrivacyPolicy /><Footer /></>} />
+      <Route path="/refer" element={<><Header /><ReferralLanding /><Footer /></>} />
 
       {/* Guest-only */}
       <Route element={<GuestRoute />}>

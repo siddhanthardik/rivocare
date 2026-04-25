@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Lock, Mail, Phone, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -15,7 +15,21 @@ const ROLES = [
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', role: 'patient', acceptedTerms: false });
+  const location = useLocation();
+  
+  // Extract referral code from URL if present
+  const queryParams = new URLSearchParams(location.search);
+  const referralCode = queryParams.get('ref') || '';
+
+  const [form, setForm] = useState({ 
+    name: '', 
+    email: '', 
+    phone: '', 
+    password: '', 
+    role: 'patient', 
+    acceptedTerms: false,
+    ref: referralCode
+  });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 

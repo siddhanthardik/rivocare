@@ -1,0 +1,18 @@
+# Exclude heavy dependency folders
+node_modules/
+bower_components/
+
+# Exclude build and output directories
+dist/
+build/
+out/
+.next/
+
+# Exclude version control and logs
+.git/
+*.log
+npm-debug.log*
+
+# Exclude large media or data folders
+assets/large-images/
+data/*.json

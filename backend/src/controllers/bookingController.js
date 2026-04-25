@@ -27,8 +27,14 @@ exports.createBooking = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'We are not available in your area yet.' });
     }
 
+    const Booking = require('../models/Booking');
+    const User = require('../models/User');
+    const Wallet = require('../models/Wallet');
+    const Transaction = require('../models/Transaction');
+
     const provider = await Provider.findById(providerId);
     if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
+
     if (provider.isBlocked) return res.status(403).json({ success: false, message: 'This provider is currently unavailable for new bookings.' });
     if (!provider.isOnline) return res.status(400).json({ success: false, message: 'Provider is currently offline' });
     if (!provider.services.includes(service)) {
@@ -46,13 +52,27 @@ exports.createBooking = async (req, res, next) => {
       return res.status(409).json({ success: false, message: 'Provider is already booked at this time' });
     }
 
+    // 💰 Referral Discount for First-time referred patients (₹100 off)
+    let referralDiscount = 0;
+    if (req.user.referredByCode && req.user.role === 'patient') {
+      const pastBookings = await Booking.countDocuments({ patient: req.user._id, status: { $ne: 'cancelled' } });
+      if (pastBookings === 0) {
+        referralDiscount = 100;
+      }
+    }
+
     const hours = durationHours || 1;
 
     // 💰 Pricing Snapshot: fetch admin base price + provider markup
     const serviceDoc = await Service.findOne({ name: service, isActive: true });
     const servicBasePrice = serviceDoc ? serviceDoc.basePrice : provider.pricePerHour;
     const provMarkup = provider.markup || 0;
-    const estimatedPrice = (servicBasePrice + provMarkup) * hours;
+    let estimatedPrice = (servicBasePrice + provMarkup) * hours;
+    
+    // Apply discount
+    if (referralDiscount > 0) {
+      estimatedPrice = Math.max(0, estimatedPrice - referralDiscount);
+    }
 
     // Booking expires in 5 minutes (300 seconds) if not accepted
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -70,6 +90,7 @@ exports.createBooking = async (req, res, next) => {
       basePrice: servicBasePrice,
       providerMarkup: provMarkup,
       estimatedPrice,
+      referralDiscountApplied: referralDiscount, // Track it
       expiresAt,
     });
 
@@ -389,6 +410,41 @@ exports.updateBookingStatus = async (req, res, next) => {
         description: `Earnings for Service (Booking: ${booking._id})`,
         referenceId: booking._id,
       });
+
+      // 💰 PATIENT REFERRAL BONUS (₹100 to Referrer)
+      try {
+        const User = require('../models/User');
+        const patientUser = await User.findById(booking.patient);
+        if (patientUser && patientUser.referredByCode) {
+          const pastBookingsCount = await Booking.countDocuments({ 
+            patient: booking.patient, 
+            status: 'completed', 
+            _id: { $ne: booking._id } 
+          });
+          
+          if (pastBookingsCount === 0) {
+             // First completed booking - award bonus to referrer
+             const referrerUser = await User.findOne({ referralCode: patientUser.referredByCode });
+             if (referrerUser) {
+               let referrerWallet = await Wallet.findOne({ user: referrerUser._id });
+               if (!referrerWallet) referrerWallet = await Wallet.create({ user: referrerUser._id, balance: 0 });
+
+               referrerWallet.balance += 100;
+               await referrerWallet.save();
+
+               await Transaction.create({
+                 wallet: referrerWallet._id,
+                 type: 'CREDIT',
+                 amount: 100,
+                 description: `Referral Bonus (Friend's First Booking: ${patientUser.name})`,
+                 referenceId: booking._id,
+               });
+             }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to credit patient referral bonus', err);
+      }
     }
 
     await booking.save();

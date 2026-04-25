@@ -58,6 +58,9 @@ const userSchema = new mongoose.Schema(
     otpExpire: { type: Date, select: false },
     resetPasswordToken: { type: String, select: false },
     resetPasswordExpire: { type: Date, select: false },
+    // Referral System
+    referralCode: { type: String, unique: true, sparse: true }, // user's own code
+    referredByCode: { type: String, default: null }, // code they used
   },
   { timestamps: true }
 );

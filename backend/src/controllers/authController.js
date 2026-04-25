@@ -18,7 +18,7 @@ const generateTokens = (userId) => {
 // Temporarily disabled 2FA - users are created with is2FAEnabled: false
 exports.register = async (req, res, next) => {
   try {
-    let { name, email, password, role, phone, pincode, services, acceptedTerms } = req.body;
+    let { name, email, password, role, phone, pincode, services, acceptedTerms, ref } = req.body;
     
     // SECURITY FIX: Prevent NoSQL Injection via objects
     if (email && typeof email === 'string') {
@@ -55,7 +55,9 @@ exports.register = async (req, res, next) => {
       phone, 
       pincode,
       acceptedTerms,
-      is2FAEnabled: false // Explicitly set to false - 2FA is temporarily disabled
+      is2FAEnabled: false,
+      referredByCode: ref || null,
+      referralCode: `CARE${Math.random().toString(36).slice(2, 8).toUpperCase()}`
     });
 
     // If registering as provider, create provider profile
@@ -130,6 +132,11 @@ exports.getMe = async (req, res, next) => {
 
     if (user.role === 'provider') {
       providerProfile = await Provider.findOne({ user: user._id });
+    }
+
+    if (!user.referralCode) {
+      user.referralCode = `CARE${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      await user.save({ validateBeforeSave: false });
     }
 
     res.json({ success: true, data: { user, providerProfile } });
