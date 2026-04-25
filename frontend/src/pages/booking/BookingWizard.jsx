@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, CheckCircle, Search, MapPin, Calendar as CalIcon, Clock, ShieldCheck, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, Search, MapPin, Calendar as CalIcon, Clock, ShieldCheck, Star, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { providerService, bookingService } from '../../services';
@@ -390,6 +390,14 @@ export default function BookingWizard() {
 
   return (
     <div className="max-w-4xl mx-auto pb-24 md:pb-8">
+      {/* Launching Soon Banner */}
+      <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-fade-in">
+        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-sm text-amber-800">
+          <p className="font-semibold uppercase tracking-wider text-[10px] mb-1">Coming Soon</p>
+          <p className="font-medium">We are launching soon in your location. Any Booking done will not be entertained. Keep checking for the updates.</p>
+        </div>
+      </div>
       {/* Conversion Banner */}
       {step < 5 && (
         <div className="mb-6 flex justify-center animate-slide-up">

@@ -281,6 +281,15 @@ export default function PatientBookings() {
 
   return (
     <div className="space-y-6">
+      {/* Launching Soon Banner */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-fade-in">
+        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-sm text-amber-800">
+          <p className="font-semibold uppercase tracking-wider text-[10px] mb-1">Coming Soon</p>
+          <p className="font-medium">We are launching soon in your location. Any Booking done will not be entertained. Keep checking for the updates.</p>
+        </div>
+      </div>
+
       <div>
         <h1 className="page-title">My Bookings</h1>
         <p className="text-slate-500">Manage your past and upcoming consultations.</p>
