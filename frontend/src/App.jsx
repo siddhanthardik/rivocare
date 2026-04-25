@@ -65,10 +65,14 @@ import { LayoutDashboard, Calendar, User, ToggleLeft, TrendingUp, Users, ShieldC
 
 const patientNav = [
   { path: '/dashboard/patient', label: 'Overview', icon: LayoutDashboard, end: true },
-  { path: '/dashboard/patient/plans', label: 'Plans & Packages', icon: BookOpen },
   { path: '/dashboard/patient/bookings', label: 'My Bookings', icon: Calendar },
+  { path: '/dashboard/patient/plans', label: 'Plans & Packages', icon: BookOpen },
+  { path: '/dashboard/patient/health-records', label: 'My Health Records', icon: ShieldCheck },
+  { path: '/dashboard/patient/prescriptions', label: 'Prescriptions', icon: User },
+  { path: '/dashboard/patient/messages', label: 'Messages', icon: TrendingUp, badge: 3 },
   { path: '/refer', label: 'Refer & Earn', icon: Users },
-  { path: '/dashboard/patient/profile', label: 'Profile', icon: User },
+  { path: '/dashboard/patient/profile', label: 'Profile Settings', icon: User },
+  { path: '/dashboard/patient/support', label: 'Help & Support', icon: ShieldCheck },
 ];
 const providerNav = [
   { path: '/dashboard/provider', label: 'Overview', icon: LayoutDashboard, end: true },
