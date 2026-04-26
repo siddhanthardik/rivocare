@@ -149,16 +149,20 @@ export default function DashboardLayout({ navItems, role = 'patient' }) {
 
           {/* Desktop greeting */}
           <div className="hidden lg:block">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">
-                {role === 'provider' ? 'Provider' : role === 'admin' ? 'Admin' : 'Patient'} Dashboard
-              </span>
-              <div className={`w-1.5 h-1.5 rounded-full ${role === 'provider' ? 'bg-emerald-500' : role === 'admin' ? 'bg-purple-500' : 'bg-blue-500'}`} />
-            </div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
-              Hello, {user?.name?.split(' ')[0]} <span>👋</span>
-            </h1>
-            <RoleSubtitle role={role} />
+            {role !== 'provider' && (
+              <>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">
+                    {role === 'admin' ? 'Admin' : 'Patient'} Dashboard
+                  </span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${role === 'admin' ? 'bg-purple-500' : 'bg-blue-500'}`} />
+                </div>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
+                  Hello, {user?.name?.split(' ')[0]} <span>👋</span>
+                </h1>
+                <RoleSubtitle role={role} />
+              </>
+            )}
           </div>
 
           {/* Header actions */}

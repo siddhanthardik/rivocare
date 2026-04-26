@@ -90,45 +90,60 @@ export default function ProviderOverview() {
   })();
 
   return (
-    <div className="space-y-8 pb-10">
-      {/* ── Role Header ─────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-wider border border-emerald-100/50">
+    <div className="max-w-[1600px] mx-auto space-y-10 pb-12 animate-fade-in">
+      {/* ── Page Header ─────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-wider border border-emerald-100/50 flex items-center gap-1.5">
               <ShieldCheck size={12} /> Care Expert Dashboard
             </span>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border border-slate-100">
+              <Activity size={12} /> Live Updates
+            </div>
           </div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">
-            Hello, {user.name.split(' ')[0]} <span className="animate-pulse">👋</span>
+            Hello, {(() => {
+              const parts = user.name.split(' ');
+              if (['Dr.', 'Dr', 'Mr.', 'Mr', 'Ms.', 'Ms', 'Mrs.', 'Mrs'].includes(parts[0])) {
+                return parts[1];
+              }
+              return parts[0];
+            })()} <span className="animate-bounce inline-block">👋</span>
           </h1>
-          <p className="text-slate-500 font-medium">Manage your schedule, earnings and care requests.</p>
+          <p className="text-slate-500 font-medium text-lg">Manage your schedule, requests and earnings.</p>
         </div>
 
-        {/* Availability Toggle Widget */}
-        <div className="flex items-center gap-4 bg-white p-4 rounded-[1.5rem] border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 pr-4 border-r border-slate-100">
+        {/* Status Chip / Toggle Widget */}
+        <div className="flex items-center gap-5 bg-white px-6 py-4 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center gap-4">
             <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center",
-              providerProfile?.isOnline ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-400"
+              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-inner",
+              providerProfile?.isOnline ? "bg-emerald-50 text-emerald-600 ring-4 ring-emerald-500/10" : "bg-red-50 text-red-500 ring-4 ring-red-500/10"
             )}>
-              <Activity size={20} className={providerProfile?.isOnline ? "animate-pulse" : ""} />
+              <Activity size={24} className={providerProfile?.isOnline ? "animate-pulse" : ""} />
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</p>
-              <p className={cn("text-sm font-black", providerProfile?.isOnline ? "text-emerald-600" : "text-slate-500")}>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Current Status</p>
+              <p className={cn("text-lg font-black tracking-tight", providerProfile?.isOnline ? "text-emerald-600" : "text-red-600")}>
                 {providerProfile?.isOnline ? 'ONLINE' : 'OFFLINE'}
               </p>
             </div>
           </div>
+          <div className="h-10 w-px bg-slate-100 mx-2" />
           <Link to="/dashboard/provider/availability">
-            <Button size="sm" className="bg-slate-900 text-white rounded-xl text-xs px-5">Toggle</Button>
+            <Button className={cn(
+              "rounded-2xl px-6 py-2.5 font-black text-xs transition-all shadow-lg active:scale-95",
+              providerProfile?.isOnline ? "bg-slate-900 text-white hover:bg-slate-800" : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20"
+            )}>
+              {providerProfile?.isOnline ? 'Go Offline' : 'Go Online'}
+            </Button>
           </Link>
         </div>
       </div>
 
-      {/* ── Onboarding Card ─────────────────────────────────── */}
-      {providerProfile?.onboardingStatus !== 'ACTIVE' && (
+      {/* ── Onboarding Card (Logic-based) ───────────────────── */}
+      {!['VERIFIED', 'ACTIVE'].includes(providerProfile?.onboardingStatus) && (
         <div className="relative group overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2.5rem] p-8 shadow-2xl shadow-slate-900/20">
           <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[100px] pointer-events-none" />
           <div className="relative z-10 flex flex-col lg:flex-row items-center gap-10">
@@ -139,11 +154,11 @@ export default function ProviderOverview() {
                 </div>
                 <h2 className="text-2xl font-black text-white tracking-tight">Complete profile to start earning</h2>
               </div>
-              <p className="text-slate-400 text-base font-medium mb-8 max-w-xl">
+              <p className="text-slate-400 text-base font-medium mb-8 max-w-xl leading-relaxed">
                 You're just a few steps away from joining our network of care experts. Finish your onboarding to unlock service requests.
               </p>
               
-              <div className="space-y-4">
+              <div className="space-y-4 max-w-md">
                 <div className="flex items-center justify-between">
                   <span className="text-white font-bold text-sm">Onboarding Progress</span>
                   <span className="text-emerald-400 font-black text-sm">{progressPercent}%</span>
@@ -157,7 +172,7 @@ export default function ProviderOverview() {
               </div>
             </div>
 
-            <div className="shrink-0 bg-white/5 backdrop-blur-md rounded-[2rem] p-6 border border-white/10 w-full lg:w-80">
+            <div className="shrink-0 bg-white/5 backdrop-blur-md rounded-[2.2rem] p-7 border border-white/10 w-full lg:w-80 transition-all group-hover:border-white/20">
               <div className="space-y-4">
                 {[
                   { label: 'Profile Information', done: providerProfile?.services?.length > 0 },
@@ -170,7 +185,7 @@ export default function ProviderOverview() {
                     ) : (
                       <div className="w-[18px] h-[18px] rounded-full border-2 border-slate-600" />
                     )}
-                    <span className={cn("font-bold", step.done ? "text-slate-200" : "text-slate-500")}>{step.label}</span>
+                    <span className={cn("font-bold transition-colors", step.done ? "text-slate-200" : "text-slate-500")}>{step.label}</span>
                   </div>
                 ))}
               </div>
@@ -196,205 +211,182 @@ export default function ProviderOverview() {
         </div>
       )}
 
-      {/* ── Stats Grid ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+      {/* ── Compact KPI Row ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         {[
-          { label: 'Today’s Schedule', val: todayBookings.length, sub: 'Confirmed visits', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Pending Requests', val: pendingBookings.length, sub: 'Awaiting action', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'Monthly Earnings', val: formatCurrency(monthlyEarnings), sub: 'Current month', icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Completed Services', val: providerProfile?.completedBookings || 0, sub: 'Total all-time', icon: CheckCircle, color: 'text-purple-600', bg: 'bg-purple-50' },
-          { label: 'Avg Rating', val: providerProfile?.rating?.toFixed(1) || '—', sub: `${providerProfile?.totalRatings || 0} reviews`, icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' }
+          { label: 'Today’s Visits', val: todayBookings.length, sub: 'Scheduled visits', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Pending Requests', val: pendingBookings.length, sub: 'Needs attention', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'Total Services', val: providerProfile?.completedBookings || 0, sub: 'Completed all-time', icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Month Earnings', val: formatCurrency(monthlyEarnings), sub: 'Current month', icon: Wallet, color: 'text-slate-900', bg: 'bg-slate-50' },
+          { label: 'Avg Rating', val: providerProfile?.rating?.toFixed(1) || '—', sub: `${providerProfile?.totalRatings || 0} reviews`, icon: Star, color: 'text-amber-500', bg: 'bg-amber-50' }
         ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-            <div className={cn("w-12 h-12 rounded-2xl mb-4 flex items-center justify-center transition-transform group-hover:scale-110", stat.bg, stat.color)}>
-              <stat.icon size={24} />
+          <div key={i} className="bg-white p-6 rounded-[2.2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all group border-b-4 hover:border-b-blue-500">
+            <div className={cn("w-12 h-12 rounded-2xl mb-4 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm", stat.bg, stat.color)}>
+              <stat.icon size={22} />
             </div>
-            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
-            <h3 className="text-2xl font-black text-slate-900">{stat.val}</h3>
-            <p className="text-[11px] font-bold text-slate-400 mt-1">{stat.sub}</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{stat.label}</p>
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight">{stat.val}</h3>
+            <p className="text-[10px] font-bold text-slate-400 mt-1">{stat.sub}</p>
           </div>
         ))}
       </div>
 
-      {/* ── Main Dashboard Panels ───────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* ── Main Content Grid ───────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Today's Appointments Panel */}
-        <div className="lg:col-span-8 space-y-6">
-          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-            <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
+        {/* Left: Today's Schedule (Large) */}
+        <div className="lg:col-span-2 space-y-8">
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden h-full flex flex-col">
+            <div className="px-8 py-7 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
               <div>
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">Today's Appointments</h3>
-                <p className="text-sm text-slate-400 font-medium mt-1">Confirmed bookings for {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}</p>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Today's Schedule</h3>
+                <p className="text-sm text-slate-400 font-medium mt-1">Confirmed appointments for today</p>
               </div>
-              <Link to="/dashboard/provider/bookings" className="text-blue-600 font-black text-xs hover:underline flex items-center gap-1">
-                Full Schedule <ChevronRight size={14} />
+              <Link to="/dashboard/provider/bookings">
+                <Button size="sm" variant="ghost" className="text-blue-600 font-black text-xs hover:bg-blue-50 rounded-xl px-4">
+                  Full Schedule <ChevronRight size={14} className="ml-1" />
+                </Button>
               </Link>
             </div>
-            <div className="divide-y divide-slate-50">
+            
+            <div className="flex-1 divide-y divide-slate-50">
               {todayBookings.length === 0 ? (
-                <div className="p-16 text-center">
-                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                    <Calendar size={32} />
+                <div className="flex flex-col items-center justify-center p-20 text-center h-full">
+                  <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mb-6 text-slate-200">
+                    <Calendar size={40} />
                   </div>
-                  <h4 className="text-lg font-bold text-slate-800">No appointments today</h4>
-                  <p className="text-slate-400 text-sm mt-1">Check your pending requests for new work.</p>
+                  <h4 className="text-xl font-black text-slate-800">No visits scheduled today</h4>
+                  <p className="text-slate-400 text-sm mt-2 max-w-xs">Relax! You have no confirmed visits for today. Check pending requests for new work.</p>
                 </div>
               ) : (
                 todayBookings.map(b => (
-                  <div key={b._id} className="px-8 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-slate-50/50 transition-colors">
-                    <div className="flex gap-5 items-center">
-                      <div className={cn("w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-3xl shrink-0 shadow-inner", SERVICE_CONFIG[b.service]?.color)}>
+                  <div key={b._id} className="px-8 py-7 flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-slate-50/50 transition-all group">
+                    <div className="flex gap-6 items-center">
+                      <div className={cn(
+                        "w-20 h-20 rounded-[2rem] flex items-center justify-center text-4xl shrink-0 shadow-lg group-hover:rotate-3 transition-transform duration-500",
+                        SERVICE_CONFIG[b.service]?.color
+                      )}>
                         {SERVICE_CONFIG[b.service]?.icon}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-black text-slate-900 text-lg tracking-tight">{b.patient.name}</h4>
-                          <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-full">CONFIRMED</span>
+                        <div className="flex items-center gap-3 mb-1.5">
+                          <h4 className="font-black text-slate-900 text-xl tracking-tight">{b.patient.name}</h4>
+                          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase rounded-full border border-emerald-100/50">CONFIRMED</span>
                         </div>
-                        <div className="flex items-center gap-4 text-sm font-bold text-slate-500">
-                          <span className="flex items-center gap-1.5"><Clock size={14} className="text-slate-400" /> {formatDateTime(b.scheduledAt).split(',')[1]}</span>
-                          <span className="flex items-center gap-1.5"><Activity size={14} className="text-slate-400" /> {b.durationHours} hr session</span>
+                        <div className="flex items-center gap-5 text-sm font-bold text-slate-500">
+                          <span className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+                            <Clock size={14} className="text-blue-500" /> {formatDateTime(b.scheduledAt).split(',')[1]}
+                          </span>
+                          <span className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+                            <Activity size={14} className="text-emerald-500" /> {b.durationHours} hr
+                          </span>
                         </div>
-                        <p className="text-xs text-slate-400 font-medium mt-1.5 line-clamp-1">{b.address}</p>
+                        <p className="text-sm text-slate-400 font-medium mt-3 flex items-center gap-2">
+                          <CheckCircle2 size={14} className="text-slate-300" /> {b.address}
+                        </p>
                       </div>
                     </div>
-                    <Link to={`/dashboard/provider/bookings`}>
-                      <Button size="sm" variant="ghost" className="rounded-xl border border-slate-100 font-bold text-slate-600 hover:bg-white hover:shadow-sm">Details</Button>
-                    </Link>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Pending Booking Requests Panel */}
-          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-            <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">Pending Requests</h3>
-                <p className="text-sm text-slate-400 font-medium mt-1">Approve or reject incoming care requests</p>
-              </div>
-              <span className="bg-amber-100 text-amber-700 text-[10px] font-black px-3 py-1 rounded-full">{pendingBookings.length} PENDING</span>
-            </div>
-            <div className="divide-y divide-slate-50">
-              {pendingBookings.length === 0 ? (
-                <div className="p-12 text-center text-sm text-slate-400 font-medium italic">No pending requests at the moment.</div>
-              ) : (
-                pendingBookings.slice(0, 3).map(b => (
-                  <div key={b._id} className="px-8 py-6 flex items-center justify-between hover:bg-amber-50/20 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center shadow-sm">
-                        <User className="text-slate-400" size={20} />
-                      </div>
-                      <div>
-                        <h4 className="font-black text-slate-800 text-base">{b.patient.name}</h4>
-                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{SERVICE_CONFIG[b.service]?.label} • {formatCurrency(b.totalAmount)}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <p className="hidden sm:block text-xs font-bold text-slate-400">{formatDateTime(b.scheduledAt)}</p>
-                      <Link to="/dashboard/provider/bookings">
-                        <button className="p-3 rounded-xl bg-slate-900 text-white hover:bg-blue-600 transition-colors">
-                          <ArrowRight size={18} />
-                        </button>
+                    <div className="flex items-center gap-3">
+                      <Link to={`/dashboard/provider/bookings`}>
+                        <Button className="bg-slate-900 text-white rounded-2xl font-black px-6 py-3 text-xs shadow-xl shadow-slate-900/10 hover:bg-blue-600 transition-all">Start Visit</Button>
                       </Link>
                     </div>
                   </div>
                 ))
               )}
             </div>
-            {pendingBookings.length > 3 && (
-              <div className="p-5 text-center bg-slate-50/50 border-t border-slate-100">
-                <Link to="/dashboard/provider/bookings" className="text-sm font-black text-slate-600 hover:text-blue-600">View all pending requests</Link>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Sidebar Widgets (Col 4) */}
-        <div className="lg:col-span-4 space-y-8">
+        {/* Right: Quick Actions / Activity Feed */}
+        <div className="space-y-8">
           
-          {/* Recent Notifications Panel */}
-          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-            <div className="px-7 py-5 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
+          {/* Recent Activity / Notifications */}
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+            <div className="px-7 py-6 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
               <h3 className="font-black text-slate-900 tracking-tight">Recent Activity</h3>
-              <Bell size={18} className="text-slate-400" />
+              <div className="p-2 bg-white rounded-xl border border-slate-100 shadow-sm">
+                <Bell size={16} className="text-blue-500" />
+              </div>
             </div>
-            <div className="divide-y divide-slate-50">
+            <div className="divide-y divide-slate-50 max-h-[420px] overflow-y-auto custom-scrollbar">
               {notifications.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-sm">No recent notifications</div>
+                <div className="p-10 text-center text-slate-400 text-sm font-medium italic">No recent activity</div>
               ) : (
-                notifications.slice(0, 5).map(n => (
-                  <div key={n._id} className="p-5 hover:bg-slate-50 transition-colors flex gap-4">
+                notifications.slice(0, 6).map(n => (
+                  <div key={n._id} className="p-5 hover:bg-slate-50 transition-colors flex gap-4 group">
                     <div className={cn(
-                      "w-10 h-10 rounded-xl shrink-0 flex items-center justify-center",
+                      "w-11 h-11 rounded-2xl shrink-0 flex items-center justify-center transition-transform group-hover:scale-110",
                       n.isRead ? "bg-slate-50 text-slate-400" : "bg-blue-50 text-blue-600"
                     )}>
                       <Activity size={18} />
                     </div>
-                    <div>
-                      <p className={cn("text-sm font-bold leading-tight", n.isRead ? "text-slate-600" : "text-slate-900")}>{n.title}</p>
-                      <p className="text-[11px] text-slate-400 font-medium mt-1">{formatDateTime(n.createdAt)}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className={cn("text-sm font-black leading-tight truncate", n.isRead ? "text-slate-600" : "text-slate-900")}>{n.title}</p>
+                      <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">{formatDateTime(n.createdAt)}</p>
                     </div>
                   </div>
                 ))
               )}
             </div>
+            <div className="p-4 bg-slate-50/50 border-t border-slate-100 text-center">
+               <button className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline">View All Notifications</button>
+            </div>
           </div>
 
-          {/* Earnings Summary Mini-Widget */}
-          <div className="bg-emerald-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-emerald-600/20 relative overflow-hidden group">
-            <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-700" />
+          {/* Wallet Summary Card */}
+          <div className="bg-emerald-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-emerald-600/20 relative overflow-hidden group">
+            <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000" />
             <div className="relative z-10">
-              <p className="text-emerald-100 text-xs font-black uppercase tracking-[0.2em] mb-2">Available Balance</p>
-              <h3 className="text-4xl font-black mb-6">{formatCurrency(providerProfile?.totalEarnings || 0)}</h3>
-              <div className="flex items-center justify-between pt-6 border-t border-emerald-500/50">
+              <div className="flex items-center justify-between mb-8">
+                <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+                  <Wallet size={24} />
+                </div>
+                <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest border border-white/20">Wallet</span>
+              </div>
+              <p className="text-emerald-100 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Available Balance</p>
+              <h3 className="text-4xl font-black tracking-tight mb-8">{formatCurrency(providerProfile?.totalEarnings || 0)}</h3>
+              <div className="flex items-center justify-between pt-6 border-t border-white/10">
                 <div>
-                  <p className="text-emerald-200 text-[10px] font-black uppercase tracking-widest mb-1">Monthly</p>
-                  <p className="text-lg font-black">{formatCurrency(monthlyEarnings)}</p>
+                  <p className="text-emerald-200 text-[9px] font-black uppercase tracking-[0.15em] mb-1">This Month</p>
+                  <p className="text-xl font-black">{formatCurrency(monthlyEarnings)}</p>
                 </div>
                 <Link to="/dashboard/provider/earnings">
-                  <button className="w-12 h-12 rounded-2xl bg-white text-emerald-600 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                    <ArrowRight size={20} />
+                  <button className="w-14 h-14 rounded-2xl bg-white text-emerald-600 flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-all">
+                    <ArrowRight size={24} />
                   </button>
                 </Link>
               </div>
             </div>
           </div>
-
-          {/* Ratings Summary Mini-Widget */}
-          <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-black text-slate-900 tracking-tight">Expert Rating</h3>
-              <div className="flex items-center gap-1 text-amber-500">
-                <Star size={18} fill="currentColor" />
-                <span className="font-black">{providerProfile?.rating?.toFixed(1) || '—'}</span>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <p className="text-sm font-medium text-slate-500">Your current rating is based on {providerProfile?.totalRatings || 0} client reviews.</p>
-              <Link to="/dashboard/provider/profile">
-                <Button variant="ghost" className="w-full rounded-2xl py-4 border-slate-100 text-slate-600 font-bold hover:bg-slate-50">View Detailed Feedback</Button>
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* ── Ratings & Reviews Full Panel ─────────────────────── */}
-      {providerProfile?._id && (
-        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden mt-8">
-          <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
-            <h3 className="text-xl font-black text-slate-900 tracking-tight tracking-tight flex items-center gap-3">
-              <MessageSquare className="text-blue-500" size={24} /> Ratings & Reviews
-            </h3>
+      {/* ── Bottom Section: Reviews & Feedback ────────────────── */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-8 py-7 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500">
+              <Star size={24} fill="currentColor" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">Patient Feedback</h3>
+              <p className="text-sm text-slate-400 font-medium mt-1">What your clients are saying about your care</p>
+            </div>
           </div>
-          <div className="p-8">
-            <ProviderReviews providerId={providerProfile._id} />
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
+            <StarRating value={Math.round(providerProfile?.rating || 0)} size="sm" />
+            <span className="font-black text-slate-900 ml-1">{providerProfile?.rating?.toFixed(1) || '—'}</span>
           </div>
         </div>
-      )}
+        <div className="p-8">
+          {providerProfile?._id ? (
+            <ProviderReviews providerId={providerProfile._id} />
+          ) : (
+            <div className="py-12 text-center text-slate-400 italic">No reviews found.</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

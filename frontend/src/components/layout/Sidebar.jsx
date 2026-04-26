@@ -81,38 +81,43 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
         </div>
 
         {/* ── Profile Card ──────────────────────────────────── */}
-        <div className="px-5 mb-4">
+        <div className="px-5 mb-6">
           <div className={cn(
-            'rounded-[1.75rem] p-4 flex items-center gap-3.5 border',
-            role === 'provider' ? 'bg-emerald-50/60 border-emerald-100/60' :
-            role === 'admin'    ? 'bg-purple-50/60 border-purple-100/60' :
-                                  'bg-slate-50/80 border-slate-100/50'
+            'rounded-[2rem] p-4 flex items-center gap-4 border transition-all duration-300',
+            role === 'provider' ? 'bg-emerald-50/40 border-emerald-100/40 hover:bg-emerald-50/60' :
+            role === 'admin'    ? 'bg-purple-50/40 border-purple-100/40 hover:bg-purple-50/60' :
+                                  'bg-slate-50/60 border-slate-100/40 hover:bg-slate-50/80'
           )}>
             {/* Avatar with role dot */}
             <div className="relative shrink-0">
-              <Avatar name={user?.name} size="lg" className="rounded-2xl" />
+              <Avatar name={user?.name} size="lg" className="rounded-2xl shadow-sm" />
               <div className={cn(
-                'absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white shadow-sm',
+                'absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white shadow-sm animate-pulse',
                 roleConfig.dot
               )} />
             </div>
 
             {/* Name + role badge */}
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-slate-900 truncate leading-tight">{user?.name}</p>
+              <div className="flex items-center gap-1">
+                <p className="text-sm font-black text-slate-900 truncate leading-tight">{user?.name?.split(' ')[0]}</p>
+                {role === 'provider' && <CheckCircle2 size={12} className="text-emerald-500" />}
+              </div>
 
               {/* Role label */}
-              <div className="flex items-center gap-1.5 mt-1.5">
+              <div className="flex flex-col gap-1.5 mt-2">
                 <span className={cn(
-                  'inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border',
+                  'inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border w-fit',
                   roleConfig.badge
                 )}>
                   <RoleIcon size={8} />
                   {roleConfig.label}
                 </span>
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100">
-                  <CheckCircle2 size={8} className="text-slate-400" /> Verified
-                </span>
+                {role === 'provider' && (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600/70">
+                    <ShieldCheck size={10} /> Professional
+                  </span>
+                )}
               </div>
             </div>
           </div>
