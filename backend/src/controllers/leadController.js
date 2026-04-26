@@ -297,20 +297,30 @@ exports.getMyReferral = async (req, res, next) => {
       await provider.save();
     }
 
-    // How many leads used this code
-    const referralLeads = await ProviderLead.countDocuments({ referralCode: provider.referralCode });
-    const onboardedViaReferral = await ProviderLead.countDocuments({
-      referralCode: provider.referralCode,
-      status: 'ONBOARDED',
-    });
+    // Get full history of leads
+    const [referralLeads, onboardedViaReferral, history] = await Promise.all([
+      ProviderLead.countDocuments({ referralCode: provider.referralCode }),
+      ProviderLead.countDocuments({ referralCode: provider.referralCode, status: 'ONBOARDED' }),
+      ProviderLead.find({ referralCode: provider.referralCode }).select('name createdAt status').sort({ createdAt: -1 }).lean()
+    ]);
 
     res.json({
       success: true,
       data: {
         referralCode: provider.referralCode,
-        referralLink: `${process.env.FRONTEND_URL || 'http://localhost:5174'}/join?ref=${provider.referralCode}`,
-        totalLeads: referralLeads,
-        onboarded: onboardedViaReferral,
+        referralLink: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join?ref=${provider.referralCode}`,
+        stats: {
+          total: referralLeads,
+          onboarded: onboardedViaReferral,
+          pending: referralLeads - onboardedViaReferral,
+          rewards: onboardedViaReferral
+        },
+        history: history.map(h => ({
+          name: h.name,
+          date: h.createdAt,
+          status: h.status === 'ONBOARDED' ? 'Completed' : (h.status === 'REJECTED' ? 'Rejected' : 'Pending'),
+          rewardStatus: h.status === 'ONBOARDED' ? 'Unlocked' : 'Locked'
+        }))
       },
     });
   } catch (err) {

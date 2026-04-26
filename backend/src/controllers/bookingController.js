@@ -370,7 +370,7 @@ exports.updateBookingStatus = async (req, res, next) => {
         const pNotif = await Notification.create({
           user: booking.patient,
           title: 'Service Completed',
-          message: 'Service completed. Please verify the completion.',
+          message: 'Your service is complete! Please rate your experience to help us improve.',
           type: 'BOOKING',
           linkId: booking._id
         });

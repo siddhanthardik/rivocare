@@ -14,6 +14,7 @@ export const authService = {
   // resendOTP: (data) => api.post('/auth/resend-otp', data),
   forgotPassword: (data) => api.post('/auth/forgot-password', data),
   resetPassword: (token, data) => api.put(`/auth/reset-password/${token}`, data),
+  getReferrals: () => api.get('/auth/referrals'),
 };
 
 export const providerService = {

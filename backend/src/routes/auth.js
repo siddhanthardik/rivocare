@@ -17,5 +17,6 @@ router.post('/refresh-token', refreshToken);
 router.get('/me', protect, getMe);
 router.post('/logout', protect, logout);
 router.put('/profile', protect, updateProfile);
+router.get('/referrals', protect, require('../controllers/authController').getReferrals);
 
 module.exports = router;

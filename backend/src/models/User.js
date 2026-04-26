@@ -58,9 +58,28 @@ const userSchema = new mongoose.Schema(
     otpExpire: { type: Date, select: false },
     resetPasswordToken: { type: String, select: false },
     resetPasswordExpire: { type: Date, select: false },
-    // Referral System
     referralCode: { type: String, unique: true, sparse: true }, // user's own code
     referredByCode: { type: String, default: null }, // code they used
+    
+    // Extended Profile
+    dob: { type: Date },
+    gender: { type: String, enum: ['Male', 'Female', 'Other'] },
+    emergencyContact: {
+      name: { type: String },
+      relationship: { type: String },
+      phone: { type: String }
+    },
+
+    // Detailed Address
+    addressType: { type: String, enum: ['Home', 'Work', 'Parents', 'Other'], default: 'Home' },
+    city: { type: String },
+    locality: { type: String },
+    landmark: { type: String },
+    houseNo: { type: String },
+    coords: {
+      lat: { type: Number },
+      lng: { type: Number }
+    }
   },
   { timestamps: true }
 );

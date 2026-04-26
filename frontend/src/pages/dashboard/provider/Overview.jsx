@@ -1,9 +1,25 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, CheckCircle, Clock, Wallet, AlertCircle, Star } from 'lucide-react';
+import { 
+  Calendar, 
+  CheckCircle, 
+  Clock, 
+  Wallet, 
+  AlertCircle, 
+  Star, 
+  ArrowRight, 
+  Bell, 
+  ChevronRight, 
+  TrendingUp, 
+  CheckCircle2, 
+  User, 
+  MessageSquare,
+  Activity,
+  ShieldCheck
+} from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { bookingService, authService } from '../../../services';
-import { formatDateTime, formatCurrency, SERVICE_CONFIG } from '../../../utils';
+import { bookingService, authService, notificationService, walletService } from '../../../services';
+import { formatDateTime, formatCurrency, SERVICE_CONFIG, cn } from '../../../utils';
 import { PageLoader, EmptyState } from '../../../components/ui/Feedback';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
@@ -14,21 +30,36 @@ export default function ProviderOverview() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [providerProfile, setProviderProfile] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [monthlyEarnings, setMonthlyEarnings] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
     Promise.all([
-      bookingService.getAll({ limit: 10 }),
-      authService.getMe()
+      bookingService.getAll({ limit: 20 }),
+      authService.getMe(),
+      notificationService.getNotifications(5),
+      walletService.getTransactions({ limit: 50 })
     ])
-      .then(([bookingsRes, meRes]) => {
+      .then(([bookingsRes, meRes, notifRes, walletRes]) => {
+        const bookings = bookingsRes.data.data.bookings;
         setData({
-          bookings: bookingsRes.data.data.bookings,
+          bookings,
           total: bookingsRes.data.data.total
         });
         setProviderProfile(meRes.data.data.providerProfile);
+        setNotifications(notifRes.data.data.notifications || []);
+        
+        // Calculate monthly earnings from credit transactions
+        const mEarnings = (walletRes.data.data.transactions || [])
+          .filter(t => t.type === 'CREDIT' && new Date(t.createdAt) >= firstDayOfMonth)
+          .reduce((sum, t) => sum + t.amount, 0);
+        setMonthlyEarnings(mEarnings);
       })
-      .catch((err) => console.error(err))
+      .catch((err) => console.error('Provider Overview Error:', err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -39,210 +70,330 @@ export default function ProviderOverview() {
     if (b.status === 'cancelled' || b.status === 'pending') return false;
     const date = new Date(b.scheduledAt);
     const today = new Date();
-    return date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+    return (
+      date.getDate() === today.getDate() && 
+      date.getMonth() === today.getMonth() && 
+      date.getFullYear() === today.getFullYear()
+    );
   }) || [];
 
-  const calculateOnboardingProgress = () => {
+  const progressPercent = (() => {
     let completed = 0;
     const total = 5;
-    
-    // 1. Profile Info
     if (providerProfile?.services?.length > 0) completed++;
-    // 2. Experience
-    if (providerProfile?.experience > 0 || providerProfile?.experience === 0) completed++; // assuming 0 is valid experience
-    // 3. Pincode
+    if (providerProfile?.experience >= 0) completed++;
     if (providerProfile?.pincodesServed?.length > 0) completed++;
-    // 4. KYC Upload & 5. Bank Details loosely tracked by onboarding status
     if (['KYC_PENDING', 'VERIFIED', 'ACTIVE'].includes(providerProfile?.onboardingStatus)) {
-      completed++; // KYC
-      completed++; // Bank details are uploaded alongside KYC
+      completed += 2; // KYC + Bank
     }
-    
     return Math.round((completed / total) * 100);
-  };
-
-  const progressPercent = calculateOnboardingProgress();
+  })();
 
   return (
-    <div className="space-y-6">
-      {providerProfile?.onboardingStatus !== 'ACTIVE' && (
-        <div className="card p-6 bg-white border border-slate-200 shadow-sm overflow-hidden relative">
-          <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-200 rounded-full opacity-10 blur-2xl pointer-events-none" />
-          
-          <div className="flex flex-col sm:flex-row gap-8 items-start sm:items-center justify-between z-10 relative">
-            <div className="flex-1 w-full">
-              <h3 className="text-xl font-bold text-slate-800 mb-1">Complete profile to start earning</h3>
-              <p className="text-sm text-slate-500 mb-5">Complete your details and submit documents to activate your account.</p>
-              
-              <div className="mb-2 flex justify-between items-center text-sm font-bold text-slate-700">
-                <span>Onboarding Progress</span>
-                <span className="text-primary-600">{progressPercent}% complete</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-2.5 mb-5">
-                <div className="bg-primary-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
-              </div>
+    <div className="space-y-8 pb-10">
+      {/* ── Role Header ─────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-wider border border-emerald-100/50">
+              <ShieldCheck size={12} /> Care Expert Dashboard
+            </span>
+          </div>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">
+            Hello, {user.name.split(' ')[0]} <span className="animate-pulse">👋</span>
+          </h1>
+          <p className="text-slate-500 font-medium">Manage your schedule, earnings and care requests.</p>
+        </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <div className={`flex items-center gap-1.5 text-xs font-semibold ${providerProfile?.services?.length ? 'text-emerald-600' : 'text-slate-400'}`}>
-                  <CheckCircle size={14} className={providerProfile?.services?.length ? 'fill-emerald-100' : ''} /> Profile Info
+        {/* Availability Toggle Widget */}
+        <div className="flex items-center gap-4 bg-white p-4 rounded-[1.5rem] border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 pr-4 border-r border-slate-100">
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center",
+              providerProfile?.isOnline ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-400"
+            )}>
+              <Activity size={20} className={providerProfile?.isOnline ? "animate-pulse" : ""} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</p>
+              <p className={cn("text-sm font-black", providerProfile?.isOnline ? "text-emerald-600" : "text-slate-500")}>
+                {providerProfile?.isOnline ? 'ONLINE' : 'OFFLINE'}
+              </p>
+            </div>
+          </div>
+          <Link to="/dashboard/provider/availability">
+            <Button size="sm" className="bg-slate-900 text-white rounded-xl text-xs px-5">Toggle</Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* ── Onboarding Card ─────────────────────────────────── */}
+      {providerProfile?.onboardingStatus !== 'ACTIVE' && (
+        <div className="relative group overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2.5rem] p-8 shadow-2xl shadow-slate-900/20">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[100px] pointer-events-none" />
+          <div className="relative z-10 flex flex-col lg:flex-row items-center gap-10">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                  <TrendingUp className="text-emerald-400" size={24} />
                 </div>
-                <div className={`flex items-center gap-1.5 text-xs font-semibold ${providerProfile?.experience >= 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                  <CheckCircle size={14} className={providerProfile?.experience >= 0 ? 'fill-emerald-100' : ''} /> Experience
+                <h2 className="text-2xl font-black text-white tracking-tight">Complete profile to start earning</h2>
+              </div>
+              <p className="text-slate-400 text-base font-medium mb-8 max-w-xl">
+                You're just a few steps away from joining our network of care experts. Finish your onboarding to unlock service requests.
+              </p>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-white font-bold text-sm">Onboarding Progress</span>
+                  <span className="text-emerald-400 font-black text-sm">{progressPercent}%</span>
                 </div>
-                <div className={`flex items-center gap-1.5 text-xs font-semibold ${providerProfile?.pincodesServed?.length ? 'text-emerald-600' : 'text-slate-400'}`}>
-                  <CheckCircle size={14} className={providerProfile?.pincodesServed?.length ? 'fill-emerald-100' : ''} /> Pincode
-                </div>
-                <div className={`flex items-center gap-1.5 text-xs font-semibold ${progressPercent >= 80 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                  <CheckCircle size={14} className={progressPercent >= 80 ? 'fill-emerald-100' : ''} /> KYC Upload
-                </div>
-                <div className={`flex items-center gap-1.5 text-xs font-semibold ${progressPercent >= 80 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                  <CheckCircle size={14} className={progressPercent >= 80 ? 'fill-emerald-100' : ''} /> Bank Details
+                <div className="h-3 w-full bg-slate-700/50 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+                    style={{ width: `${progressPercent}%` }}
+                  />
                 </div>
               </div>
             </div>
-            
-            <div className="shrink-0 space-y-3 w-full sm:w-auto min-w-[200px]">
-              {providerProfile?.onboardingStatus === 'INCOMPLETE' && (
-                <Link to="/dashboard/provider/onboarding">
-                  <Button className="w-full shadow-md bg-slate-900 text-white hover:bg-slate-800 border-0">Continue Onboarding</Button>
-                </Link>
-              )}
-              {providerProfile?.onboardingStatus === 'KYC_PENDING' && (
-                <div className="text-center bg-amber-50 rounded-xl p-3 border border-amber-100">
-                  <p className="text-sm font-bold text-amber-700 mb-1">KYC Under Review</p>
-                  <p className="text-xs text-amber-600">Our team is verifying your documents.</p>
-                </div>
-              )}
-              {providerProfile?.onboardingStatus === 'VERIFIED' && (
-                <Link to="/dashboard/provider/availability">
-                  <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-md">Turn Availability ON</Button>
-                  <p className="text-xs text-center text-slate-500 mt-2">Required to become ACTIVE</p>
-                </Link>
-              )}
+
+            <div className="shrink-0 bg-white/5 backdrop-blur-md rounded-[2rem] p-6 border border-white/10 w-full lg:w-80">
+              <div className="space-y-4">
+                {[
+                  { label: 'Profile Information', done: providerProfile?.services?.length > 0 },
+                  { label: 'KYC Documents', done: progressPercent >= 80 },
+                  { label: 'Availability Setup', done: providerProfile?.onboardingStatus === 'ACTIVE' }
+                ].map((step, idx) => (
+                  <div key={idx} className="flex items-center gap-3 text-sm">
+                    {step.done ? (
+                      <CheckCircle2 size={18} className="text-emerald-400" />
+                    ) : (
+                      <div className="w-[18px] h-[18px] rounded-full border-2 border-slate-600" />
+                    )}
+                    <span className={cn("font-bold", step.done ? "text-slate-200" : "text-slate-500")}>{step.label}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-8">
+                {providerProfile?.onboardingStatus === 'INCOMPLETE' && (
+                  <Link to="/dashboard/provider/onboarding">
+                    <Button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-500/20">Continue Onboarding</Button>
+                  </Link>
+                )}
+                {providerProfile?.onboardingStatus === 'KYC_PENDING' && (
+                  <div className="text-center bg-amber-500/10 rounded-2xl p-4 border border-amber-500/20">
+                    <p className="text-amber-400 font-black text-sm">KYC Under Review</p>
+                  </div>
+                )}
+                {providerProfile?.onboardingStatus === 'VERIFIED' && (
+                  <Link to="/dashboard/provider/availability">
+                    <Button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-500/20 text-sm">Turn Availability ON</Button>
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title leading-tight">Welcome, {user.name.split(' ')[0]} 👋</h1>
-          <p className="text-slate-500">Here's what's happening today.</p>
-        </div>
-        <div className="flex items-center gap-2 bg-white px-4 py-2 border border-slate-200 rounded-lg shadow-sm">
-          <div className={`w-3 h-3 rounded-full ${providerProfile?.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-          <span className="text-sm font-semibold text-slate-700">{providerProfile?.isOnline ? 'Online' : 'Offline'}</span>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div className="stat-card border-none bg-blue-50">
-          <div className="p-3 bg-blue-500 text-white rounded-xl"><Calendar size={24} /></div>
-          <div>
-            <p className="text-sm font-medium text-blue-600 mb-0.5">Today's schedule</p>
-            <h3 className="text-2xl font-bold text-slate-800">{todayBookings.length}</h3>
-          </div>
-        </div>
-        <div className="stat-card border-none bg-amber-50">
-          <div className="p-3 bg-amber-500 text-white rounded-xl"><Clock size={24} /></div>
-          <div>
-            <p className="text-sm font-medium text-amber-600 mb-0.5">Pending requests</p>
-            <h3 className="text-2xl font-bold text-slate-800">{pendingBookings.length}</h3>
-          </div>
-        </div>
-        <div className="stat-card border-none bg-emerald-50">
-          <div className="p-3 bg-emerald-500 text-white rounded-xl"><Wallet size={24} /></div>
-          <div>
-            <p className="text-sm font-medium text-emerald-600 mb-0.5">Total earnings</p>
-            <h3 className="text-2xl font-bold text-slate-800">{formatCurrency(providerProfile?.totalEarnings || 0)}</h3>
-          </div>
-        </div>
-        <div className="stat-card border-none bg-purple-50">
-          <div className="p-3 bg-purple-500 text-white rounded-xl"><CheckCircle size={24} /></div>
-          <div>
-            <p className="text-sm font-medium text-purple-600 mb-0.5">Completed</p>
-            <h3 className="text-2xl font-bold text-slate-800">{providerProfile?.completedBookings || 0}</h3>
-          </div>
-        </div>
-        <div className="stat-card border-none bg-amber-50">
-          <div className="p-3 bg-amber-500 text-white rounded-xl"><Star size={24} /></div>
-          <div>
-            <p className="text-sm font-medium text-amber-600 mb-0.5">Avg Rating</p>
-            <div className="flex items-end gap-1.5">
-              <h3 className="text-2xl font-bold text-slate-800">{providerProfile?.rating?.toFixed(1) || '—'}</h3>
-              {providerProfile?.totalRatings > 0 && <span className="text-xs text-slate-400 mb-1">({providerProfile.totalRatings})</span>}
+      {/* ── Stats Grid ──────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+        {[
+          { label: 'Today’s Schedule', val: todayBookings.length, sub: 'Confirmed visits', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Pending Requests', val: pendingBookings.length, sub: 'Awaiting action', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'Monthly Earnings', val: formatCurrency(monthlyEarnings), sub: 'Current month', icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Completed Services', val: providerProfile?.completedBookings || 0, sub: 'Total all-time', icon: CheckCircle, color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Avg Rating', val: providerProfile?.rating?.toFixed(1) || '—', sub: `${providerProfile?.totalRatings || 0} reviews`, icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' }
+        ].map((stat, i) => (
+          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+            <div className={cn("w-12 h-12 rounded-2xl mb-4 flex items-center justify-center transition-transform group-hover:scale-110", stat.bg, stat.color)}>
+              <stat.icon size={24} />
             </div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
+            <h3 className="text-2xl font-black text-slate-900">{stat.val}</h3>
+            <p className="text-[11px] font-bold text-slate-400 mt-1">{stat.sub}</p>
           </div>
-        </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pending Requests */}
-        <div className="lg:col-span-1 border border-slate-100 bg-white rounded-xl shadow-sm">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="font-semibold text-slate-800">Pending Requests</h2>
-            <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">{pendingBookings.length}</span>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {pendingBookings.length === 0 ? (
-              <div className="p-8 text-center text-sm text-slate-500">No pending requests</div>
-            ) : (
-              pendingBookings.slice(0, 3).map(b => (
-                <div key={b._id} className="p-4 hover:bg-slate-50 transition-colors">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-semibold text-sm text-slate-800">{b.patient.name}</h4>
-                    <span className="text-sm font-bold text-primary-600">{formatCurrency(b.totalAmount)}</span>
-                  </div>
-                  <p className="text-xs text-slate-500 mb-3">{formatDateTime(b.scheduledAt)}</p>
-                  <Link to="/dashboard/provider/bookings" className="text-xs font-semibold text-primary-600 hover:text-primary-700 hover:underline">
-                    View Details →
-                  </Link>
-                </div>
-              ))
-            )}
-          </div>
-          {pendingBookings.length > 3 && (
-            <div className="p-3 text-center border-t border-slate-100">
-              <Link to="/dashboard/provider/bookings" className="text-xs font-semibold text-slate-500 hover:text-primary-600">
-                View all requests
+      {/* ── Main Dashboard Panels ───────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Today's Appointments Panel */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Today's Appointments</h3>
+                <p className="text-sm text-slate-400 font-medium mt-1">Confirmed bookings for {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}</p>
+              </div>
+              <Link to="/dashboard/provider/bookings" className="text-blue-600 font-black text-xs hover:underline flex items-center gap-1">
+                Full Schedule <ChevronRight size={14} />
               </Link>
             </div>
-          )}
-        </div>
-
-        {/* Today's Schedule */}
-        <div className="lg:col-span-2 border border-slate-100 bg-white rounded-xl shadow-sm">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-800">Today's Appointments</h2>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {todayBookings.length === 0 ? (
-              <EmptyState title="No appointments today" description="Take a well-deserved rest." />
-            ) : (
-              todayBookings.map(b => (
-                <div key={b._id} className="p-5 flex flex-col sm:flex-row gap-4 justify-between sm:items-center hover:bg-slate-50 transition-colors">
-                  <div className="flex gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 ${SERVICE_CONFIG[b.service].color}`}>
-                      {SERVICE_CONFIG[b.service].icon}
+            <div className="divide-y divide-slate-50">
+              {todayBookings.length === 0 ? (
+                <div className="p-16 text-center">
+                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
+                    <Calendar size={32} />
+                  </div>
+                  <h4 className="text-lg font-bold text-slate-800">No appointments today</h4>
+                  <p className="text-slate-400 text-sm mt-1">Check your pending requests for new work.</p>
+                </div>
+              ) : (
+                todayBookings.map(b => (
+                  <div key={b._id} className="px-8 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-slate-50/50 transition-colors">
+                    <div className="flex gap-5 items-center">
+                      <div className={cn("w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-3xl shrink-0 shadow-inner", SERVICE_CONFIG[b.service]?.color)}>
+                        {SERVICE_CONFIG[b.service]?.icon}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-black text-slate-900 text-lg tracking-tight">{b.patient.name}</h4>
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-full">CONFIRMED</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm font-bold text-slate-500">
+                          <span className="flex items-center gap-1.5"><Clock size={14} className="text-slate-400" /> {formatDateTime(b.scheduledAt).split(',')[1]}</span>
+                          <span className="flex items-center gap-1.5"><Activity size={14} className="text-slate-400" /> {b.durationHours} hr session</span>
+                        </div>
+                        <p className="text-xs text-slate-400 font-medium mt-1.5 line-clamp-1">{b.address}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-slate-800">{b.patient.name}</h4>
-                      <p className="text-sm text-slate-500 font-medium">{formatDateTime(b.scheduledAt)} • {b.durationHours} hr</p>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-1">{b.address}, {b.pincode}</p>
+                    <Link to={`/dashboard/provider/bookings`}>
+                      <Button size="sm" variant="ghost" className="rounded-xl border border-slate-100 font-bold text-slate-600 hover:bg-white hover:shadow-sm">Details</Button>
+                    </Link>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Pending Booking Requests Panel */}
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Pending Requests</h3>
+                <p className="text-sm text-slate-400 font-medium mt-1">Approve or reject incoming care requests</p>
+              </div>
+              <span className="bg-amber-100 text-amber-700 text-[10px] font-black px-3 py-1 rounded-full">{pendingBookings.length} PENDING</span>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {pendingBookings.length === 0 ? (
+                <div className="p-12 text-center text-sm text-slate-400 font-medium italic">No pending requests at the moment.</div>
+              ) : (
+                pendingBookings.slice(0, 3).map(b => (
+                  <div key={b._id} className="px-8 py-6 flex items-center justify-between hover:bg-amber-50/20 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center shadow-sm">
+                        <User className="text-slate-400" size={20} />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-slate-800 text-base">{b.patient.name}</h4>
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">{SERVICE_CONFIG[b.service]?.label} • {formatCurrency(b.totalAmount)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <p className="hidden sm:block text-xs font-bold text-slate-400">{formatDateTime(b.scheduledAt)}</p>
+                      <Link to="/dashboard/provider/bookings">
+                        <button className="p-3 rounded-xl bg-slate-900 text-white hover:bg-blue-600 transition-colors">
+                          <ArrowRight size={18} />
+                        </button>
+                      </Link>
                     </div>
                   </div>
-                  <Badge status={b.status} />
-                </div>
-              ))
+                ))
+              )}
+            </div>
+            {pendingBookings.length > 3 && (
+              <div className="p-5 text-center bg-slate-50/50 border-t border-slate-100">
+                <Link to="/dashboard/provider/bookings" className="text-sm font-black text-slate-600 hover:text-blue-600">View all pending requests</Link>
+              </div>
             )}
+          </div>
+        </div>
+
+        {/* Sidebar Widgets (Col 4) */}
+        <div className="lg:col-span-4 space-y-8">
+          
+          {/* Recent Notifications Panel */}
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-7 py-5 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
+              <h3 className="font-black text-slate-900 tracking-tight">Recent Activity</h3>
+              <Bell size={18} className="text-slate-400" />
+            </div>
+            <div className="divide-y divide-slate-50">
+              {notifications.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-sm">No recent notifications</div>
+              ) : (
+                notifications.slice(0, 5).map(n => (
+                  <div key={n._id} className="p-5 hover:bg-slate-50 transition-colors flex gap-4">
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl shrink-0 flex items-center justify-center",
+                      n.isRead ? "bg-slate-50 text-slate-400" : "bg-blue-50 text-blue-600"
+                    )}>
+                      <Activity size={18} />
+                    </div>
+                    <div>
+                      <p className={cn("text-sm font-bold leading-tight", n.isRead ? "text-slate-600" : "text-slate-900")}>{n.title}</p>
+                      <p className="text-[11px] text-slate-400 font-medium mt-1">{formatDateTime(n.createdAt)}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Earnings Summary Mini-Widget */}
+          <div className="bg-emerald-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-emerald-600/20 relative overflow-hidden group">
+            <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-700" />
+            <div className="relative z-10">
+              <p className="text-emerald-100 text-xs font-black uppercase tracking-[0.2em] mb-2">Available Balance</p>
+              <h3 className="text-4xl font-black mb-6">{formatCurrency(providerProfile?.totalEarnings || 0)}</h3>
+              <div className="flex items-center justify-between pt-6 border-t border-emerald-500/50">
+                <div>
+                  <p className="text-emerald-200 text-[10px] font-black uppercase tracking-widest mb-1">Monthly</p>
+                  <p className="text-lg font-black">{formatCurrency(monthlyEarnings)}</p>
+                </div>
+                <Link to="/dashboard/provider/earnings">
+                  <button className="w-12 h-12 rounded-2xl bg-white text-emerald-600 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
+                    <ArrowRight size={20} />
+                  </button>
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* Ratings Summary Mini-Widget */}
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-black text-slate-900 tracking-tight">Expert Rating</h3>
+              <div className="flex items-center gap-1 text-amber-500">
+                <Star size={18} fill="currentColor" />
+                <span className="font-black">{providerProfile?.rating?.toFixed(1) || '—'}</span>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <p className="text-sm font-medium text-slate-500">Your current rating is based on {providerProfile?.totalRatings || 0} client reviews.</p>
+              <Link to="/dashboard/provider/profile">
+                <Button variant="ghost" className="w-full rounded-2xl py-4 border-slate-100 text-slate-600 font-bold hover:bg-slate-50">View Detailed Feedback</Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Reviews panel */}
+      {/* ── Ratings & Reviews Full Panel ─────────────────────── */}
       {providerProfile?._id && (
-        <ProviderReviews providerId={providerProfile._id} />
+        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden mt-8">
+          <div className="px-8 py-6 border-b border-slate-50 flex items-center justify-between">
+            <h3 className="text-xl font-black text-slate-900 tracking-tight tracking-tight flex items-center gap-3">
+              <MessageSquare className="text-blue-500" size={24} /> Ratings & Reviews
+            </h3>
+          </div>
+          <div className="p-8">
+            <ProviderReviews providerId={providerProfile._id} />
+          </div>
+        </div>
       )}
     </div>
   );

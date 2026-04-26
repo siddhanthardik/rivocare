@@ -34,6 +34,7 @@ import PatientOverview from './pages/dashboard/patient/Overview';
 import PatientBookings from './pages/dashboard/patient/Bookings';
 import PatientProfile from './pages/dashboard/patient/Profile';
 import PatientPlansPackages from './pages/dashboard/patient/PlansPackages';
+import PatientReferral from './pages/dashboard/patient/Referral';
 
 // Provider Dashboard
 import ProviderOverview from './pages/dashboard/provider/Overview';
@@ -67,10 +68,7 @@ const patientNav = [
   { path: '/dashboard/patient', label: 'Overview', icon: LayoutDashboard, end: true },
   { path: '/dashboard/patient/bookings', label: 'My Bookings', icon: Calendar },
   { path: '/dashboard/patient/plans', label: 'Plans & Packages', icon: BookOpen },
-  { path: '/dashboard/patient/health-records', label: 'My Health Records', icon: ShieldCheck },
-  { path: '/dashboard/patient/prescriptions', label: 'Prescriptions', icon: User },
-  { path: '/dashboard/patient/messages', label: 'Messages', icon: TrendingUp, badge: 3 },
-  { path: '/refer', label: 'Refer & Earn', icon: Users },
+  { path: '/dashboard/patient/refer', label: 'Refer & Earn', icon: Users },
   { path: '/dashboard/patient/profile', label: 'Profile Settings', icon: User },
   { path: '/dashboard/patient/support', label: 'Help & Support', icon: ShieldCheck },
 ];
@@ -132,10 +130,11 @@ export default function App() {
 
       {/* Patient */}
       <Route element={<ProtectedRoute role="patient" />}>
-        <Route path="/dashboard/patient" element={<DashboardLayout navItems={patientNav} />}>
+        <Route path="/dashboard/patient" element={<DashboardLayout navItems={patientNav} role="patient" />}>
           <Route index element={<PatientOverview />} />
           <Route path="plans" element={<PatientPlansPackages />} />
           <Route path="bookings" element={<PatientBookings />} />
+          <Route path="refer" element={<PatientReferral />} />
           <Route path="profile" element={<PatientProfile />} />
           <Route path="book" element={<BookingWizard />} />
         </Route>
@@ -143,7 +142,7 @@ export default function App() {
 
       {/* Provider */}
       <Route element={<ProtectedRoute role="provider" />}>
-        <Route path="/dashboard/provider" element={<DashboardLayout navItems={providerNav} />}>
+        <Route path="/dashboard/provider" element={<DashboardLayout navItems={providerNav} role="provider" />}>
           <Route index element={<ProviderOverview />} />
           <Route path="bookings" element={<ProviderBookings />} />
           <Route path="assignments" element={<ProviderAssignments />} />
@@ -158,7 +157,7 @@ export default function App() {
 
       {/* Admin */}
       <Route element={<ProtectedRoute role="admin" />}>
-        <Route path="/dashboard/admin" element={<DashboardLayout navItems={adminNav} />}>
+        <Route path="/dashboard/admin" element={<DashboardLayout navItems={adminNav} role="admin" />}>
           <Route index element={<AdminOverview />} />
           <Route path="revenue" element={<AdminRevenueDashboard />} />
           <Route path="plans" element={<AdminPlansPackages />} />

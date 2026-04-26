@@ -6,7 +6,7 @@ const Provider = require('../models/Provider');
 // Patient submits a review for a completed booking
 exports.submitReview = async (req, res) => {
   try {
-    const { bookingId, rating, comment } = req.body;
+    const { bookingId, rating, comment, tags } = req.body;
 
     if (!bookingId || !rating) {
       return res.status(400).json({ success: false, message: 'bookingId and rating are required' });
@@ -43,6 +43,7 @@ exports.submitReview = async (req, res) => {
       booking: bookingId,
       rating,
       comment: comment || '',
+      tags: tags || [],
     });
 
     await review.populate('patient', 'name avatar');

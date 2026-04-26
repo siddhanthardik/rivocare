@@ -30,6 +30,10 @@ const reviewSchema = new mongoose.Schema(
       maxlength: [500, 'Comment cannot exceed 500 characters'],
       default: '',
     },
+    tags: [{
+      type: String,
+      trim: true
+    }]
   },
   { timestamps: true }
 );

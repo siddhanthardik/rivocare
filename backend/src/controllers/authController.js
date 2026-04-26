@@ -183,10 +183,19 @@ exports.logout = async (req, res, next) => {
 // @PUT /api/auth/profile
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, phone, address, pincode } = req.body;
+    const { 
+      name, phone, address, pincode,
+      dob, gender, emergencyContact,
+      addressType, city, locality, landmark, houseNo, coords
+    } = req.body;
+
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { name, phone, address, pincode },
+      { 
+        name, phone, address, pincode,
+        dob, gender, emergencyContact,
+        addressType, city, locality, landmark, houseNo, coords
+      },
       { new: true, runValidators: true }
     );
     res.json({ success: true, data: { user } });
@@ -274,6 +283,72 @@ exports.resetPassword = async (req, res, next) => {
     await user.save(); // 'save' hook will run to hash the new password
 
     res.json({ success: true, message: 'Password successfully reset' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @GET /api/auth/referrals
+exports.getReferrals = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user.referralCode) {
+      user.referralCode = `CARE${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      await user.save({ validateBeforeSave: false });
+    }
+
+    // Find users referred by this user
+    const referredUsers = await User.find({ referredByCode: user.referralCode })
+      .select('name createdAt role')
+      .lean();
+
+    // Map to history format
+    // In a real system, we'd check their bookings to see if "Reward Unlocked"
+    // For now, we'll return a calculated status
+    const Booking = require('../models/Booking');
+    
+    const history = await Promise.all(referredUsers.map(async (u) => {
+      // Logic: 
+      // - Pending: Just registered
+      // - Booked: Has at least one booking
+      // - Completed: Has at least one completed booking
+      // - Reward Unlocked: (Same as completed for now)
+      
+      const bookings = await Booking.find({ patient: u._id });
+      let status = 'Pending';
+      let rewardStatus = 'Locked';
+
+      if (bookings.length > 0) {
+        status = 'Booked';
+        const hasCompleted = bookings.some(b => b.status === 'completed');
+        if (hasCompleted) {
+          status = 'Completed';
+          rewardStatus = 'Unlocked';
+        }
+      }
+
+      return {
+        name: u.name,
+        date: u.createdAt,
+        status,
+        rewardStatus
+      };
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        referralCode: user.referralCode,
+        referralLink: `${process.env.CLIENT_URL || 'http://localhost:5173'}/register?ref=${user.referralCode}`,
+        stats: {
+          total: history.length,
+          successful: history.filter(h => h.status === 'Completed').length,
+          pending: history.filter(h => h.status !== 'Completed').length,
+          rewards: history.filter(h => h.rewardStatus === 'Unlocked').length
+        },
+        history
+      }
+    });
   } catch (err) {
     next(err);
   }

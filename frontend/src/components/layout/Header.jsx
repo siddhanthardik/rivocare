@@ -40,7 +40,10 @@ export default function Header() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-6">
-          <Link to="/refer" className="flex items-center gap-1.5 hover:text-blue-300 transition">
+          <Link 
+            to={user ? (user.role === 'patient' ? '/dashboard/patient/refer' : (user.role === 'provider' ? '/dashboard/provider/referrals' : '/refer')) : '/refer'} 
+            className="flex items-center gap-1.5 hover:text-blue-300 transition"
+          >
             <GiftIcon /> Refer & Earn
           </Link>
         </div>
