@@ -14,6 +14,8 @@ export const authService = {
   // resendOTP: (data) => api.post('/auth/resend-otp', data),
   forgotPassword: (data) => api.post('/auth/forgot-password', data),
   resetPassword: (token, data) => api.put(`/auth/reset-password/${token}`, data),
+  uploadAvatar: (formData) => api.post('/auth/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  removeAvatar: () => api.delete('/auth/avatar'),
   getReferrals: () => api.get('/auth/referrals'),
 };
 

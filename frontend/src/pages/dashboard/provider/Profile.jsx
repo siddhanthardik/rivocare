@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { 
   User, 
@@ -17,7 +17,9 @@ import {
   Lock,
   LogOut,
   Map as MapIcon,
-  Search
+  Search,
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { authService, providerService } from '../../../services';
@@ -29,10 +31,12 @@ import { cn } from '../../../utils';
 
 export default function ProviderProfile() {
   const { user, updateUser, logout } = useAuth();
+  const fileInputRef = useRef(null);
   const [providerProfile, setProviderProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const [form, setForm] = useState({
     // User fields
@@ -174,6 +178,56 @@ export default function ProviderProfile() {
     }
   };
 
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validation
+    if (!file.type.startsWith('image/')) {
+      return toast.error('Please upload an image file');
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return toast.error('Image size must be less than 5MB');
+    }
+
+    setUploading(true);
+    const toastId = toast.loading('Uploading photo...');
+
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      
+      const { data } = await authService.uploadAvatar(formData);
+      updateUser(data.data.user);
+      toast.success('Profile photo updated!', { id: toastId });
+    } catch (err) {
+      toast.error('Upload failed. Please try again.', { id: toastId });
+    } finally {
+      setUploading(false);
+      // Reset input value to allow selecting same file again
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user.avatar) return;
+    
+    if (!window.confirm('Are you sure you want to remove your profile photo?')) return;
+
+    setUploading(true);
+    const toastId = toast.loading('Removing photo...');
+
+    try {
+      const { data } = await authService.removeAvatar();
+      updateUser(data.data.user);
+      toast.success('Profile photo removed', { id: toastId });
+    } catch (err) {
+      toast.error('Failed to remove photo', { id: toastId });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleUseLocation = () => {
     if (!navigator.geolocation) return toast.error('Geolocation not supported');
     setLocating(true);
@@ -242,11 +296,41 @@ export default function ProviderProfile() {
             {/* Avatar Section */}
             <div className="flex flex-col sm:flex-row items-center gap-8 bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100">
               <div className="relative group">
-                <Avatar name={user.name} size="xl" className="w-32 h-32 rounded-[2.5rem] border-4 border-white shadow-xl" />
-                <button className="absolute -bottom-2 -right-2 p-3 bg-blue-600 text-white rounded-2xl shadow-lg hover:scale-110 transition-transform">
+                <div className="relative overflow-hidden rounded-[2.5rem]">
+                  <Avatar 
+                    name={user.name} 
+                    src={user.avatar}
+                    size="xl" 
+                    className={cn(
+                      "w-32 h-32 rounded-[2.5rem] border-4 border-white shadow-xl transition-all duration-500",
+                      uploading && "opacity-50 scale-95 blur-[2px]"
+                    )} 
+                  />
+                  {uploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                      <Loader2 size={32} className="text-white animate-spin drop-shadow-md" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* Hidden File Input */}
+                <input 
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
+
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="absolute -bottom-2 -right-2 p-3 bg-blue-600 text-white rounded-2xl shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
+                >
                   <Camera size={18} />
                 </button>
               </div>
+
               <div className="text-center sm:text-left space-y-3">
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
                   <h3 className="text-2xl font-black text-slate-900">{user.name}</h3>
@@ -261,8 +345,22 @@ export default function ProviderProfile() {
                   )}
                 </div>
                 <div className="flex items-center justify-center sm:justify-start gap-4">
-                  <button className="text-sm font-bold text-blue-600 hover:underline">Change Photo</button>
-                  <button className="text-sm font-bold text-red-400 hover:text-red-500">Remove</button>
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="text-sm font-bold text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    Change Photo
+                  </button>
+                  {user.avatar && (
+                    <button 
+                      onClick={handleRemovePhoto}
+                      disabled={uploading}
+                      className="text-sm font-bold text-red-400 hover:text-red-500 disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <Trash2 size={14} /> Remove Photo
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

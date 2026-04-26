@@ -1,6 +1,7 @@
-const router = require('express').Router();
+const { upload } = require('../utils/cloudinary');
 const { 
   register, login, getMe, refreshToken, logout, updateProfile,
+  uploadAvatar, removeAvatar,
   verifyOTP, resendOTP, forgotPassword, resetPassword
 } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
@@ -17,6 +18,8 @@ router.post('/refresh-token', refreshToken);
 router.get('/me', protect, getMe);
 router.post('/logout', protect, logout);
 router.put('/profile', protect, updateProfile);
+router.post('/avatar', protect, upload.single('avatar'), uploadAvatar);
+router.delete('/avatar', protect, removeAvatar);
 router.get('/referrals', protect, require('../controllers/authController').getReferrals);
 
 module.exports = router;

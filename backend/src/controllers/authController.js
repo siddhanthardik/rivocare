@@ -204,6 +204,41 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
+// @POST /api/auth/avatar
+exports.uploadAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const url = req.file.path || req.file.secure_url || req.file.url;
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { avatar: url },
+      { new: true }
+    );
+
+    res.json({ success: true, message: 'Avatar uploaded successfully', data: { user } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @DELETE /api/auth/avatar
+exports.removeAvatar = async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { avatar: null },
+      { new: true }
+    );
+
+    res.json({ success: true, message: 'Avatar removed successfully', data: { user } });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // @POST /api/auth/verify-otp
 exports.verifyOTP = async (req, res, next) => {
   try {
