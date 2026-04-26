@@ -51,13 +51,26 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Auth specific strictly limited rate-limiter
+// Auth specific strictly limited rate-limiter for login/register
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, 
-  max: 20, // Strict limit for auth routes to prevent brute force
-  message: { success: false, message: 'Too many login attempts, please try again after 15 minutes.' }
+  max: 20, // Strict limit to prevent brute force
+  message: { success: false, message: 'Too many attempts, please try again after 15 minutes.' }
 });
-app.use('/api/auth/', authLimiter);
+
+// More generous limiter for profile/avatar updates
+const profileUpdateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { success: false, message: 'Too many profile updates, please try again later.' }
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+app.use('/api/auth/profile', profileUpdateLimiter);
+app.use('/api/auth/avatar', profileUpdateLimiter);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

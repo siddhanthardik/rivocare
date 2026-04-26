@@ -13,9 +13,9 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'rivo_kyc_docs', // Store all KYC documents here
-    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf'],
-    resource_type: 'auto', // Allow PDFs (which are 'raw' in Cloudinary normally, but 'auto' discovers it)
+    folder: 'rivo_uploads', // Generic folder for uploads
+    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'webp'],
+    resource_type: 'auto', 
   },
 });
 
