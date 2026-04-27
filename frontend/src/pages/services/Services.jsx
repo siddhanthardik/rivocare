@@ -1,105 +1,63 @@
 import { Link } from 'react-router-dom';
 import { ChevronRight, ArrowRight, ShieldCheck, Star, Phone } from 'lucide-react';
+import { serviceIcons } from '../../constants/serviceIcons';
 
 const services = [
   {
     title: 'Home Nursing',
     desc: 'Trained nurses for post-surgery, chronic illness, wound care & injections.',
     path: '/services/nursing-care',
-    icon: (
-      <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 16h24l-3-8H15z" /><path d="M24 10v4m-2-2h4" />
-        <path d="M14 16c-3 0-5 2-5 6v2c0 2 1 4 3 6" /><path d="M34 16c3 0 5 2 5 6v2c0 2-1 4-3 6" />
-        <path d="M17 22v4a7 7 0 0 0 14 0v-4" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Elder Care',
-    desc: 'Compassionate elder care services including assistance with daily activities.',
-    path: '/services/elder-care',
-    icon: (
-      <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="20" cy="12" r="4" /><path d="M20 18c-3 0-5 2-5 5v7h4v12" />
-        <path d="M24 30v12" /><path d="M20 18c2 0 4 1 5 3l4 6" /><path d="M31 22v20" />
-      </svg>
-    ),
-  },
-  {
-    title: 'ICU at Home',
-    desc: 'Advanced ICU setup and critical care by expert medical team at home.',
-    path: '/services/nursing-care',
-    icon: (
-      <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="8" y="10" width="32" height="24" rx="3" /><path d="M16 34v4M32 34v4M12 38h24" />
-        <path d="M18 22h12M24 16v12" stroke="#6EE7B7" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Physiotherapy',
-    desc: 'Pain management, mobility training and rehabilitation at your home.',
-    path: '/services/physiotherapy',
-    icon: (
-      <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="32" cy="12" r="4" /><path d="M30 18l-8 8-4 14" /><path d="M22 26l6 12" />
-        <path d="M30 18c-4-2-8 0-10 4l-4 8" /><path d="M8 38h32" />
-      </svg>
-    ),
+    icon: serviceIcons.nursing,
+    bgClass: 'bg-blue-50/50'
   },
   {
     title: 'Doctor Visit',
     desc: 'Consult experienced doctors at home for illness, follow-up and elderly care.',
     path: '/services/doctor-at-home',
-    icon: (
-      <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 10v8a8 8 0 0 0 16 0v-8" /><path d="M13 8h6M29 8h6" />
-        <path d="M24 26v10" /><circle cx="24" cy="40" r="4" />
-      </svg>
-    ),
+    icon: serviceIcons.doctor,
+    bgClass: 'bg-indigo-50/50'
   },
   {
-    title: 'Attendant Services',
-    desc: 'Trained attendants for patient care, elder and newborn care.',
-    path: '/services/elder-care',
-    icon: (
-      <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M24 24l-4.5-4.5a4.5 4.5 0 0 1 6.3-6.3L24 14.5l-1.8-1.3a4.5 4.5 0 0 1 6.3 6.3z" stroke="#6EE7B7" strokeWidth="2.5" />
-        <path d="M14 30l4 4 6 2 6-2 4-4" /><path d="M8 26c0 4 4 8 8 10" /><path d="M40 26c0 4-4 8-8 10" />
-      </svg>
-    ),
+    title: 'Physiotherapy',
+    desc: 'Pain management, mobility training and rehabilitation at your home.',
+    path: '/services/physiotherapy',
+    icon: serviceIcons.physio,
+    bgClass: 'bg-emerald-50/50'
   },
   {
     title: 'Lab Tests',
     desc: 'Book lab tests at home with accurate reports and fast sample collection.',
     path: '/services/nursing-care',
-    icon: (
-      <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 8h8" /><path d="M24 8v12l-10 20h20l-10-20V8" />
-        <path d="M17 32h14" stroke="#6EE7B7" /><circle cx="21" cy="36" r="1.5" fill="#6EE7B7" stroke="none" />
-      </svg>
-    ),
+    icon: serviceIcons.lab,
+    bgClass: 'bg-violet-50/50'
   },
   {
-    title: 'Recovery Care',
-    desc: 'Personalized recovery programs for faster healing and better strength.',
-    path: '/services/physiotherapy',
-    icon: (
-      <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 32V20a12 12 0 0 1 24 0v12" /><path d="M8 32h32v4H8z" /><path d="M6 36h36v4H6z" />
-        <path d="M24 28v-8" stroke="#6EE7B7" />
-      </svg>
-    ),
+    title: 'Elder Care',
+    desc: 'Compassionate elder care services including assistance with daily activities.',
+    path: '/services/elder-care',
+    icon: serviceIcons.elder,
+    bgClass: 'bg-orange-50/50'
   },
   {
-    title: 'Palliative Care',
-    desc: 'Specialised care for palliative conditions, comfort and pain management.',
+    title: 'Attendant Services',
+    desc: 'Trained attendants for patient care, elder and newborn care.',
+    path: '/services/elder-care',
+    icon: serviceIcons.attendant,
+    bgClass: 'bg-pink-50/50'
+  },
+  {
+    title: 'ICU at Home',
+    desc: 'Advanced ICU setup and critical care by expert medical team at home.',
     path: '/services/nursing-care',
-    icon: (
-      <svg width="40" height="40" viewBox="0 0 48 48" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M24 38 C16 32 8 24 8 16 a8 8 0 0 1 16-2 a8 8 0 0 1 16 2 c0 8-8 16-16 22z" stroke="#6EE7B7" />
-      </svg>
-    ),
+    icon: serviceIcons.icu,
+    bgClass: 'bg-cyan-50/50'
+  },
+  {
+    title: 'Ambulance',
+    desc: 'Quick and reliable transport services for medical needs.',
+    path: '/services/doctor-at-home',
+    icon: serviceIcons.ambulance,
+    bgClass: 'bg-sky-50/50'
   },
 ];
 
@@ -130,17 +88,20 @@ export default function Services() {
       </section>
 
       {/* Services Grid */}
-      <section className="max-w-6xl mx-auto px-4 pb-14">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <section className="max-w-7xl mx-auto px-4 md:px-6 pb-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {services.map((svc) => (
-            <div key={svc.title} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow group">
-              <div className="w-14 h-14 bg-blue-50 rounded-xl flex items-center justify-center mb-5">
-                {svc.icon}
-              </div>
-              <h3 className="font-bold text-slate-900 text-lg mb-2" style={{ fontFamily: 'Poppins,sans-serif' }}>{svc.title}</h3>
-              <p className="text-slate-500 text-sm leading-relaxed mb-5">{svc.desc}</p>
-              <Link to={svc.path} className="inline-flex items-center gap-1 text-blue-600 text-sm font-semibold hover:gap-2 transition-all">
-                Learn More <ArrowRight size={14} />
+            <div key={svc.title} className="bg-white border border-slate-100 rounded-3xl p-6 md:p-7 shadow-sm hover:shadow-xl transition-all duration-300 group hover:-translate-y-1 flex flex-col min-h-[280px]">
+              <img 
+                src={svc.icon} 
+                alt={svc.title} 
+                className="w-20 h-20 md:w-24 md:h-24 object-contain mb-4 group-hover:scale-[1.08] transition-transform duration-300 block"
+                loading="lazy"
+              />
+              <h3 className="font-bold text-slate-900 text-xl mb-3" style={{ fontFamily: 'Poppins,sans-serif' }}>{svc.title}</h3>
+              <p className="text-slate-600 text-[15px] leading-7 mb-6 font-medium line-clamp-3">{svc.desc}</p>
+              <Link to={svc.path} className="inline-flex items-center gap-1 text-blue-600 text-sm font-bold mt-auto hover:gap-2 transition-all group-hover:translate-x-1">
+                Learn More <ArrowRight size={16} />
               </Link>
             </div>
           ))}

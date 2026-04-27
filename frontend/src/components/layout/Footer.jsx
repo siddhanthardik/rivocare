@@ -51,6 +51,7 @@ export default function Footer() {
               <li><Link to="/blog" className="text-xs hover:text-blue-400 transition-colors">Blog</Link></li>
               <li><Link to="/contact-us" className="text-xs hover:text-blue-400 transition-colors">Contact Us</Link></li>
               <li><Link to="/contact-us" className="text-xs hover:text-blue-400 transition-colors">Press &amp; Media</Link></li>
+              <li><Link to="/refer" className="text-xs hover:text-blue-400 transition-colors font-semibold text-blue-400">Refer & Earn</Link></li>
             </ul>
           </div>
 
@@ -69,7 +70,7 @@ export default function Footer() {
           <div className="lg:col-span-1 space-y-4">
              <div className="flex items-center gap-3">
                <Phone size={16} className="text-slate-400" />
-             <a href="tel:+917838033664" className="text-xs font-bold text-white hover:text-blue-400">+91 78380 33664</a>
+              <a href="tel:+919910638995" className="text-xs font-bold text-white hover:text-blue-400">+91 99106 38995</a>
              </div>
              <div className="flex items-center gap-3">
                <Mail size={16} className="text-slate-400" />
@@ -81,7 +82,7 @@ export default function Footer() {
              </div>
 
              <div className="pt-4 mt-4 border-t border-slate-800">
-               <a href="https://wa.me/917838033664" target="_blank" rel="noreferrer" className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition group">
+                <a href="https://wa.me/919910638995?text=Hello%20Rivo%20Care,%20I%20need%20assistance." target="_blank" rel="noreferrer" className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition group">
                  <div>
                    <p className="text-xs font-bold text-white mb-0.5">Chat on WhatsApp</p>
                    <p className="text-[10px] text-slate-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> We are online!</p>

@@ -1,3 +1,4 @@
+const router = require('express').Router();
 const { upload } = require('../utils/cloudinary');
 const { 
   register, login, getMe, refreshToken, logout, updateProfile,

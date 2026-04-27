@@ -32,7 +32,7 @@ export default function Header() {
           </div>
           <div className="flex items-center gap-2">
             <Phone size={13} className="opacity-80" />
-            <a href="tel:+917838033664" className="hover:text-blue-300 transition">+91 78380 33664</a>
+            <a href="tel:+919910638995" className="hover:text-blue-300 transition">+91 99106 38995</a>
           </div>
           <div className="flex items-center gap-2">
             <Mail size={13} className="opacity-80" />
@@ -83,11 +83,14 @@ export default function Header() {
         {/* Actions */}
         <div className="flex items-center gap-3">
           {!user ? (
-            <div className="flex items-center gap-3">
-              <Link to="/register" className="hidden sm:flex items-center gap-2 bg-[#0f52ba] text-white text-[15px] font-semibold px-6 py-2.5 rounded-lg hover:bg-blue-700 transition shadow-md shadow-blue-500/20">
+            <div className="flex items-center gap-4">
+              <Link to="/login" className="hidden lg:flex items-center text-slate-600 font-semibold px-5 py-2 rounded-full border border-slate-200 hover:bg-slate-50 transition">
+                Login
+              </Link>
+              <Link to="/register" className="hidden sm:flex items-center gap-2 bg-[#0f52ba] text-white text-[15px] font-semibold px-6 py-2.5 rounded-full hover:bg-blue-700 transition shadow-md shadow-blue-500/20">
                 Book Now <ArrowRight size={16} />
               </Link>
-              <a href="https://wa.me/917838033664" target="_blank" rel="noreferrer" className="flex items-center justify-center w-10 h-10 border-2 border-emerald-500 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
+              <a href="https://wa.me/919910638995?text=Hello%20Rivo%20Care,%20I%20need%20assistance." target="_blank" rel="noreferrer" className="flex items-center justify-center w-10 h-10 border-2 border-emerald-500 rounded-full text-emerald-500 hover:bg-emerald-50 transition">
                 <WhatsAppIcon />
               </a>
               {/* Mobile Menu Toggle */}

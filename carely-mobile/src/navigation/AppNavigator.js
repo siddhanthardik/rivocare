@@ -13,10 +13,15 @@ import PatientHomeScreen from '../screens/patient/PatientHomeScreen';
 import PatientBookingScreen from '../screens/patient/PatientBookingScreen';
 import PatientHistoryScreen from '../screens/patient/PatientHistoryScreen';
 import ProfileScreen from '../screens/patient/ProfileScreen';
+import PlansPackagesScreen from '../screens/patient/PlansPackagesScreen';
 
 // Provider Screens
 import ProviderDashboardScreen from '../screens/provider/ProviderDashboardScreen';
 import ProviderRequestsScreen from '../screens/provider/ProviderRequestsScreen';
+import ProviderAssignmentsScreen from '../screens/provider/ProviderAssignmentsScreen';
+import ProviderEarningsScreen from '../screens/provider/ProviderEarningsScreen';
+import ProviderReferralsScreen from '../screens/provider/ProviderReferralsScreen';
+import ProviderKYCStatusScreen from '../screens/provider/ProviderKYCStatusScreen';
 import SettingsDetailScreen from '../screens/shared/SettingsDetailScreen';
 import BookingDetailsScreen from '../screens/shared/BookingDetailsScreen';
 
@@ -93,6 +98,7 @@ const PatientNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="MainTabs" component={PatientTabs} />
     <Stack.Screen name="Booking" component={PatientBookingScreen} options={{ presentation: 'modal' }} />
+    <Stack.Screen name="PlansPackages" component={PlansPackagesScreen} />
     <Stack.Screen name="SettingsDetail" component={SettingsDetailScreen} />
     <Stack.Screen name="BookingDetails" component={BookingDetailsScreen} />
   </Stack.Navigator>
@@ -127,6 +133,10 @@ const ProviderTabs = () => {
 const ProviderNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="ProviderMainTabs" component={ProviderTabs} />
+    <Stack.Screen name="Assignments" component={ProviderAssignmentsScreen} />
+    <Stack.Screen name="Earnings" component={ProviderEarningsScreen} />
+    <Stack.Screen name="Referrals" component={ProviderReferralsScreen} />
+    <Stack.Screen name="KYCStatus" component={ProviderKYCStatusScreen} />
     <Stack.Screen name="SettingsDetail" component={SettingsDetailScreen} />
     <Stack.Screen name="BookingDetails" component={BookingDetailsScreen} />
   </Stack.Navigator>

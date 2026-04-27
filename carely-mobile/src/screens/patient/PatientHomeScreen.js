@@ -149,13 +149,23 @@ export default function PatientHomeScreen({ navigation }) {
           <Text style={styles.heroSubtitle}>
             Search services, compare providers, and stay on top of booking and payment updates.
           </Text>
-          <Button
-            title="Book a Service"
-            icon="arrow-forward"
-            size="medium"
-            onPress={() => navigation.navigate('Booking', { service: 'nurse' })}
-            style={styles.heroButton}
-          />
+          <View style={styles.heroActions}>
+            <Button
+              title="Book a Service"
+              icon="arrow-forward"
+              size="medium"
+              onPress={() => navigation.navigate('Booking', { service: 'nurse' })}
+              style={styles.heroButton}
+            />
+            <Button
+              title="Plans & Packages"
+              icon="albums-outline"
+              size="medium"
+              variant="secondary"
+              onPress={() => navigation.navigate('PlansPackages')}
+              style={styles.heroSecondaryButton}
+            />
+          </View>
         </View>
 
         <View style={styles.statsRow}>
@@ -310,6 +320,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   heroButton: {
+    alignSelf: 'flex-start',
+  },
+  heroActions: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  heroSecondaryButton: {
     alignSelf: 'flex-start',
   },
   statsRow: {

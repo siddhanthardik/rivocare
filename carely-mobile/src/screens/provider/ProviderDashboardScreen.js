@@ -334,18 +334,36 @@ export default function ProviderDashboardScreen({ navigation }) {
 
           <View style={styles.ctaActions}>
             <Button
-              title="Visit Profile"
-              icon="person-outline"
+              title="Assignments"
+              icon="briefcase-outline"
               variant="secondary"
               size="small"
-              onPress={() => navigation.navigate('Profile')}
+              onPress={() => navigation.navigate('Assignments')}
               style={styles.flexAction}
             />
             <Button
-              title="Open Requests"
-              icon="list-outline"
+              title="Earnings"
+              icon="wallet-outline"
               size="small"
-              onPress={() => navigation.navigate('Requests')}
+              onPress={() => navigation.navigate('Earnings')}
+              style={styles.flexAction}
+            />
+          </View>
+
+          <View style={styles.ctaActions}>
+            <Button
+              title="Referrals"
+              icon="git-network-outline"
+              variant="secondary"
+              size="small"
+              onPress={() => navigation.navigate('Referrals')}
+              style={styles.flexAction}
+            />
+            <Button
+              title="KYC Status"
+              icon="shield-checkmark-outline"
+              size="small"
+              onPress={() => navigation.navigate('KYCStatus')}
               style={styles.flexAction}
             />
           </View>

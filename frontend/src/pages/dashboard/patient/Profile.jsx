@@ -1,24 +1,24 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { 
   User, Phone, Mail, MapPin, Calendar, 
-  ChevronDown, Camera, Home, 
+  ChevronDown, Home, 
   Briefcase, Heart, Map as MapIcon, 
   Navigation, Lock, LogOut, CheckCircle2,
-  Save, X
+  Save
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { authService } from '../../../services';
 import { PageLoader } from '../../../components/ui/Feedback';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
-import Avatar from '../../../components/ui/Avatar';
+
 import { cn } from '../../../utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import ProfilePhotoUploader from '../../../components/dashboard/ProfilePhotoUploader';
 
 export default function PatientProfile() {
   const { user, updateUser, logout } = useAuth();
-  const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [geoLoading, setGeoLoading] = useState(false);
   const [isChanged, setIsChanged] = useState(false);
@@ -189,37 +189,7 @@ export default function PatientProfile() {
         
         {/* Section 1: Profile Details */}
         <div className="bg-white rounded-[2.5rem] p-8 md:p-12 shadow-sm border border-slate-100 space-y-10">
-          <div className="flex flex-col md:flex-row items-center gap-10">
-            <div className="relative group">
-              <Avatar name={user.name} size="xl" className="w-36 h-36 text-4xl border-4 border-white shadow-xl" />
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-2 right-2 p-3 bg-blue-600 text-white rounded-2xl shadow-lg hover:scale-110 active:scale-90 transition-all border-4 border-white"
-              >
-                <Camera size={20} />
-              </button>
-              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" />
-            </div>
-            <div className="text-center md:text-left flex-1 space-y-4">
-              <div>
-                <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
-                  <h2 className="text-3xl font-black text-slate-900">{user.name}</h2>
-                  <CheckCircle2 size={20} className="text-blue-500 fill-blue-500/10" />
-                </div>
-                <p className="text-slate-500 font-bold text-lg">{user.email}</p>
-              </div>
-              <div className="flex justify-center md:justify-start">
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-blue-50 text-blue-600 border-none rounded-xl font-black px-6"
-                >
-                  Change Photo
-                </Button>
-              </div>
-            </div>
-          </div>
+          <ProfilePhotoUploader />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
             <Input 

@@ -1,8 +1,12 @@
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
-import { ChevronRight, Star, Shield, Plus, Minus, Phone, ArrowRight, MapPin } from 'lucide-react';
+import {
+  ChevronRight, Star, Shield, Plus, Minus, Phone, ArrowRight, MapPin,
+  Stethoscope, FlaskConical, Activity, HeartHandshake, Siren, Truck, UserRoundPlus, HeartPulse, Accessibility, HandHelping
+} from 'lucide-react';
 import Footer from '../components/layout/Footer';
+import { serviceIcons } from '../constants/serviceIcons';
 
 // ─── Animation Wrapper ───────────────────────────────────────
 function FadeSection({ children, className = '', delay = 0 }) {
@@ -22,14 +26,14 @@ function FadeSection({ children, className = '', delay = 0 }) {
 }
 
 const services = [
-  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcNurseIcon />, title: 'Nurse', desc: 'Trained nurses for post-surgery, wound care & injections.' },
-  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcDoctorIcon />, title: 'Doctor', desc: 'Consult experienced doctors at home for illness & follow-up.' },
-  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcPhysioIcon />, title: 'Physiotherapy', desc: 'Pain management, mobility training and rehabilitation.' },
-  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcLabIcon />, title: 'Lab Test', desc: 'Book lab tests at home with accurate reports & fast collection.' },
-  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcElderIcon />, title: 'Elder Care', desc: 'Compassionate elder care services including daily assistance.' },
-  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcCaregiverIcon />, title: 'Caregiver', desc: 'Trained attendants for patient care, elder & newborn care.' },
-  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcAmbulanceIcon />, title: 'Ambulance', desc: 'Quick and reliable transport services for medical needs.' },
-  { bgClass: 'bg-white border border-slate-100 shadow-sm', icon: <SvcEmergencyIcon />, title: 'Emergency', desc: 'Immediate medical response and critical care support.' },
+  { id: 'nursing', bgClass: 'bg-blue-50/50', icon: serviceIcons.nursing, title: 'Home Nursing', desc: 'Trained nurses for post-surgery, wound care & injections.' },
+  { id: 'doctor', bgClass: 'bg-indigo-50/50', icon: serviceIcons.doctor, title: 'Doctor Visit', desc: 'Consult experienced doctors at home for illness & follow-up.' },
+  { id: 'physio', bgClass: 'bg-emerald-50/50', icon: serviceIcons.physio, title: 'Physiotherapy', desc: 'Pain management, mobility training and rehabilitation.' },
+  { id: 'lab', bgClass: 'bg-violet-50/50', icon: serviceIcons.lab, title: 'Lab Tests', desc: 'Book lab tests at home with accurate reports & fast collection.' },
+  { id: 'elder', bgClass: 'bg-orange-50/50', icon: serviceIcons.elder, title: 'Elder Care', desc: 'Compassionate elder care services including daily assistance.' },
+  { id: 'attendant', bgClass: 'bg-pink-50/50', icon: serviceIcons.attendant, title: 'Caregiver', desc: 'Trained attendants for patient care, elder & newborn care.' },
+  { id: 'icu', bgClass: 'bg-cyan-50/50', icon: serviceIcons.icu, title: 'ICU at Home', desc: 'Advanced ICU setup and critical care by expert medical team.' },
+  { id: 'ambulance', bgClass: 'bg-sky-50/50', icon: serviceIcons.ambulance, title: 'Ambulance', desc: 'Quick and reliable transport services for medical needs.' },
 ];
 
 const steps = [
@@ -60,7 +64,7 @@ export default function Landing() {
     <div className="min-h-screen bg-slate-50 font-sans overflow-x-hidden text-slate-800">
 
       {/* ── HERO SECTION ── */}
-      <section className="relative bg-gradient-to-br from-[#f8fafc] to-[#f1f5f9] overflow-hidden pt-12 pb-16 lg:pt-20 lg:pb-24">
+      <section className="relative bg-gradient-to-br from-[#f8fafc] to-[#f1f5f9] overflow-hidden pt-4 pb-16 lg:pt-8 lg:pb-24">
         {/* Decorative Grid Background */}
         <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-20" style={{ backgroundImage: 'radial-gradient(#cbd5e1 2px, transparent 2px)', backgroundSize: '30px 30px' }} />
 
@@ -173,17 +177,20 @@ export default function Landing() {
             <p className="text-slate-500 text-base max-w-2xl mx-auto font-medium">From everyday support to advanced medical care, we bring hospital-quality services to your home.</p>
           </FadeSection>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {services.map((svc, i) => (
               <FadeSection key={i} delay={i * 0.05}>
-                <Link to="/register" className="group block bg-white border border-slate-200 rounded-3xl p-6 hover:shadow-xl hover:border-primary-200 transition-all duration-300">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform ${svc.bgClass || 'bg-slate-50'}`}>
-                    {svc.icon}
-                  </div>
-                  <h3 className="font-poppins font-bold text-[#1E293B] text-lg mb-3">{svc.title}</h3>
-                  <p className="text-sm text-slate-500 leading-relaxed mb-6 font-medium">{svc.desc}</p>
-                  <p className="text-xs font-bold text-[#2563EB] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                    Learn More <ChevronRight size={14} />
+                <Link to="/register" className="group block h-full bg-white border border-slate-100 rounded-3xl p-6 md:p-7 shadow-sm hover:shadow-xl hover:border-blue-200/60 transition-all duration-300 hover:-translate-y-1 flex flex-col min-h-[280px]">
+                  <img 
+                    src={svc.icon} 
+                    alt={svc.title} 
+                    className="w-20 h-20 md:w-24 md:h-24 object-contain mb-4 group-hover:scale-[1.08] transition-transform duration-300 block"
+                    loading="lazy"
+                  />
+                  <h3 className="font-poppins font-bold text-[#1E293B] text-xl mb-3">{svc.title}</h3>
+                  <p className="text-[15px] text-slate-500 leading-7 mb-6 font-medium line-clamp-2">{svc.desc}</p>
+                  <p className="text-sm font-bold text-[#2563EB] flex items-center gap-2 mt-auto group-hover:translate-x-1 transition-transform duration-300">
+                    Learn More <ArrowRight size={18} />
                   </p>
                 </Link>
               </FadeSection>
@@ -321,7 +328,7 @@ export default function Landing() {
           <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center justify-between gap-8 divide-y md:divide-y-0 md:divide-x divide-slate-700">
             {[
               { icon: <ShieldCheckIcon />, title: "Verified Care Experts", desc: "All caregivers are background verified and trained" },
-              { icon: <SirenIcon />, title: "Emergency Support", desc: "24/7 support for all your urgent care needs" },
+              { icon: <SirenIcon />, title: "24/7 Support", desc: "Round-the-clock assistance for all your care needs" },
               { icon: <SparklesIcon />, title: "Hygiene & Safety", desc: "Strict hygiene protocols for your safety" },
               { icon: <TagIcon />, title: "Transparent Pricing", desc: "No hidden charges. What you see is what you pay." },
               { icon: <LockIcon />, title: "Data Privacy", desc: "Your data is safe and protected" }
@@ -343,13 +350,13 @@ export default function Landing() {
         <div className="max-w-[1400px] mx-auto px-4 lg:px-6">
           <div className="relative rounded-[2rem] bg-gradient-to-r from-[#2563EB] to-blue-600 overflow-hidden shadow-2xl flex flex-col md:flex-row items-center justify-between p-10 lg:p-14">
             <div className="relative z-10 w-full md:w-2/3">
-              <h2 className="font-poppins text-3xl md:text-5xl font-black text-white mb-4 tracking-tight">Need Urgent Care Today?</h2>
-              <p className="text-blue-100 text-lg mb-8 font-medium">Get immediate assistance from our care experts.</p>
+              <h2 className="font-poppins text-3xl md:text-5xl font-black text-white mb-4 tracking-tight">Need Professional Care Today?</h2>
+              <p className="text-blue-100 text-lg mb-8 font-medium">Get reliable assistance from our care experts at home.</p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link to="/register" className="inline-flex items-center justify-center gap-2 bg-white text-[#2563EB] font-bold px-8 py-4 rounded-xl hover:bg-primary-50 transition-colors shadow-lg">
                   Book Now <ArrowRight size={18} />
                 </Link>
-                <a href="tel:+918123123123" className="inline-flex items-center justify-center gap-2 bg-primary-700 text-white font-bold px-8 py-4 rounded-xl border border-primary-500 hover:bg-primary-800 transition-colors">
+                <a href="tel:+919910638995" className="inline-flex items-center justify-center gap-2 bg-primary-700 text-white font-bold px-8 py-4 rounded-xl border border-primary-500 hover:bg-primary-800 transition-colors">
                   Call Now <Phone size={18} />
                 </a>
               </div>
@@ -414,16 +421,19 @@ function QuoteIcon(props) { return <svg viewBox="0 0 24 24" fill="currentColor" 
 function ShieldCheckIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>; }
 function SirenIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M5 5l1.5 1.5"></path><path d="M17.5 17.5L19 19"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M5 19l1.5-1.5"></path><path d="M17.5 6.5L19 5"></path><circle cx="12" cy="12" r="5"></circle></svg>; }
 function SparklesIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path></svg>; }
+function SvcNurseIcon() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20h16" />
+      <path d="M5 20v-5c0-3 3-5 7-5s7 2 7 5v5" />
+      <path d="M9 10c0-2.5 1-3.5 3-3.5s3 1 3 3.5" />
+      <path d="M12 12v4" stroke="#10B981" />
+      <path d="M10 14h4" stroke="#10B981" />
+    </svg>
+  );
+}
+
 function TagIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>; }
 function LockIcon() { return <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>; }
 
-// Service Custom Icons matching Rivo Brand Kit (Exact match to reference)
-function SvcNurseIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 9 L6 3.5 H18 L20.5 9" /><path d="M3.5 9 C8 11 16 11 20.5 9" /><path d="M12 4.5 V7.5 M10.5 6 H13.5" /><path d="M4.5 10 C3 14 4 18 6 18 C7 18 8 16 8 14" /><path d="M19.5 10 C21 14 20 18 18 18 C17 18 16 16 16 14" /><path d="M8 12.5 C8 17 16 17 16 12.5" /></svg>; }
-function SvcDoctorIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4 A1 1 0 1 0 7 2 A1 1 0 1 0 7 4 Z" /><path d="M17 4 A1 1 0 1 0 17 2 A1 1 0 1 0 17 4 Z" /><path d="M7 4 C7 7 7 11 7 11 C7 16.5 17 16.5 17 11 C17 11 17 7 17 4" /><path d="M12 16.5 V20" /><path d="M10 20 C10 18 14 18 14 20 C14 22 10 22 10 20 Z" /></svg>; }
-function SvcPhysioIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 20 H8 M10 20 H21" /><circle cx="16" cy="5" r="2" /><path d="M15 7 L12 13" /><path d="M14 9 L11 14 L11 19" /><path d="M12 13 L9 20" /><path d="M12 13 L14 15 L14 20" /></svg>; }
-function SvcLabIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3 H15 M10 3 V7 L4.5 18 A2 2 0 0 0 6 21 H18 A2 2 0 0 0 19.5 18 L14 7 V3" /><path d="M6 15 Q10 13 12 15 T18 15" stroke="#6EE7B7" /><circle cx="11" cy="18" r="0.5" fill="#6EE7B7" stroke="none" /><circle cx="14" cy="17" r="0.5" fill="#6EE7B7" stroke="none" /></svg>; }
-function SvcElderIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="5" r="2.5" /><path d="M4 14 C4 10 14 10 14 14" /><path d="M6 14 V21 M10 14 V21" /><path d="M14 14 V16 L16 16" /><path d="M18 15 A2 2 0 0 0 14 15 V21" /></svg>; }
-function SvcCaregiverIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16 C8 13 6 9 8 6 C9.5 4 12 6 12 8 C12 6 14.5 4 16 6 C18 9 16 13 12 16 Z" stroke="#6EE7B7" /><path d="M3 13 Q3 19 10 21 L12 19" /><path d="M6 15 L9 17" /><path d="M21 13 Q21 19 14 21 L12 19" /><path d="M18 15 L15 17" /></svg>; }
-function SvcAmbulanceIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 16 V8 C2 7 3 6 4 6 H14 V16 Z" /><path d="M14 8 H17 L21 12 V16 H14 Z" /><circle cx="6" cy="16" r="2" /><circle cx="17" cy="16" r="2" /><path d="M15 9 H17 L19 12 H15 Z" /><path d="M8 9.5 L8.5 11 H10 L8.5 12 L9 13.5 L8 12.5 L7 13.5 L7.5 12 L6 11 H7.5 Z" /></svg>; }
-function SvcEmergencyIcon() { return <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 16 C6 9 18 9 18 16" /><path d="M4 16 H20 M3 19 H21" /><path d="M5 16 V19 M19 16 V19" /><path d="M12 9 V16" stroke="#6EE7B7" /><path d="M12 2 V5 M5 6 L7 8 M19 6 L17 8" stroke="#6EE7B7" /></svg>; }
 function ShieldCheckIconSmall(props) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path></svg>; }

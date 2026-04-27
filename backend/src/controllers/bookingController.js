@@ -246,6 +246,8 @@ exports.updateBookingStatus = async (req, res, next) => {
       }
     }
 
+    const previousStatus = booking.status;
+
     if (status === 'in-progress') {
       booking.startedAt = new Date();
     }
@@ -284,7 +286,7 @@ exports.updateBookingStatus = async (req, res, next) => {
       booking.cancelReason = cancelReason || 'No reason provided';
 
       // 💰 50% CANCELLATION FEE: If patient cancels while service is in-progress
-      if (req.user.role === 'patient' && booking.status === 'in-progress') {
+      if (req.user.role === 'patient' && previousStatus === 'in-progress') {
         const effectivePrice = booking.finalPrice || booking.estimatedPrice || booking.totalAmount;
         const oldPrice = booking.totalAmount;
         booking.totalAmount = Math.round(effectivePrice * 0.5);

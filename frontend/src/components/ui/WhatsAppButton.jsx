@@ -5,8 +5,8 @@
  *   phone   : string  — WhatsApp number with country code (default: 919999999999)
  */
 export default function WhatsAppButton({
-  phone = '919999999999',
-  message = 'Hi RIVO, I need help with my booking.',
+  phone = '919910638995',
+  message = 'Hello Rivo Care, I need assistance.',
 }) {
   const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 
