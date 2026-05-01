@@ -14,7 +14,7 @@ const bookingSchema = new mongoose.Schema(
     },
     service: {
       type: String,
-      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker'],
+      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker', 'procedure', 'package'],
       required: true,
     },
     address: { type: String, required: true, trim: true },
@@ -24,7 +24,7 @@ const bookingSchema = new mongoose.Schema(
       match: [/^\d{6}$/, 'Pincode must be 6 digits'],
     },
     scheduledAt: { type: Date, required: true },
-    durationHours: { type: Number, default: 1, min: 1, max: 8 },
+    durationHours: { type: Number, default: 1, min: 1, max: 1000 },
     status: {
       type: String,
       enum: ['pending', 'confirmed', 'in-progress', 'completed', 'cancelled'],

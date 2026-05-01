@@ -36,8 +36,8 @@ export default function NotificationBell() {
   useEffect(() => {
     // Fetch initial notifications
     notificationService.getNotifications(20).then(res => {
-      setNotifications(res.data.data.notifications || []);
-      setUnreadCount(res.data.data.unreadCount || 0);
+      setNotifications(res.data.notifications || []);
+      setUnreadCount(res.data.unreadCount || 0);
     }).catch(console.error);
   }, []);
 

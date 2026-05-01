@@ -10,7 +10,10 @@ const paymentSchema = new mongoose.Schema(
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
-      required: true,
+    },
+    labOrder: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'LabOrder',
     },
     amount: {
       type: Number,

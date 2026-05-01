@@ -5,26 +5,23 @@ import {
   CheckCircle, 
   Clock, 
   Wallet, 
-  AlertCircle, 
   Star, 
   ArrowRight, 
   Bell, 
   ChevronRight, 
   TrendingUp, 
   CheckCircle2, 
-  User, 
-  MessageSquare,
   Activity,
   ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { bookingService, authService, notificationService, walletService } from '../../../services';
 import { formatDateTime, formatCurrency, SERVICE_CONFIG, cn } from '../../../utils';
-import { PageLoader, EmptyState } from '../../../components/ui/Feedback';
-import Badge from '../../../components/ui/Badge';
+import { PageLoader } from '../../../components/ui/Feedback';
 import Button from '../../../components/ui/Button';
 import StarRating from '../../../components/ui/StarRating';
 import ProviderReviews from './ProviderReviews';
+import { PageWrapper, Card, Row, Section, KPIChip, StatusPill } from '../../../components/ui/Layout';
 
 export default function ProviderOverview() {
   const { user } = useAuth();
@@ -45,16 +42,15 @@ export default function ProviderOverview() {
       walletService.getTransactions({ limit: 50 })
     ])
       .then(([bookingsRes, meRes, notifRes, walletRes]) => {
-        const bookings = bookingsRes.data.data.bookings;
+        const bookings = bookingsRes.data.bookings;
         setData({
           bookings,
-          total: bookingsRes.data.data.total
+          total: bookingsRes.data.total
         });
-        setProviderProfile(meRes.data.data.providerProfile);
-        setNotifications(notifRes.data.data.notifications || []);
+        setProviderProfile(meRes.data.providerProfile);
+        setNotifications(notifRes.data.notifications || []);
         
-        // Calculate monthly earnings from credit transactions
-        const mEarnings = (walletRes.data.data.transactions || [])
+        const mEarnings = (walletRes.data.transactions || [])
           .filter(t => t.type === 'CREDIT' && new Date(t.createdAt) >= firstDayOfMonth)
           .reduce((sum, t) => sum + t.amount, 0);
         setMonthlyEarnings(mEarnings);
@@ -89,304 +85,248 @@ export default function ProviderOverview() {
     return Math.round((completed / total) * 100);
   })();
 
+  const stats = [
+    { label: "Today's Visits", val: todayBookings.length, icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50/30' },
+    { label: 'Pending Action', val: pendingBookings.length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50/30' },
+    { label: 'Completed', val: providerProfile?.completedBookings || 0, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50/30' },
+    { label: 'Month Earnings', val: formatCurrency(monthlyEarnings), icon: Wallet, color: 'text-slate-900', bg: 'bg-slate-50/30' },
+    { label: 'Avg Rating', val: providerProfile?.rating?.toFixed(1) || '—', icon: Star, color: 'text-amber-500', bg: 'bg-amber-50/30' }
+  ];
+
   return (
-    <div className="max-w-[1600px] mx-auto space-y-10 pb-12 animate-fade-in">
+    <PageWrapper maxWidth="1200px">
       {/* ── Page Header ─────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-wider border border-emerald-100/50 flex items-center gap-1.5">
-              <ShieldCheck size={12} /> Care Expert Dashboard
+          <div className="flex items-center gap-2 mb-1">
+            <span className="typo-label !text-emerald-600 flex items-center gap-1.5 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">
+              <ShieldCheck size={12} /> Expert Provider
             </span>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border border-slate-100">
-              <Activity size={12} /> Live Updates
-            </div>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">
-            Hello, {(() => {
-              const parts = user.name.split(' ');
-              if (['Dr.', 'Dr', 'Mr.', 'Mr', 'Ms.', 'Ms', 'Mrs.', 'Mrs'].includes(parts[0])) {
-                return parts[1];
-              }
-              return parts[0];
-            })()} <span className="animate-bounce inline-block">👋</span>
+          <h1 className="typo-title">
+            Hello, {user.name.split(' ')[0]} 👋
           </h1>
-          <p className="text-slate-500 font-medium text-lg">Manage your schedule, requests and earnings.</p>
+          <p className="typo-body">Manage your schedule, requests and earnings.</p>
         </div>
 
-        {/* Status Chip / Toggle Widget */}
-        <div className="flex items-center gap-5 bg-white px-6 py-4 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center gap-4">
+        {/* Status Chip */}
+        <Card className="flex items-center gap-4 bg-white border-gray-100 shadow-sm">
+          <div className="flex items-center gap-3">
             <div className={cn(
-              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-inner",
-              providerProfile?.isOnline ? "bg-emerald-50 text-emerald-600 ring-4 ring-emerald-500/10" : "bg-red-50 text-red-500 ring-4 ring-red-500/10"
+              "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+              providerProfile?.isOnline ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"
             )}>
-              <Activity size={24} className={providerProfile?.isOnline ? "animate-pulse" : ""} />
+              <Activity size={16} className={providerProfile?.isOnline ? "animate-pulse" : ""} />
             </div>
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Current Status</p>
-              <p className={cn("text-lg font-black tracking-tight", providerProfile?.isOnline ? "text-emerald-600" : "text-red-600")}>
+              <p className="typo-label !text-gray-400 !text-[8px] uppercase">Status</p>
+              <p className={cn("typo-label font-black", providerProfile?.isOnline ? "text-emerald-600" : "text-red-600")}>
                 {providerProfile?.isOnline ? 'ONLINE' : 'OFFLINE'}
               </p>
             </div>
           </div>
-          <div className="h-10 w-px bg-slate-100 mx-2" />
+          <div className="h-8 w-px bg-gray-100" />
           <Link to="/dashboard/provider/availability">
-            <Button className={cn(
-              "rounded-2xl px-6 py-2.5 font-black text-xs transition-all shadow-lg active:scale-95",
-              providerProfile?.isOnline ? "bg-slate-900 text-white hover:bg-slate-800" : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20"
+            <button className={cn(
+              "btn-primary-sm !px-4",
+              !providerProfile?.isOnline && "bg-emerald-600 hover:bg-emerald-700"
             )}>
               {providerProfile?.isOnline ? 'Go Offline' : 'Go Online'}
-            </Button>
+            </button>
           </Link>
-        </div>
+        </Card>
       </div>
 
-      {/* ── Onboarding Card (Logic-based) ───────────────────── */}
+      {/* ── Onboarding Card ────────────────────────────────── */}
       {!['VERIFIED', 'ACTIVE'].includes(providerProfile?.onboardingStatus) && (
-        <div className="relative group overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2.5rem] p-8 shadow-2xl shadow-slate-900/20">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[100px] pointer-events-none" />
-          <div className="relative z-10 flex flex-col lg:flex-row items-center gap-10">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                  <TrendingUp className="text-emerald-400" size={24} />
+        <Card className="relative bg-slate-900 rounded-3xl p-6 md:p-8 text-white overflow-hidden shadow-xl mt-4 border-transparent">
+          <div className="absolute top-0 right-0 p-8 opacity-5 rotate-12 scale-150 pointer-events-none">
+            <TrendingUp size={160} />
+          </div>
+          <div className="relative z-10 flex flex-col lg:flex-row items-center gap-8">
+            <div className="flex-1 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                  <TrendingUp className="text-emerald-400" size={20} />
                 </div>
-                <h2 className="text-2xl font-black text-white tracking-tight">Complete profile to start earning</h2>
+                <h2 className="typo-title !text-white !text-[20px]">Complete profile to start earning</h2>
               </div>
-              <p className="text-slate-400 text-base font-medium mb-8 max-w-xl leading-relaxed">
-                You're just a few steps away from joining our network of care experts. Finish your onboarding to unlock service requests.
+              <p className="typo-body !text-slate-400 max-w-xl">
+                Finish your onboarding to unlock service requests.
               </p>
               
-              <div className="space-y-4 max-w-md">
+              <div className="space-y-3 max-w-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-white font-bold text-sm">Onboarding Progress</span>
-                  <span className="text-emerald-400 font-black text-sm">{progressPercent}%</span>
+                  <span className="typo-label !text-white">Onboarding Progress</span>
+                  <span className="typo-label !text-emerald-400">{progressPercent}%</span>
                 </div>
-                <div className="h-3 w-full bg-slate-700/50 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out shadow-[0_0_20px_rgba(16,185,129,0.4)]"
-                    style={{ width: `${progressPercent}%` }}
-                  />
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: `${progressPercent}%` }} />
                 </div>
               </div>
             </div>
 
-            <div className="shrink-0 bg-white/5 backdrop-blur-md rounded-[2.2rem] p-7 border border-white/10 w-full lg:w-80 transition-all group-hover:border-white/20">
-              <div className="space-y-4">
+            <Card className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10 w-full lg:w-72">
+              <div className="space-y-3">
                 {[
                   { label: 'Profile Information', done: providerProfile?.services?.length > 0 },
                   { label: 'KYC Documents', done: progressPercent >= 80 },
                   { label: 'Availability Setup', done: providerProfile?.onboardingStatus === 'ACTIVE' }
                 ].map((step, idx) => (
-                  <div key={idx} className="flex items-center gap-3 text-sm">
-                    {step.done ? (
-                      <CheckCircle2 size={18} className="text-emerald-400" />
-                    ) : (
-                      <div className="w-[18px] h-[18px] rounded-full border-2 border-slate-600" />
-                    )}
-                    <span className={cn("font-bold transition-colors", step.done ? "text-slate-200" : "text-slate-500")}>{step.label}</span>
+                  <div key={idx} className="flex items-center gap-3">
+                    {step.done ? <CheckCircle2 size={16} className="text-emerald-400" /> : <div className="w-4 h-4 rounded-full border border-slate-600" />}
+                    <span className={cn("typo-label", step.done ? "text-slate-200" : "text-slate-500")}>{step.label}</span>
                   </div>
                 ))}
               </div>
-              <div className="mt-8">
+              <div className="mt-6">
                 {providerProfile?.onboardingStatus === 'INCOMPLETE' && (
                   <Link to="/dashboard/provider/onboarding">
-                    <Button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-500/20">Continue Onboarding</Button>
+                    <button className="w-full btn-primary-sm !bg-emerald-600 !py-2.5">Continue</button>
                   </Link>
-                )}
-                {providerProfile?.onboardingStatus === 'KYC_PENDING' && (
-                  <div className="text-center bg-amber-500/10 rounded-2xl p-4 border border-amber-500/20">
-                    <p className="text-amber-400 font-black text-sm">KYC Under Review</p>
-                  </div>
                 )}
                 {providerProfile?.onboardingStatus === 'VERIFIED' && (
                   <Link to="/dashboard/provider/availability">
-                    <Button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-xl shadow-emerald-500/20 text-sm">Turn Availability ON</Button>
+                    <button className="w-full btn-primary-sm !bg-emerald-600 !py-2.5">Go Live</button>
                   </Link>
                 )}
               </div>
-            </div>
+            </Card>
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* ── Compact KPI Row ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-        {[
-          { label: 'Today’s Visits', val: todayBookings.length, sub: 'Scheduled visits', icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Pending Requests', val: pendingBookings.length, sub: 'Needs attention', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'Total Services', val: providerProfile?.completedBookings || 0, sub: 'Completed all-time', icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Month Earnings', val: formatCurrency(monthlyEarnings), sub: 'Current month', icon: Wallet, color: 'text-slate-900', bg: 'bg-slate-50' },
-          { label: 'Avg Rating', val: providerProfile?.rating?.toFixed(1) || '—', sub: `${providerProfile?.totalRatings || 0} reviews`, icon: Star, color: 'text-amber-500', bg: 'bg-amber-50' }
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-[2.2rem] border border-slate-100 shadow-sm hover:shadow-md transition-all group border-b-4 hover:border-b-blue-500">
-            <div className={cn("w-12 h-12 rounded-2xl mb-4 flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm", stat.bg, stat.color)}>
-              <stat.icon size={22} />
-            </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">{stat.label}</p>
-            <h3 className="text-2xl font-black text-slate-900 tracking-tight">{stat.val}</h3>
-            <p className="text-[10px] font-bold text-slate-400 mt-1">{stat.sub}</p>
-          </div>
+      {/* ── KPI Strip ──────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+        {stats.map((s, i) => (
+          <KPIChip key={i} icon={s.icon} label={s.label} value={s.val} bg={s.bg} color={s.color} />
         ))}
       </div>
 
       {/* ── Main Content Grid ───────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-12 gap-6 mt-6">
         
-        {/* Left: Today's Schedule (Large) */}
-        <div className="lg:col-span-2 space-y-8">
-          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden h-full flex flex-col">
-            <div className="px-8 py-7 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
-              <div>
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">Today's Schedule</h3>
-                <p className="text-sm text-slate-400 font-medium mt-1">Confirmed appointments for today</p>
-              </div>
+        {/* Today's Schedule */}
+        <div className="col-span-12 lg:col-span-8 space-y-3">
+          <Section 
+            title="Today's Schedule" 
+            subtitle="Your confirmed visits"
+            action={
               <Link to="/dashboard/provider/bookings">
-                <Button size="sm" variant="ghost" className="text-blue-600 font-black text-xs hover:bg-blue-50 rounded-xl px-4">
-                  Full Schedule <ChevronRight size={14} className="ml-1" />
-                </Button>
+                <span className="typo-label !text-blue-600 font-black flex items-center gap-1 cursor-pointer">
+                  Full Schedule <ChevronRight size={14} />
+                </span>
               </Link>
-            </div>
-            
-            <div className="flex-1 divide-y divide-slate-50">
-              {todayBookings.length === 0 ? (
-                <div className="flex flex-col items-center justify-center p-20 text-center h-full">
-                  <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mb-6 text-slate-200">
-                    <Calendar size={40} />
-                  </div>
-                  <h4 className="text-xl font-black text-slate-800">No visits scheduled today</h4>
-                  <p className="text-slate-400 text-sm mt-2 max-w-xs">Relax! You have no confirmed visits for today. Check pending requests for new work.</p>
+            }
+          />
+          
+          <Card noPadding className="divide-y divide-gray-50">
+            {todayBookings.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
+                <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-300">
+                  <Calendar size={24} />
                 </div>
-              ) : (
-                todayBookings.map(b => (
-                  <div key={b._id} className="px-8 py-7 flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-slate-50/50 transition-all group">
-                    <div className="flex gap-6 items-center">
-                      <div className={cn(
-                        "w-20 h-20 rounded-[2rem] flex items-center justify-center text-4xl shrink-0 shadow-lg group-hover:rotate-3 transition-transform duration-500",
-                        SERVICE_CONFIG[b.service]?.color
-                      )}>
-                        {SERVICE_CONFIG[b.service]?.icon}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-3 mb-1.5">
-                          <h4 className="font-black text-slate-900 text-xl tracking-tight">{b.patient.name}</h4>
-                          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase rounded-full border border-emerald-100/50">CONFIRMED</span>
-                        </div>
-                        <div className="flex items-center gap-5 text-sm font-bold text-slate-500">
-                          <span className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-                            <Clock size={14} className="text-blue-500" /> {formatDateTime(b.scheduledAt).split(',')[1]}
-                          </span>
-                          <span className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-                            <Activity size={14} className="text-emerald-500" /> {b.durationHours} hr
-                          </span>
-                        </div>
-                        <p className="text-sm text-slate-400 font-medium mt-3 flex items-center gap-2">
-                          <CheckCircle2 size={14} className="text-slate-300" /> {b.address}
-                        </p>
-                      </div>
+                <div className="space-y-1">
+                  <h4 className="typo-value !text-gray-900">No visits scheduled</h4>
+                  <p className="typo-micro">Relax! You have no confirmed visits for today.</p>
+                </div>
+              </div>
+            ) : (
+              todayBookings.map(b => (
+                <Row key={b._id} className="flex-col sm:flex-row sm:items-center justify-between gap-4 p-3">
+                  <div className="flex gap-4 items-center">
+                    <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-sm", SERVICE_CONFIG[b.service]?.color)}>
+                      {SERVICE_CONFIG[b.service]?.icon}
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Link to={`/dashboard/provider/bookings`}>
-                        <Button className="bg-slate-900 text-white rounded-2xl font-black px-6 py-3 text-xs shadow-xl shadow-slate-900/10 hover:bg-blue-600 transition-all">Start Visit</Button>
-                      </Link>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="typo-value !text-gray-900 truncate">{b.patient.name}</h4>
+                        <StatusPill status="confirmed" className="scale-90 origin-left" />
+                      </div>
+                      <div className="flex items-center gap-4 typo-micro font-bold text-gray-500">
+                        <span className="flex items-center gap-1"><Clock size={12} className="text-blue-500" /> {formatDateTime(b.scheduledAt).split(',')[1]}</span>
+                        <span className="flex items-center gap-1"><Activity size={12} className="text-emerald-500" /> {b.durationHours} hr</span>
+                      </div>
+                      <p className="typo-micro mt-1 truncate">{b.address}</p>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                  <Link to={`/dashboard/provider/bookings`}>
+                    <button className="btn-primary-sm !px-5 !py-2.5">Start Visit</button>
+                  </Link>
+                </Row>
+              ))
+            )}
+          </Card>
         </div>
 
-        {/* Right: Quick Actions / Activity Feed */}
-        <div className="space-y-8">
-          
-          {/* Recent Activity / Notifications */}
-          <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-            <div className="px-7 py-6 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
-              <h3 className="font-black text-slate-900 tracking-tight">Recent Activity</h3>
-              <div className="p-2 bg-white rounded-xl border border-slate-100 shadow-sm">
-                <Bell size={16} className="text-blue-500" />
-              </div>
-            </div>
-            <div className="divide-y divide-slate-50 max-h-[420px] overflow-y-auto custom-scrollbar">
-              {notifications.length === 0 ? (
-                <div className="p-10 text-center text-slate-400 text-sm font-medium italic">No recent activity</div>
-              ) : (
-                notifications.slice(0, 6).map(n => (
-                  <div key={n._id} className="p-5 hover:bg-slate-50 transition-colors flex gap-4 group">
-                    <div className={cn(
-                      "w-11 h-11 rounded-2xl shrink-0 flex items-center justify-center transition-transform group-hover:scale-110",
-                      n.isRead ? "bg-slate-50 text-slate-400" : "bg-blue-50 text-blue-600"
-                    )}>
-                      <Activity size={18} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className={cn("text-sm font-black leading-tight truncate", n.isRead ? "text-slate-600" : "text-slate-900")}>{n.title}</p>
-                      <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">{formatDateTime(n.createdAt)}</p>
-                    </div>
+        {/* Side Widgets */}
+        <div className="col-span-12 lg:col-span-4 space-y-4">
+          <Section title="Recent Activity" subtitle="Notifications" />
+          <Card noPadding className="flex flex-col">
+            <div className="divide-y divide-gray-50 max-h-[350px] overflow-y-auto no-scrollbar">
+              {notifications.slice(0, 6).map(n => (
+                <Row key={n._id} className="gap-3 p-3">
+                  <div className={cn("w-8 h-8 rounded-lg shrink-0 flex items-center justify-center", n.isRead ? "bg-gray-50 text-gray-400" : "bg-blue-50 text-blue-600")}>
+                    <Activity size={14} />
                   </div>
-                ))
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("typo-body leading-tight truncate", !n.isRead && "font-black !text-gray-900")}>{n.title}</p>
+                    <p className="typo-micro mt-0.5">{formatDateTime(n.createdAt)}</p>
+                  </div>
+                </Row>
+              ))}
+              {notifications.length === 0 && (
+                <div className="p-8 text-center typo-micro text-gray-400">No recent activity</div>
               )}
             </div>
-            <div className="p-4 bg-slate-50/50 border-t border-slate-100 text-center">
-               <button className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline">View All Notifications</button>
-            </div>
-          </div>
+          </Card>
 
-          {/* Wallet Summary Card */}
-          <div className="bg-emerald-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-emerald-600/20 relative overflow-hidden group">
-            <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000" />
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-8">
-                <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
-                  <Wallet size={24} />
+          <Card className="bg-emerald-600 p-5 text-white shadow-lg relative overflow-hidden group border-transparent">
+            <div className="relative z-10 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 text-white">
+                  <Wallet size={20} />
                 </div>
-                <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest border border-white/20">Wallet</span>
+                <span className="typo-label !text-white">Earnings</span>
               </div>
-              <p className="text-emerald-100 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Available Balance</p>
-              <h3 className="text-4xl font-black tracking-tight mb-8">{formatCurrency(providerProfile?.totalEarnings || 0)}</h3>
-              <div className="flex items-center justify-between pt-6 border-t border-white/10">
+              <div>
+                <p className="typo-micro !text-emerald-100 opacity-80 uppercase tracking-widest font-black mb-1">Available Balance</p>
+                <h3 className="typo-kpi !text-white !text-[32px]">{formatCurrency(providerProfile?.totalEarnings || 0)}</h3>
+              </div>
+              <div className="pt-4 border-t border-white/10 flex items-center justify-between">
                 <div>
-                  <p className="text-emerald-200 text-[9px] font-black uppercase tracking-[0.15em] mb-1">This Month</p>
-                  <p className="text-xl font-black">{formatCurrency(monthlyEarnings)}</p>
+                  <p className="typo-micro !text-emerald-100 opacity-70 uppercase tracking-wider">This Month</p>
+                  <p className="typo-value !text-white">{formatCurrency(monthlyEarnings)}</p>
                 </div>
                 <Link to="/dashboard/provider/earnings">
-                  <button className="w-14 h-14 rounded-2xl bg-white text-emerald-600 flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-all">
-                    <ArrowRight size={24} />
+                  <button className="w-10 h-10 rounded-xl bg-white text-emerald-600 flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md">
+                    <ArrowRight size={18} />
                   </button>
                 </Link>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
 
-      {/* ── Bottom Section: Reviews & Feedback ────────────────── */}
-      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="px-8 py-7 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500">
-              <Star size={24} fill="currentColor" />
+      {/* Patient Feedback */}
+      <div className="mt-6 space-y-2">
+        <Section 
+          title="Patient Feedback" 
+          subtitle="Recent reviews"
+          action={
+            <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-100 shadow-sm">
+              <StarRating value={Math.round(providerProfile?.rating || 0)} size="xs" />
+              <span className="typo-label !text-gray-900">{providerProfile?.rating?.toFixed(1) || '—'}</span>
             </div>
-            <div>
-              <h3 className="text-xl font-black text-slate-900 tracking-tight">Patient Feedback</h3>
-              <p className="text-sm text-slate-400 font-medium mt-1">What your clients are saying about your care</p>
-            </div>
+          }
+        />
+        <Card noPadding>
+          <div className="p-3">
+            {providerProfile?._id ? <ProviderReviews providerId={providerProfile._id} /> : <div className="py-12 text-center typo-body !text-gray-400 italic">No reviews found.</div>}
           </div>
-          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm">
-            <StarRating value={Math.round(providerProfile?.rating || 0)} size="sm" />
-            <span className="font-black text-slate-900 ml-1">{providerProfile?.rating?.toFixed(1) || '—'}</span>
-          </div>
-        </div>
-        <div className="p-8">
-          {providerProfile?._id ? (
-            <ProviderReviews providerId={providerProfile._id} />
-          ) : (
-            <div className="py-12 text-center text-slate-400 italic">No reviews found.</div>
-          )}
-        </div>
+        </Card>
       </div>
-    </div>
+    </PageWrapper>
   );
 }

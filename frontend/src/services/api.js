@@ -13,27 +13,51 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 — refresh token
+// Standardize response: Always return res.data via interceptor
 api.interceptors.response.use(
-  (res) => res,
+  (res) => res.data,
   async (err) => {
     const original = err.config;
-    if (err.response?.status === 401 && !original._retry) {
-      original._retry = true;
-      try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) throw new Error('No refresh token');
-        const { data } = await axios.post('/api/auth/refresh-token', { refreshToken });
-        localStorage.setItem('accessToken', data.data.accessToken);
-        localStorage.setItem('refreshToken', data.data.refreshToken);
-        original.headers.Authorization = `Bearer ${data.data.accessToken}`;
-        return api(original);
-      } catch {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+    
+    // 🛡️ Global 401 Handling (Session Expiry)
+    if (err.response?.status === 401) {
+      // 1. Try Refresh Token
+      if (!original._retry) {
+        original._retry = true;
+        try {
+          const refreshToken = localStorage.getItem('refreshToken');
+          if (!refreshToken) throw new Error('No refresh token');
+          
+          // Use axios directly to avoid interceptor loop
+          const res = await axios.post(`${api.defaults.baseURL}/auth/refresh-token`, { refreshToken });
+          const { accessToken: newAccess, refreshToken: newRefresh } = res.data.data;
+          
+          localStorage.setItem('accessToken', newAccess);
+          localStorage.setItem('refreshToken', newRefresh);
+          
+          original.headers.Authorization = `Bearer ${newAccess}`;
+          return api(original);
+        } catch (refreshErr) {
+          console.error('[AUTH] Refresh failed, purging session');
+        }
+      }
+
+      // 2. Clear state and Redirect if refresh fails or wasn't possible
+      const roleHint = localStorage.getItem('roleHint');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('roleHint');
+      
+      // Prevent multiple redirects if already on login
+      if (!window.location.pathname.includes('/login')) {
+        if (roleHint === 'partner') {
+          window.location.href = '/partner/lab/login';
+        } else {
+          window.location.href = '/login';
+        }
       }
     }
+    
     return Promise.reject(err);
   }
 );

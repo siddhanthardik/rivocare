@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { kycService } from '../../../services';
 import { CheckCircle2, XCircle, Search, ExternalLink, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatDate } from '../../../utils/format';
 
 export default function AdminKYC() {
   const [pending, setPending] = useState([]);
@@ -14,7 +15,7 @@ export default function AdminKYC() {
     try {
       setLoading(true);
       const { data } = await kycService.getPending();
-      setPending(data.data);
+      setPending(data);
     } catch (err) {
       toast.error('Failed to load pending verifications');
     } finally {
@@ -27,7 +28,7 @@ export default function AdminKYC() {
   const viewDetails = async (id) => {
     try {
       const { data } = await kycService.getById(id);
-      setSelectedKyc(data.data);
+      setSelectedKyc(data);
       setRejectReason('');
     } catch (err) {
       toast.error('Failed to load full KYC details');
@@ -94,7 +95,7 @@ export default function AdminKYC() {
                 }`}>
                 <div>
                   <h3 className="font-semibold text-slate-800">{req.userId.name}</h3>
-                  <p className="text-xs text-slate-500">{req.councilType} • {new Date(req.createdAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-500">{req.councilType} • {formatDate(req.createdAt)}</p>
                 </div>
                 <Search size={18} className="text-slate-400" />
               </div>

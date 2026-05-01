@@ -1,461 +1,473 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, CheckCircle, Search, MapPin, Calendar as CalIcon, Clock, ShieldCheck, Star, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, MapPin, Calendar as CalIcon, Clock, ShieldCheck, Star, User, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
-import { providerService, bookingService } from '../../services';
-import { SERVICE_CONFIG, formatCurrency, formatDate } from '../../utils';
+import { 
+  providerService, 
+  bookingService, 
+  getRecommendedProviders, 
+  checkAvailability,
+  pricingService
+} from '@/services';
+import { SERVICE_CONFIG, formatCurrency, formatDate, cn } from '../../utils';
+import { HYBRID_PRICING } from '../../utils/pricing';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Avatar from '../../components/ui/Avatar';
-import StarRating from '../../components/ui/StarRating';
 import WizardProgress from '../../components/ui/WizardProgress';
-import WhatsAppButton from '../../components/ui/WhatsAppButton';
+import { PageWrapper, Card, Row, Section, StatusPill } from '../../components/ui/Layout';
+
+const DEBUG = import.meta.env.DEV;
+
+const STORAGE_KEY = "rivo_booking_draft";
 
 const STEPS = [
-  'Select Service',
-  'Location',
-  'Choose Provider',
-  'Schedule',
-  'Confirm',
+  { id: 1, label: "Service", key: "service" },
+  { id: 2, label: "Care Level", key: "careLevel" },
+  { id: 3, label: "Plan", key: "plan" },
+  { id: 4, label: "Patient", key: "patient" },
+  { id: 5, label: "Address", key: "address" },
+  { id: 6, label: "Slot", key: "slot" },
+  { id: 7, label: "Provider", key: "provider" }
+];
+
+const SERVICES = [
+  { id: "nurse", label: "Nurse", icon: "💉" },
+  { id: "physiotherapist", label: "Physiotherapist", icon: "🦴" },
+  { id: "doctor", label: "Doctor", icon: "🧑‍⚕️" },
+  { id: "caretaker", label: "Caretaker", icon: "🙌" },
+  { id: "procedure", label: "Procedures", icon: "💊" },
+  { id: "package", label: "Packages", icon: "🎁" },
 ];
 
 export default function BookingWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  // Booking State
-  const [service, setService] = useState(null);
-  const [address, setAddress] = useState(user?.address || '');
-  const [pincode, setPincode] = useState(user?.pincode || '');
-  const [providers, setProviders] = useState([]);
-  const [selectedProvider, setSelectedProvider] = useState(null);
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [duration, setDuration] = useState(1);
-  const [notes, setNotes] = useState('');
-  const [bookingResult, setBookingResult] = useState(null);
+  // 1. SINGLE SOURCE OF TRUTH
+  const [step, setStep] = useState(1);
+  const [booking, setBooking] = useState({
+    service: null,
+    careLevel: null,
+    plan: null,
+    patient: null,
+    address: null,
+    slot: null,
+    provider: null,
+    pricing: null,
+    durationHours: 1,
+    notes: ''
+  });
 
-  const [checkingPincode, setCheckingPincode] = useState(false);
-  const [pincodeStatus, setPincodeStatus] = useState(null);
-  const [areaMsg, setAreaMsg] = useState('');
-
-  // Derived state
-  const isServiceValid = !!service;
-  const isLocationValid = address.length > 5 && /^\d{6}$/.test(pincode) && pincodeStatus === 'valid';
-  const isProviderValid = !!selectedProvider;
-  const isScheduleValid = !!date && !!time;
-
+  // Clear any stale draft on mount
   useEffect(() => {
-    if (pincode?.length === 6) {
-      setCheckingPincode(true);
-      setPincodeStatus(null);
-      bookingService.checkPincode(pincode)
-        .then(res => {
-          if (res.data.isServiceable) {
-            setPincodeStatus('valid');
-            const data = res.data.data;
-            setAreaMsg(`Available in ${data.areaName ? data.areaName + ', ' : ''}${data.city} ✅`);
-            
-            // Auto suggest city if address doesn't have it
-            setAddress(prev => {
-              if (prev && prev.includes(data.city)) return prev;
-              return prev ? `${prev}, ${data.city}, ${data.state}` : `${data.city}, ${data.state}`;
-            });
-          } else {
-            setPincodeStatus('invalid');
-            setAreaMsg('We are not available in your area yet');
-          }
-        })
-        .catch(() => {
-           setPincodeStatus('invalid');
-           setAreaMsg('We are not available in your area yet');
-        })
-        .finally(() => setCheckingPincode(false));
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
+
+  const updateBooking = (key, value) => {
+    setBooking(prev => ({ ...prev, [key]: value }));
+  };
+
+  // 2. FIX STEP 2 CLICK (FORCE UPDATE)
+  const handleCareLevelSelect = (levelId) => {
+    console.log("👉 CLICKED CARE LEVEL:", levelId);
+    setBooking(prev => ({
+      ...prev,
+      careLevel: levelId
+    }));
+  };
+
+  // 5. FIX STEP 3 (PLAN NOT WORKING)
+  const handlePlanSelect = (plan) => {
+    console.log("👉 CLICKED PLAN:", plan.id);
+    setBooking(prev => ({
+      ...prev,
+      plan: plan.id,
+      durationHours: plan.durationHours || 1,
+      pricing: plan.price || 500
+    }));
+  };
+
+  // 3. VALIDATION ENGINE
+  const isStepValid = (s) => {
+    switch (s) {
+      case 1: return !!booking.service;
+      case 2: return !!booking.careLevel;
+      case 3: return !!booking.plan;
+      case 4: return !!booking.patient?.name && !!booking.patient?.age && !!booking.patient?.gender;
+      case 5: return !!booking.address?.fullAddress && !!booking.address?.pincode;
+      case 6: return !!booking.slot?.date && !!booking.slot?.time;
+      case 7: return true; // allow fallback (temporary failsafe)
+      default: return false;
+    }
+  };
+
+  // 4. SAFE NAVIGATION
+  const handleNext = () => {
+    if (!isStepValid(step)) {
+      console.error("❌ Step validation failed", step, booking);
+      toast.error("Please complete all required fields.");
+      return;
+    }
+    if (step < 7) {
+      setStep(prev => prev + 1);
     } else {
-      setPincodeStatus(null);
-      setAreaMsg('');
+      handleConfirm();
     }
-  }, [pincode]);
+  };
 
-  // Fetch providers when Step 2 completes
+  const handleBack = () => {
+    setStep(prev => Math.max(prev - 1, 1));
+  };
+
+  // 7. STEP GUARD (ANTI-BREAK LOGIC)
   useEffect(() => {
-    if (step === 2) {
-      setLoading(true);
-      providerService.getAll({ service, pincode })
-        .then((res) => setProviders(res.data.data.providers))
-        .catch(() => toast.error('Failed to find providers'))
-        .finally(() => setLoading(false));
-    }
-  }, [step, service, pincode]);
+    if (step > 1 && !booking.service) setStep(1);
+    if (step > 2 && !booking.careLevel) setStep(2);
+    if (step > 3 && !booking.plan) setStep(3);
+    if (step > 4 && !booking.patient) setStep(4);
+    if (step > 5 && !booking.address) setStep(5);
+    if (step > 6 && !booking.slot) setStep(6);
+  }, [step, booking]);
 
-  const handleNext = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
-  const handleBack = () => setStep((s) => Math.max(s - 1, 0));
+  // DEBUG LOGS (dev only)
+  useEffect(() => {
+    if (DEBUG) {
+      console.log("CURRENT STEP:", step);
+      console.log("BOOKING STATE:", booking);
+    }
+  }, [step, booking]);
 
   const handleConfirm = async () => {
+    if (loading) return;
     setLoading(true);
     try {
-      // Create scheduledAt Date object
-      const [year, month, day] = date.split('-');
-      const [hours, minutes] = time.split(':');
+      const [year, month, day] = booking.slot.date.split('-');
+      const [hours, minutes] = booking.slot.time.split(':');
       const scheduledAt = new Date(year, month - 1, day, hours, minutes);
 
       const payload = {
-        providerId: selectedProvider._id,
-        service,
-        address,
-        pincode,
+        providerId: booking.provider._id,
+        service: booking.service,
+        address: booking.address.fullAddress,
+        pincode: booking.address.pincode,
         scheduledAt,
-        durationHours: duration,
-        notes,
+        durationHours: booking.durationHours || 1,
+        notes: JSON.stringify({
+          careLevel: booking.careLevel,
+          plan: booking.plan,
+          patient: booking.patient,
+          address: booking.address,
+          pricing: booking.pricing,
+          timestamp: Date.now(),
+          flowVersion: "v2"
+        })
       };
 
+      // 7. CAPTURE BOOKING ID
       const res = await bookingService.create(payload);
-      setBookingResult(res.data.data.booking);
-      setStep(5); // Success step
+      const bookingId = res?.data?._id || res?.data?.booking?._id;
+      if (bookingId) localStorage.setItem("lastBookingId", bookingId);
+
+      // 3. CLEAN STATE AFTER SUCCESS
+      localStorage.removeItem(STORAGE_KEY);
+      setBooking({
+        service: null, careLevel: null, plan: null,
+        patient: null, address: null, slot: null,
+        provider: null, pricing: null, durationHours: 1, notes: ''
+      });
+      setStep(1);
+      setIsSuccess(true);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Booking failed');
+      if (err.response?.status === 409) {
+        toast.error("This slot is no longer available. Please select another time.");
+        setStep(6);
+        return;
+      }
+      if (DEBUG) console.error(err);
+      toast.error(err.response?.data?.message || err.message || "Booking failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── Step 0: Service ──────────────────────────────────────────────
-  const renderServiceSelection = () => (
-    <div className="space-y-6 animate-fade-in relative">
-      <h2 className="text-xl font-bold text-slate-800">What service do you need?</h2>
+  // ── Renderers ──────────────────────────────────────────────
 
-      {/* Trust Badges */}
-      <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 mb-2">
-        <span className="flex items-center gap-1.5"><CheckCircle size={14} className="text-emerald-500" /> Trusted by 100+ families</span>
-        <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-blue-500" /> Verified professionals</span>
-        <span className="flex items-center gap-1.5"><Star size={14} className="text-amber-500 fill-amber-500" /> ⭐ 4.8 Rating</span>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {Object.entries(SERVICE_CONFIG).map(([key, config]) => (
-          <button
-            key={key}
-            onClick={() => { setService(key); handleNext(); }}
-            className={`p-5 rounded-xl border-2 text-left transition-all group ${service === key ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-100' : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50'}`}
+  const renderService = () => (
+    <div className="space-y-4 animate-fade-in relative z-10 pointer-events-auto">
+      <Section title="Select Service" subtitle="Step 1" />
+      <div className="grid grid-cols-2 gap-3">
+        {SERVICES.map(s => (
+          <div 
+            key={s.id} 
+            onClick={() => updateBooking("service", s.id)}
+            className={cn(
+              "cursor-pointer border-2 rounded-[2.5rem] p-8 transition-all text-center",
+              booking.service === s.id ? "border-blue-600 bg-blue-50 ring-2 ring-blue-600" : "border-slate-100 bg-white hover:border-blue-200"
+            )}
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-3xl bg-white w-12 h-12 rounded-lg flex items-center justify-center shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">{config.icon}</div>
-              {service === key && <CheckCircle size={20} className="text-primary-600 animate-fade-in" />}
-            </div>
-            <h3 className="font-semibold text-slate-800 mb-1">{config.label}</h3>
-            <p className="text-xs text-slate-500">
-              {key === 'nurse' ? 'Skilled nursing & medical care' : key === 'physiotherapist' ? 'Mobility & physical rehab' : key === 'doctor' ? 'Clinical consultation' : 'Daily living assistance'}
-            </p>
-          </button>
+            <div className="text-5xl mb-4">{s.icon}</div>
+            <div className="font-black text-slate-900 text-lg uppercase tracking-tight">{s.label}</div>
+          </div>
         ))}
       </div>
     </div>
   );
 
-  // ─── Step 1: Location ─────────────────────────────────────────────
-  const renderLocation = () => (
-    <div className="space-y-6 animate-fade-in">
-      <h2 className="text-xl font-bold text-slate-800">Where do you need the service?</h2>
-      <div className="space-y-4 max-w-md">
-        <Input
-          label="Pincode"
-          icon={MapPin}
-          placeholder="e.g. 400001"
-          value={pincode}
-          onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
-          maxLength={6}
-          hint={checkingPincode ? "Checking availability..." : areaMsg || "Must be exactly 6 digits"}
-        />
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-slate-700">Full Address</label>
-          <textarea
-            className="input-base min-h-[100px] resize-none"
-            placeholder="House no, Building, Street area..."
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-          />
-        </div>
-        <Button onClick={handleNext} disabled={!isLocationValid} className="hidden md:flex w-full">
-          Find Providers <ChevronRight size={16} />
-        </Button>
-      </div>
-    </div>
-  );
+  const renderCareLevel = () => {
+    const config = HYBRID_PRICING[booking.service] || {};
+    const levels = config.levels || config.bundles || config.conditions || [
+      { id: 'standard', label: 'Standard Care', desc: 'General professional assistance' }
+    ];
 
-  // ─── Step 2: Providers ────────────────────────────────────────────
-  const renderProviders = () => (
-    <div className="space-y-6 animate-fade-in">
-      <h2 className="text-xl font-bold text-slate-800">Available Providers</h2>
-      <p className="text-sm text-slate-500 -mt-4">Showing verified professionals for {pincode}</p>
-
-      {loading ? (
-        <div className="py-12 flex justify-center"><div className="animate-spin text-primary-600">⌛</div></div>
-      ) : providers.length === 0 ? (
-        <div className="text-center py-12 bg-slate-50 rounded-lg border border-slate-100">
-          <p className="text-slate-600 mb-4">No providers available in this area right now.</p>
-          <Button variant="outline" onClick={handleBack}>Change Location</Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {providers.map((p) => (
-            <div
-              key={p._id}
-              onClick={() => { setSelectedProvider(p); handleNext(); }}
-              className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedProvider?._id === p._id ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+    return (
+      <div className="space-y-4 animate-fade-in relative z-10 pointer-events-auto" key={booking.careLevel}>
+        <Section title="Care Level" subtitle="Step 2" />
+        <div className="space-y-3">
+          {levels.map(l => (
+            <div 
+              key={l.id} 
+              onClick={() => handleCareLevelSelect(l.id)}
+              className={cn(
+                "p-5 cursor-pointer transition-all border-2 rounded-2xl",
+                booking.careLevel === l.id ? "border-blue-600 bg-blue-50 shadow-lg ring-2 ring-blue-600" : "border-slate-100 bg-white"
+              )}
             >
-              <div className="flex items-start gap-3">
-                <Avatar name={p.user.name} src={p.user.avatar} size="lg" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="font-semibold text-slate-800">{p.user.name}</h3>
-                    {p.isVerified && <ShieldCheck className="w-4 h-4 text-green-500 shrink-0" title="Verified Provider" />}
-                    {p.rating >= 4.8 && p.totalRatings >= 3 && (
-                      <span className="inline-flex items-center gap-0.5 bg-amber-50 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-amber-200">
-                        <Star size={9} className="fill-amber-500 text-amber-500" /> Top Rated
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <StarRating value={Math.round(p.rating)} size="sm" />
-                    <span className="text-xs text-slate-500">{p.rating.toFixed(1)} ({p.totalRatings})</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                    <span>{p.experience} yrs exp</span>
-                    <span>•</span>
-                    <span className="text-primary-600 font-semibold">{formatCurrency(p.pricePerHour)} / hr</span>
-                  </div>
-                </div>
+              <p className="font-black text-slate-900 text-lg">{l.label}</p>
+              <p className="text-sm text-slate-500 mt-1 font-medium">{l.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderPlan = () => {
+    const config = HYBRID_PRICING[booking.service] || {};
+    const plans = config.packs || config.shifts || config.actions || [
+      { id: 'single_visit', label: 'Single Visit', durationHours: 1, price: 500 }
+    ];
+
+    return (
+      <div className="space-y-4 animate-fade-in relative z-10 pointer-events-auto" key={booking.plan}>
+        <Section title="Select Plan" subtitle="Step 3" />
+        <div className="space-y-3">
+          {plans.map(p => (
+            <div 
+              key={p.id} 
+              onClick={() => handlePlanSelect(p)}
+              className={cn(
+                "p-6 cursor-pointer transition-all border-2 rounded-2xl flex justify-between items-center",
+                booking.plan === p.id ? "border-blue-600 bg-blue-50 shadow-lg ring-2 ring-blue-600" : "border-slate-100 bg-white"
+              )}
+            >
+              <div className="flex flex-col">
+                <p className="font-black text-slate-900 text-lg">{p.label}</p>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-1">{p.durationHours || 1} HOUR SESSION</p>
+              </div>
+              <div className="text-right">
+                <p className="font-black text-blue-600 text-2xl">₹{p.price || 500}</p>
               </div>
             </div>
           ))}
         </div>
-      )}
-    </div>
-  );
-
-  // ─── Step 3: Schedule ─────────────────────────────────────────────
-  const renderSchedule = () => {
-    // Generates next 14 days
-    const dates = Array.from({ length: 14 }).map((_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      return d.toISOString().split('T')[0];
-    });
-
-    // 9 AM to 6 PM slots
-    const slots = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'];
-
-    return (
-      <div className="space-y-6 animate-fade-in max-w-2xl">
-        <h2 className="text-xl font-bold text-slate-800">Select Date & Time</h2>
-
-        <div>
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Available Dates</label>
-          <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
-            {dates.map((d) => {
-              const dateObj = new Date(d);
-              const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
-              const dayNum = dateObj.getDate();
-              return (
-                <button
-                  key={d}
-                  onClick={() => setDate(d)}
-                  className={`flex shrink-0 flex-col items-center justify-center w-16 h-20 rounded-xl border-2 transition-colors ${date === d ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-slate-200 hover:border-slate-300 text-slate-600'}`}
-                >
-                  <span className="text-xs font-medium uppercase">{dayName}</span>
-                  <span className="text-xl font-bold">{dayNum}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div>
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Time Slots</label>
-          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-            {slots.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTime(t)}
-                className={`py-2 rounded-lg text-sm border-2 transition-colors ${time === t ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold' : 'border-slate-200 hover:border-slate-300 text-slate-600'}`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="text-sm font-medium text-slate-700 mb-2 block">Duration (Hours)</label>
-          <div className="flex items-center gap-4">
-            <input type="range" min="1" max="8" value={duration} onChange={(e) => setDuration(Number(e.target.value))} className="w-full md:w-1/2" />
-            <span className="font-semibold text-primary-700">{duration} Hour{duration > 1 ? 's' : ''}</span>
-          </div>
-        </div>
-
-        <div className="mt-8">
-          <Button onClick={handleNext} disabled={!isScheduleValid} className="hidden md:flex w-full md:w-auto">
-            Review Booking <ChevronRight size={16} />
-          </Button>
-        </div>
       </div>
     );
   };
 
-  // ─── Step 4: Confirm ──────────────────────────────────────────────
-  const renderConfirm = () => {
-    if (!selectedProvider) return null;
-    const total = selectedProvider.pricePerHour * duration;
-
-    return (
-      <div className="space-y-6 animate-fade-in max-w-xl">
-        <h2 className="text-xl font-bold text-slate-800">Confirm Booking</h2>
-
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-200">
-            <div>
-              <p className="text-sm text-slate-500">Service</p>
-              <p className="font-semibold text-slate-800 flex items-center gap-2">
-                {SERVICE_CONFIG[service].icon} {SERVICE_CONFIG[service].label}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-slate-500">Provider</p>
-              <p className="font-semibold text-slate-800">{selectedProvider.user.name}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-slate-500 mb-1 flex items-center gap-1"><CalIcon size={14} /> Date</p>
-              <p className="font-medium text-slate-800">{formatDate(date)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500 mb-1 flex items-center gap-1"><Clock size={14} /> Time</p>
-              <p className="font-medium text-slate-800">{time} ({duration} hr{duration>1?'s':''})</p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-sm text-slate-500 mb-1 flex items-center gap-1"><MapPin size={14} /> Location</p>
-              <p className="font-medium text-slate-800 text-sm">{address}, {pincode}</p>
-            </div>
+  const renderPatient = () => (
+    <div className="space-y-6 animate-fade-in relative z-10 pointer-events-auto">
+      <Section title="Patient Info" subtitle="Step 4" />
+      <Card className="space-y-5 rounded-3xl p-6">
+        <Input label="Patient Name" value={booking.patient?.name || ''} onChange={(e) => updateBooking("patient", { ...booking.patient, name: e.target.value })} />
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Age" type="number" value={booking.patient?.age || ''} onChange={(e) => updateBooking("patient", { ...booking.patient, age: e.target.value })} />
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Gender</label>
+            <select className="input-base !rounded-xl" value={booking.patient?.gender || ''} onChange={(e) => updateBooking("patient", { ...booking.patient, gender: e.target.value })}>
+              <option value="">Select</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
         </div>
+      </Card>
+    </div>
+  );
 
+  const renderAddress = () => (
+    <div className="space-y-6 animate-fade-in relative z-10 pointer-events-auto">
+      <Section title="Location" subtitle="Step 5" />
+      <Card className="space-y-5 rounded-3xl p-6">
+        <Input label="Pincode" maxLength="6" value={booking.address?.pincode || ''} onChange={(e) => updateBooking("address", { ...booking.address, pincode: e.target.value.replace(/\D/g, '') })} />
         <div className="space-y-1.5">
-          <label className="text-sm font-medium text-slate-700">Patient Notes (Optional)</label>
-          <textarea
-            className="input-base"
-            placeholder="Any specific instructions for the provider..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Address</label>
+          <textarea className="input-base !rounded-xl min-h-[120px]" placeholder="Full address details..." value={booking.address?.fullAddress || ''} onChange={(e) => updateBooking("address", { ...booking.address, fullAddress: e.target.value })} />
         </div>
+      </Card>
+    </div>
+  );
 
-        <div className="flex items-center justify-between p-4 bg-primary-50 rounded-xl border border-primary-100">
-          <span className="font-medium text-primary-800">Total Amount</span>
-          <span className="text-2xl font-bold text-primary-700">{formatCurrency(total)}</span>
+  const renderSlot = () => {
+    const dates = Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0];
+    });
+    const slots = ['09:00', '11:00', '13:00', '15:00', '17:00', '19:00'];
+    return (
+      <div className="space-y-8 animate-fade-in relative z-10 pointer-events-auto">
+        <Section title="Timing" subtitle="Step 6" />
+        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
+          {dates.map(d => (
+            <div key={d} onClick={() => updateBooking("slot", { ...booking.slot, date: d })} className={cn("shrink-0 w-20 h-24 flex flex-col items-center justify-center rounded-[2rem] border-2 cursor-pointer transition-all", booking.slot?.date === d ? "bg-blue-600 text-white border-blue-600 shadow-xl" : "bg-white border-slate-50")}>
+              <span className="text-[10px] font-black uppercase opacity-60">{new Date(d).toLocaleDateString('en-US', { weekday: 'short' })}</span>
+              <span className="text-2xl font-black mt-1">{new Date(d).getDate()}</span>
+            </div>
+          ))}
         </div>
-
-        <Button onClick={handleConfirm} loading={loading} size="lg" className="hidden md:flex w-full">
-          Confirm Booking
-        </Button>
+        <div className="grid grid-cols-3 gap-3">
+          {slots.map(t => (
+            <button key={t} onClick={() => updateBooking("slot", { ...booking.slot, time: t })} className={cn("py-4 rounded-2xl font-black border-2 transition-all text-lg", booking.slot?.time === t ? "bg-blue-600 text-white border-blue-600 shadow-lg" : "bg-white border-slate-50")}>{t}</button>
+          ))}
+        </div>
       </div>
     );
   };
 
-  // ─── Step 5: Success ──────────────────────────────────────────────
-  const renderSuccess = () => (
-    <div className="text-center py-8 animate-slide-up max-w-md mx-auto">
-      <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
-        <CheckCircle size={32} />
-      </div>
-      <h2 className="text-2xl font-bold text-slate-800 mb-2">Booking Requested!</h2>
-      <p className="text-slate-500 mb-8">
-        Your request has been sent to {selectedProvider?.user.name}. View booking details in your dashboard.
-      </p>
+  const [providers, setProviders] = useState([]);
+  const [fetchingProviders, setFetchingProviders] = useState(false);
 
-      <div className="space-y-3">
-        <Button onClick={() => navigate('/dashboard/patient/bookings')} className="w-full">
-          View My Bookings
-        </Button>
-        <Button variant="outline" onClick={() => navigate('/dashboard/patient')} className="w-full">
-          Back to Dashboard
-        </Button>
+  useEffect(() => {
+    if (booking.slot?.date && booking.slot?.time && booking.service) {
+      console.log("🔍 FETCHING PROVIDERS FOR:", { service: booking.service, pincode: booking.address?.pincode, slot: booking.slot });
+      setFetchingProviders(true);
+      providerService.getAll({ service: booking.service, pincode: booking.address?.pincode })
+        .then(res => {
+          const list = res.data.providers || [];
+          setProviders(list);
+          // 5. AUTO-SELECT FIRST PROVIDER
+          if (list.length > 0 && !booking.provider) {
+            updateBooking("provider", list[0]);
+          }
+        })
+        .finally(() => setFetchingProviders(false));
+    }
+  }, [booking.slot, booking.service, booking.address?.pincode]);
+
+  const renderProvider = () => {
+    console.log("STEP 7 DATA", { booking, providers });
+    
+    return (
+      <div className="space-y-6 animate-fade-in relative z-10 pointer-events-auto">
+        <Section title="Expert" subtitle="Step 7" />
+        
+        {fetchingProviders ? (
+          <p className="text-center py-20 font-black text-slate-400">Searching Experts...</p>
+        ) : (
+          <div className="space-y-4">
+            {/* 2. HANDLE EMPTY PROVIDERS */}
+            {providers?.length === 0 ? (
+              <div className="text-center p-10 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
+                <p className="font-bold text-slate-500 mb-4">No experts available for the selected slot in your area.</p>
+                <button
+                  onClick={() => setStep(6)}
+                  className="bg-slate-900 text-white px-6 py-3 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-slate-800 transition-all"
+                >
+                  Change Time Slot
+                </button>
+              </div>
+            ) : (
+              providers.map(p => (
+                <div key={p._id} onClick={() => updateBooking("provider", p)} className={cn("p-5 cursor-pointer flex items-center gap-5 border-2 rounded-3xl transition-all", booking.provider?._id === p._id ? "border-blue-600 bg-blue-50 shadow-xl ring-2 ring-blue-600" : "border-slate-50 bg-white")}>
+                  <Avatar name={p.user.name} src={p.user.avatar} size="lg" className="ring-4 ring-white shadow-md" />
+                  <div className="flex-1">
+                    <p className="font-black text-slate-900 text-lg">{p.user.name}</p>
+                    <div className="flex gap-3 items-center mt-1">
+                       <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{p.experience} YRS EXP</span>
+                       <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⭐ {p.rating.toFixed(1)}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-blue-600 text-xl">₹{p.pricePerHour}</p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
+
+  if (isSuccess) {
+    return (
+      <PageWrapper maxWidth="600px">
+        <Card className="text-center py-24 mt-10 rounded-[5rem] shadow-2xl border-none">
+          <div className="w-28 h-28 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner animate-bounce"><CheckCircle size={56} /></div>
+          <h2 className="text-4xl font-black text-slate-900 mb-3 tracking-tighter">Booking Successful!</h2>
+          <p className="text-slate-500 font-bold max-w-xs mx-auto mb-10">Your booking request is submitted. Provider will be confirmed shortly.</p>
+          <Button onClick={() => navigate('/dashboard/patient/bookings')} className="!rounded-[2rem] !px-12 !py-5 text-xl font-black shadow-2xl">View My Bookings</Button>
+        </Card>
+      </PageWrapper>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto pb-24 md:pb-8">
-      {/* Launching Soon Banner */}
-      <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-fade-in">
-        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-        <div className="text-sm text-amber-800">
-          <p className="font-semibold uppercase tracking-wider text-[10px] mb-1">Coming Soon</p>
-          <p className="font-medium">We are launching soon in your location. Any Booking done will not be entertained. Keep checking for the updates.</p>
-        </div>
-      </div>
-      {/* Conversion Banner */}
-      {step < 5 && (
-        <div className="mb-6 flex justify-center animate-slide-up">
-          <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm">
-            <span className="animate-pulse">⚡</span> Average booking takes less than 60 seconds
-          </div>
-        </div>
-      )}
+    <PageWrapper maxWidth="750px">
 
-      <div className="mb-8">
-        <h1 className="page-title">Book a Service</h1>
-        <p className="text-slate-500 mt-1">Request home healthcare in a few simple steps.</p>
-      </div>
-
-      <div className="card p-6 md:p-8 relative">
-        {step < 5 && (
-          <div className="flex items-start gap-4 mb-10">
-            {step > 0 && (
-              <button onClick={handleBack} className="p-2 -ml-2 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 mt-3 md:mt-2 hidden md:block">
-                <ChevronLeft size={20} />
-              </button>
-            )}
-            <div className="flex-1 overflow-hidden pt-2">
-              <WizardProgress steps={STEPS} current={step} />
+      <Card className="overflow-hidden border-none shadow-[0_40px_100px_-20px_rgba(0,0,0,0.15)] rounded-[4rem] mt-6 bg-white">
+        <div className="bg-slate-950 p-10 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+          <div className="flex items-center justify-between mb-8 relative z-10">
+            {step > 1 ? (
+              <button onClick={handleBack} className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 transition-all active:scale-95"><ChevronLeft size={28} /></button>
+            ) : <div className="w-12" />}
+            <div className="text-center">
+              <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em] mb-2">Step {step} of 7</p>
+              <h2 className="text-2xl font-black text-white tracking-tight">{STEPS[step - 1].label}</h2>
             </div>
+            <div className="w-12" />
           </div>
-        )}
-
-        {step === 0 && renderServiceSelection()}
-        {step === 1 && renderLocation()}
-        {step === 2 && renderProviders()}
-        {step === 3 && renderSchedule()}
-        {step === 4 && renderConfirm()}
-        {step === 5 && renderSuccess()}
-
-        {/* Sticky Mobile Footer for Next Button (if not step 0, 2, 5 and not loading) */}
-        {step > 0 && step < 5 && step !== 2 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 md:hidden z-10 animate-slide-up shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex gap-3">
-            <Button
-              onClick={handleBack}
-              variant="outline"
-              className="w-12 shrink-0 px-0 flex justify-center"
-            >
-              <ChevronLeft size={20} />
-            </Button>
-            <Button
-              onClick={step === 4 ? handleConfirm : handleNext}
-              disabled={(step === 1 && !isLocationValid) || (step === 3 && !isScheduleValid) || loading}
-              loading={step === 4 && loading}
-              className="flex-1 h-12 text-base"
-            >
-              {step === 4 ? 'Confirm Booking' : 'Next Step'} <ChevronRight size={18} className="ml-1" />
-            </Button>
+          <div className="flex gap-2 justify-center relative z-10">
+            {STEPS.map(s => <div key={s.id} className={cn("h-1.5 rounded-full transition-all duration-700", s.id === step ? "w-14 bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]" : s.id < step ? "w-4 bg-emerald-500" : "w-4 bg-slate-800")} />)}
           </div>
-        )}
-      </div>
+        </div>
 
-      <WhatsAppButton message="Hi RIVO, I need help with booking a service." />
-    </div>
+        <div className="p-10 md:p-16 min-h-[550px] relative">
+          {step === 1 && renderService()}
+          {step === 2 && renderCareLevel()}
+          {step === 3 && renderPlan()}
+          {step === 4 && renderPatient()}
+          {step === 5 && renderAddress()}
+          {step === 6 && renderSlot()}
+          {step === 7 && renderProvider()}
+        </div>
+
+        <div className="p-10 bg-slate-50 border-t border-slate-100 flex justify-end">
+           <Button 
+             onClick={() => {
+               if (!loading) handleNext();
+             }} 
+             disabled={!isStepValid(step) || loading}
+             loading={loading}
+             className={cn(
+               "w-full md:w-auto !px-20 !py-6 rounded-[2rem] font-black text-2xl shadow-2xl transition-all active:scale-95",
+               isStepValid(step) && !loading ? "bg-blue-600 text-white shadow-blue-900/30" : "bg-slate-200 text-slate-400 cursor-not-allowed"
+             )}
+           >
+             {step === 7 ? (loading ? "Booking..." : "Confirm Booking") : "Continue"} <ChevronRight size={32} className="ml-2" />
+           </Button>
+        </div>
+      </Card>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
+    </PageWrapper>
   );
 }

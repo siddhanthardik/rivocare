@@ -21,8 +21,8 @@ export default function FraudDashboard() {
         adminService.getFraudSummary(),
         adminService.getFraudFlags({ entityType: filterType, limit: 100 }),
       ]);
-      setSummary(summaryRes.data.data);
-      setFlags(flagsRes.data.data.flags);
+      setSummary(summaryRes.data);
+      setFlags(flagsRes.data.flags);
     } catch (err) {
       toast.error('Failed to load fraud data');
     } finally {

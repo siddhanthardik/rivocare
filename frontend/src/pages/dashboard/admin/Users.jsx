@@ -4,6 +4,7 @@ import { adminService } from '../../../services';
 import { PageLoader, EmptyState } from '../../../components/ui/Feedback';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
+import { formatDate } from '../../../utils/format';
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
@@ -14,7 +15,7 @@ export default function AdminUsers() {
 
   useEffect(() => {
     adminService.getUsers({ limit: 50, ...(filter !== 'all' && { role: filter }) })
-      .then((res) => setUsers(res.data.data.users))
+      .then((res) => setUsers(res.data.users))
       .catch((err) => toast.error('Failed to load users'))
       .finally(() => setLoading(false));
   }, [refresh, filter]);
@@ -39,7 +40,7 @@ export default function AdminUsers() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="page-title">User Management</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">User Management</h1>
           <p className="text-slate-500">View and manage all registered accounts.</p>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-lg self-start">
@@ -75,7 +76,7 @@ export default function AdminUsers() {
                   <tr key={u._id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
                       <p className="font-semibold text-slate-800">{u.name}</p>
-                      <p className="text-xs text-slate-400">Joined {new Date(u.createdAt).toLocaleDateString()}</p>
+                      <p className="text-xs text-slate-400">Joined {formatDate(u.createdAt)}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-slate-700">{u.email}</p>

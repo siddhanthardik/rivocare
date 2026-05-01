@@ -1,0 +1,20 @@
+@layer components {
+  .typo-title {
+    @apply text-[22px] md:text-[24px] font-semibold tracking-tight text-gray-900;
+  }
+  .typo-label {
+    @apply text-[11px] uppercase tracking-wide text-gray-500 font-bold;
+  }
+  .typo-kpi {
+    @apply text-[20px] md:text-[22px] font-semibold text-gray-900 tabular-nums;
+  }
+  .typo-value {
+    @apply text-[16px] font-bold text-gray-800;
+  }
+  .typo-body {
+    @apply text-[13px] text-gray-600 font-medium;
+  }
+  .typo-micro {
+    @apply text-[12px] text-gray-400 font-normal;
+  }
+}

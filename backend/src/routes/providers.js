@@ -2,11 +2,14 @@ const router = require('express').Router();
 const {
   getProviders,
   getProviderById,
+  getMyProfile,
   toggleAvailability,
   updateProviderProfile,
   getServices,
   getAssignments,
   updateAssignmentStatus,
+  getAvailability,
+  updateAvailability,
 } = require('../controllers/providerController');
 const {
   captureProviderLead,
@@ -26,9 +29,12 @@ router.post('/lead', captureProviderLead);
 router.use(protect);
 
 router.put('/availability', requireRole('provider'), toggleAvailability);
+router.get('/me', requireRole('provider'), getMyProfile);
 router.put('/profile', requireRole('provider'), updateProviderProfile);
 router.get('/me/assignments', requireRole('provider'), getAssignments);
 router.put('/me/assignments/:id', requireRole('provider'), updateAssignmentStatus);
+router.get('/me/availability', requireRole('provider'), getAvailability);
+router.put('/me/availability', requireRole('provider'), updateAvailability);
 router.get('/me/referral', requireRole('provider'), getMyReferral);
 
 module.exports = router;

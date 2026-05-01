@@ -3,6 +3,8 @@ import { GuestRoute, ProtectedRoute } from './components/layout/RouteGuards';
 import Header from './components/layout/Header';
 import DashboardLayout from './components/layout/DashboardLayout';
 import ScrollToTop from './components/layout/ScrollToTop';
+import { useAuth } from './context/AuthContext';
+import { PageLoader } from './components/ui/Feedback';
 
 // Pages
 import Landing from './pages/Landing';
@@ -60,17 +62,45 @@ import AdminPlansPackages from './pages/dashboard/admin/PlansPackages';
 import AdminServicePricing from './pages/dashboard/admin/ServicePricing';
 import AdminSupplyExpansion from './pages/dashboard/admin/SupplyExpansion';
 import ContentManagement from './components/admin/ContentManagement';
+import AdminDispatch from './pages/dashboard/admin/Dispatch';
+
+// --- Rivo Labs Imports ---
+// Public
+import LabsHome from './pages/labs/LabsHome';
+import TestSearch from './pages/labs/TestSearch';
+import LabCheckout from './pages/labs/LabCheckout';
+import ReportsLogin from './pages/labs/ReportsLogin';
+// Patient Labs
+import LabBooking from './pages/dashboard/patient/LabBooking';
+import LabOrders from './pages/dashboard/patient/LabOrders';
+import LabReports from './pages/dashboard/patient/LabReports';
+// Partner Labs
+import PartnerLogin from './pages/dashboard/partner/PartnerLogin';
+import PartnerOverview from './pages/dashboard/partner/Overview';
+import OrderManagement from './pages/dashboard/partner/OrderManagement';
+import TestCatalog from './pages/dashboard/partner/TestCatalog';
+import StaffManagement from './pages/dashboard/partner/StaffManagement';
+import PartnerWallet from './pages/dashboard/partner/Wallet';
+// Admin Labs
+import LabManagement from './pages/dashboard/admin/LabManagement';
+import LabOrdersOverview from './pages/dashboard/admin/LabOrdersOverview';
+import LabAnalytics from './pages/dashboard/admin/LabAnalytics';
+import FinanceOS from './pages/dashboard/admin/FinanceOS';
+import LabReconciliation from './pages/dashboard/admin/LabReconciliation';
+// -----------------------
 
 // Nav items
-import { LayoutDashboard, Calendar, User, ToggleLeft, TrendingUp, Users, ShieldCheck, BookOpen, UserCheck, BarChart2, ShieldAlert, MapPin, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Calendar, User, ToggleLeft, TrendingUp, Users, ShieldCheck, BookOpen, UserCheck, BarChart2, ShieldAlert, MapPin, DollarSign, Activity, FileText, FlaskConical, Wallet } from 'lucide-react';
 
 const patientNav = [
   { path: '/dashboard/patient', label: 'Overview', icon: LayoutDashboard, end: true },
   { path: '/dashboard/patient/bookings', label: 'My Bookings', icon: Calendar },
   { path: '/dashboard/patient/plans', label: 'Plans & Packages', icon: BookOpen },
+  { path: '/dashboard/patient/labs/book', label: 'Book Lab Test', icon: FlaskConical },
+  { path: '/dashboard/patient/labs/orders', label: 'My Lab Orders', icon: Activity },
+  { path: '/dashboard/patient/labs/reports', label: 'Diagnostic Reports', icon: FileText },
   { path: '/dashboard/patient/refer', label: 'Refer & Earn', icon: Users },
   { path: '/dashboard/patient/profile', label: 'Profile Settings', icon: User },
-  { path: '/dashboard/patient/support', label: 'Help & Support', icon: ShieldCheck },
 ];
 const providerNav = [
   { path: '/dashboard/provider', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -81,6 +111,13 @@ const providerNav = [
   { path: '/dashboard/provider/referrals', label: 'Refer & Earn', icon: Users },
   { path: '/dashboard/provider/kyc', label: 'KYC & Verification', icon: ShieldCheck },
   { path: '/dashboard/provider/profile', label: 'Profile', icon: User },
+];
+const partnerNav = [
+  { path: '/dashboard/partner/lab', label: 'Overview', icon: LayoutDashboard, end: true },
+  { path: '/dashboard/partner/lab/orders', label: 'Order Management', icon: Activity },
+  { path: '/dashboard/partner/lab/tests', label: 'Test Catalog', icon: FlaskConical },
+  { path: '/dashboard/partner/lab/staff', label: 'Staff Management', icon: Users },
+  { path: '/dashboard/partner/lab/wallet', label: 'Wallet & Payouts', icon: Wallet },
 ];
 const adminNav = [
   { path: '/dashboard/admin', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -93,11 +130,21 @@ const adminNav = [
   { path: '/dashboard/admin/providers', label: 'Providers', icon: ShieldCheck },
   { path: '/dashboard/admin/kyc', label: 'KYC Approvals', icon: UserCheck },
   { path: '/dashboard/admin/service-areas', label: 'Service Areas', icon: MapPin },
+  { path: '/dashboard/admin/labs', label: 'Lab Partners', icon: FlaskConical },
+  { path: '/dashboard/admin/lab-orders', label: 'Lab Orders', icon: Activity },
+  { path: '/dashboard/admin/lab-finance', label: 'Finance OS', icon: DollarSign },
+  { path: '/dashboard/admin/lab-analytics', label: 'Lab Analytics', icon: BarChart2 },
+  { path: '/dashboard/admin/lab-reconciliation', label: 'Reconciliation', icon: ShieldCheck },
   { path: '/dashboard/admin/bookings', label: 'Bookings', icon: Calendar },
+  { path: '/dashboard/admin/dispatch', label: 'Control Tower', icon: Activity },
   { path: '/dashboard/admin/fraud', label: 'Fraud Analytics', icon: ShieldAlert },
 ];
 
 export default function App() {
+  const { loading } = useAuth();
+
+  if (loading) return <PageLoader fullPage label="Initializing secure session..." />;
+
   return (
     <>
       <ScrollToTop />
@@ -119,6 +166,12 @@ export default function App() {
       <Route path="/terms-and-conditions" element={<Navigate to="/terms-of-service" replace />} />
       <Route path="/privacy-policy" element={<><Header /><PrivacyPolicy /><Footer /></>} />
       <Route path="/refer" element={<><Header /><ReferralLanding /><Footer /></>} />
+      
+      {/* Rivo Labs Public */}
+      <Route path="/labs" element={<><Header /><LabsHome /><Footer /></>} />
+      <Route path="/labs/search" element={<><Header /><TestSearch /><Footer /></>} />
+      <Route path="/labs/reports" element={<><Header /><ReportsLogin /><Footer /></>} />
+      <Route path="/partner/lab/login" element={<><Header /><PartnerLogin /><Footer /></>} />
 
       {/* Guest-only */}
       <Route element={<GuestRoute />}>
@@ -134,9 +187,20 @@ export default function App() {
           <Route index element={<PatientOverview />} />
           <Route path="plans" element={<PatientPlansPackages />} />
           <Route path="bookings" element={<PatientBookings />} />
+          
+          {/* Redirects for old routes */}
+          <Route path="labs" element={<Navigate to="labs/orders" replace />} />
+          <Route path="reports" element={<Navigate to="labs/reports" replace />} />
+          
+          {/* Nested Lab Routes */}
+          <Route path="labs/book" element={<LabBooking />} />
+          <Route path="labs/orders" element={<LabOrders />} />
+          <Route path="labs/reports" element={<LabReports />} />
+          
           <Route path="refer" element={<PatientReferral />} />
           <Route path="profile" element={<PatientProfile />} />
           <Route path="book" element={<BookingWizard />} />
+          <Route path="labs/checkout" element={<LabCheckout />} />
         </Route>
       </Route>
 
@@ -155,6 +219,17 @@ export default function App() {
         </Route>
       </Route>
 
+      {/* Partner Lab */}
+      <Route element={<ProtectedRoute role="partner" />}>
+        <Route path="/dashboard/partner/lab" element={<DashboardLayout navItems={partnerNav} role="partner" />}>
+          <Route index element={<PartnerOverview />} />
+          <Route path="orders" element={<OrderManagement />} />
+          <Route path="tests" element={<TestCatalog />} />
+          <Route path="staff" element={<StaffManagement />} />
+          <Route path="wallet" element={<PartnerWallet />} />
+        </Route>
+      </Route>
+
       {/* Admin */}
       <Route element={<ProtectedRoute role="admin" />}>
         <Route path="/dashboard/admin" element={<DashboardLayout navItems={adminNav} role="admin" />}>
@@ -166,7 +241,13 @@ export default function App() {
           <Route path="providers" element={<AdminProviders />} />
           <Route path="kyc" element={<AdminKYC />} />
           <Route path="service-areas" element={<AdminServiceAreas />} />
+          <Route path="labs" element={<LabManagement />} />
+          <Route path="lab-orders" element={<LabOrdersOverview />} />
+          <Route path="lab-finance" element={<FinanceOS />} />
+          <Route path="lab-analytics" element={<LabAnalytics />} />
+          <Route path="lab-reconciliation" element={<LabReconciliation />} />
           <Route path="bookings" element={<AdminBookings />} />
+          <Route path="dispatch" element={<AdminDispatch />} />
           <Route path="pricing" element={<AdminServicePricing />} />
           <Route path="supply" element={<AdminSupplyExpansion />} />
           <Route path="fraud" element={<AdminFraudDashboard />} />

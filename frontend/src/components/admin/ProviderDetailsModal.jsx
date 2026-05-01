@@ -17,7 +17,7 @@ export default function ProviderDetailsModal({ providerId, isOpen, onClose }) {
       setLoading(true);
       adminService.getProviderDetails(providerId)
         .then(res => {
-          setData(res.data.data);
+          setData(res.data);
         })
         .catch(err => {
           toast.error('Failed to fetch provider details');

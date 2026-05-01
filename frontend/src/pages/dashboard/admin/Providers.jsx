@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { adminService } from '../../../services';
-import { formatCurrency, SERVICE_CONFIG } from '../../../utils';
+import { formatCurrency, formatDate, SERVICE_CONFIG } from '../../../utils';
 import { PageLoader, EmptyState } from '../../../components/ui/Feedback';
 import Button from '../../../components/ui/Button';
 import ProviderDetailsModal from '../../../components/admin/ProviderDetailsModal';
@@ -20,7 +20,7 @@ export default function AdminProviders() {
     if (filter === 'unverified') params.verified = false;
 
     adminService.getProviders(params)
-      .then((res) => setProviders(res.data.data.providers))
+      .then((res) => setProviders(res.data.providers))
       .catch((err) => toast.error('Failed to load providers'))
       .finally(() => setLoading(false));
   }, [refresh, filter]);
@@ -57,7 +57,7 @@ export default function AdminProviders() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="page-title">Provider Verification</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Provider Verification</h1>
           <p className="text-slate-500">Review and verify applicant credentials.</p>
           <div className="mt-2 text-sm text-primary-600 bg-primary-50 px-3 py-1.5 rounded-lg border border-primary-100 inline-block">
             For document-based reviews (Aadhaar, Degree, Bank Details), please use the new <strong className="font-semibold">KYC Approvals</strong> tab.
@@ -97,7 +97,7 @@ export default function AdminProviders() {
                     <td className="px-6 py-4">
                       <p className="font-semibold text-slate-800">{p.user?.name}</p>
                       <p className="text-xs text-slate-500">{p.user?.email}</p>
-                      <p className="text-xs text-slate-400 mt-1">Joined {new Date(p.createdAt).toLocaleDateString()}</p>
+                      <p className="text-xs text-slate-400 mt-1">Joined {formatDate(p.createdAt)}</p>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">

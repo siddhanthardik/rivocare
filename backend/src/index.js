@@ -20,6 +20,11 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const notificationRoutes = require('./routes/notifications');
 const subscriptionRoutes = require('./routes/subscriptions');
+const labRoutes = require('./routes/labs.js');
+const partnerLabRoutes = require('./routes/partnerLabs.js');
+const adminLabRoutes = require('./routes/adminLabs.js');
+const reconciliationRoutes = require('./routes/reconciliation.js');
+const pricingRoutes = require('./routes/pricingRoutes');
 
 const app = express();
 
@@ -31,11 +36,26 @@ const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
 
 // ── Middleware ──────────────────────────────────────────────
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000'
+].filter(Boolean);
+
 const corsOptions = {
-  origin: [process.env.CLIENT_URL || 'http://localhost:5173', 'http://localhost:5174'],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    console.error(`[CORS] Blocked request from: ${origin}`);
+    return callback(new Error('CORS not allowed'), false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
 };
 
 // Security middleware
@@ -97,13 +117,27 @@ app.get('/sitemap.xml', require('./controllers/sitemapController').generateSitem
 app.use('/api/auth', authRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/bookings', bookingRoutes);
-app.use('/api/providers', providerRoutes);
+app.use('/api/provider', providerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/labs', labRoutes);
+app.use('/api/partner/lab', partnerLabRoutes);
+app.use('/api/admin/labs', adminLabRoutes);
+app.use('/api/admin/labs/reconciliation', reconciliationRoutes);
+app.use('/api/pricing', pricingRoutes);
+
+// ── Health Check ───────────────────────────────────────────
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'up', 
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
 
 // 404 handler
 app.use((req, res) => {
@@ -122,6 +156,10 @@ const server = app.listen(PORT, () => {
 });
 
 // ── Initialize Socket.io ────────────────────────────────────
-socketHelper.init(server);
+socketHelper.init(server, allowedOrigins);
+
+// ── Initialize Cron Jobs ────────────────────────────────────
+const { startCron } = require('../cron/reassignment');
+startCron();
 
 module.exports = app;

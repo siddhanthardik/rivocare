@@ -1,0 +1,71 @@
+import api from './api';
+
+const labService = {
+  // Public / Patient
+  getLabs: () => api.get('/labs'),
+  searchTests: (params) => api.get('/labs/tests', { params }),
+  getLabById: (id) => api.get(`/labs/${id}`),
+  bookTest: (data) => api.post('/labs/book', data),
+  getMyOrders: () => api.get('/labs/me/orders'),
+  getInvoice: (id) => api.get(`/labs/me/orders/${id}/invoice`),
+  getFamilyMembers: () => api.get('/labs/me/family'),
+  addFamilyMember: (data) => api.post('/labs/me/family', data),
+  getSavedAddresses: () => api.get('/labs/me/addresses'),
+  addSavedAddress: (data) => api.post('/labs/me/addresses', data),
+
+  // Partner
+  registerPartner: (data) => api.post('/partner/lab/register', data),
+  loginPartner: (data) => api.post('/partner/lab/login', data),
+  getPartnerProfile: () => api.get('/partner/lab/profile'),
+  updatePartnerProfile: (data) => api.put('/partner/lab/profile', data),
+  getPartnerDashboard: () => api.get('/partner/lab/dashboard'),
+  getPartnerFinancialSummary: () => api.get('/partner/lab/financial-summary'),
+  getPartnerOrders: (filter) => api.get('/partner/lab/orders', { params: filter && filter !== 'all' ? { status: filter } : {} }),
+  updatePartnerOrderStatus: (id, data) => api.put(`/partner/lab/orders/${id}/status`, data),
+  getPartnerTests: (params) => api.get('/partner/lab/tests', { params }),
+  addPartnerTest: (data) => api.post('/partner/lab/tests', data),
+  updatePartnerTest: (id, data) => api.put(`/partner/lab/tests/${id}`, data),
+  deletePartnerTest: (id) => api.delete(`/partner/lab/tests/${id}`),
+  bulkUploadPartnerTests: (data) => api.post('/partner/lab/tests/bulk', data),
+  getPartnerStaff: () => api.get('/partner/lab/staff'),
+  addPartnerStaff: (data) => api.post('/partner/lab/staff', data),
+  updatePartnerStaff: (id, data) => api.put(`/partner/lab/staff/${id}`, data),
+  updatePartnerStaffStatus: (id, data) => api.put(`/partner/lab/staff/${id}/status`, data),
+  deletePartnerStaff: (id) => api.delete(`/partner/lab/staff/${id}`),
+  togglePartnerStaff: (id) => api.patch(`/partner/lab/staff/${id}/status`),
+  uploadPartnerReport: (id, formData) => api.post(`/partner/lab/orders/${id}/report`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  getPartnerWallet: () => api.get('/partner/lab/wallet'),
+  getPartnerTransactions: (params) => api.get('/partner/lab/wallet/transactions', { params }),
+  requestPartnerPayout: (amount) => api.post('/partner/lab/wallet/payout', { amount }),
+
+  // Admin
+  getAdminPartners: () => api.get('/admin/labs/partners'),
+  updateAdminPartnerStatus: (id, data) => api.put('/admin/labs/partners/${id}/status', data),
+  getAdminAllOrders: () => api.get('/admin/labs/orders'),
+  getAdminAnalytics: () => api.get('/admin/labs/analytics'),
+  getAdminFinanceMetrics: () => api.get('/admin/labs/finance/metrics'),
+  processAdminSettlement: (data) => api.post('/admin/labs/finance/settlements', data),
+  manageAdminFinanceStatus: (id, data) => api.put(`/admin/labs/orders/${id}/finance-status`, data),
+  getAdminReconciliation: (params) => api.get('/admin/labs/reconciliation', { params }),
+  getAdminReconciliationOrders: (params) => api.get('/admin/labs/reconciliation/orders', { params }),
+  settleAdminReconciliation: (data) => api.post('/admin/labs/reconciliation/settle', data),
+  flagAdminReconciliation: (data) => api.put('/admin/labs/reconciliation/flag', data),
+
+  // Aliases for backward compatibility with merged usage
+  getPartners: () => api.get('/admin/labs/partners'),
+  getAllOrders: () => api.get('/admin/labs/orders'),
+  getAnalytics: () => api.get('/admin/labs/analytics'),
+  getFinanceMetrics: () => api.get('/admin/labs/finance/metrics'),
+  getReconciliation: (params) => api.get('/admin/labs/reconciliation', { params }),
+  getReconciliationOrders: (params) => api.get('/admin/labs/reconciliation/orders', { params }),
+  settleReconciliation: (data) => api.post('/admin/labs/reconciliation/settle', data),
+  flagReconciliation: (data) => api.put('/admin/labs/reconciliation/flag', data),
+  getOrders: (filter) => api.get('/partner/lab/orders', { params: filter && filter !== 'all' ? { status: filter } : {} }),
+  getProfile: () => api.get('/partner/lab/profile'),
+  updateProfile: (data) => api.put('/partner/lab/profile', data),
+  getDashboard: () => api.get('/partner/lab/dashboard'),
+  getStaff: () => api.get('/partner/lab/staff'),
+  getTests: (params) => api.get('/partner/lab/tests', { params }),
+};
+
+export default labService;

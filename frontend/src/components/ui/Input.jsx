@@ -7,8 +7,8 @@ const Input = forwardRef(function Input({ label, error, hint, className, icon: I
   const isPassword = type === 'password';
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {label && <label className="text-sm font-medium text-slate-700">{label}</label>}
+    <div className="flex flex-col gap-2">
+      {label && <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>}
       <div className="relative">
         {Icon && <Icon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />}
         <input

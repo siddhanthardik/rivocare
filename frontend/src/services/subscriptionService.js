@@ -14,3 +14,5 @@ export const subscriptionService = {
   // Provider / Admin
   logSession: (packageId) => api.post(`/subscriptions/packages/${packageId}/log-session`),
 };
+
+export default subscriptionService;

@@ -197,3 +197,126 @@ exports.payWithWallet = async (req, res, next) => {
     next(err);
   }
 };
+
+// @POST /api/payment/lab/create-order
+exports.createLabPayment = async (req, res, next) => {
+  try {
+    const { orderId } = req.body;
+    const LabOrder = require('../models/LabOrder');
+    
+    const labOrder = await LabOrder.findById(orderId);
+    if (!labOrder) return res.status(404).json({ success: false, message: 'Lab Order not found' });
+    
+    if (labOrder.patient.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (labOrder.paymentStatus === 'collected' || labOrder.paymentStatus === 'paid') {
+      return res.status(400).json({ success: false, message: 'Lab Order is already paid' });
+    }
+    
+    const amountInPaise = Math.round(labOrder.totalAmount * 100);
+    
+    const options = {
+      amount: amountInPaise,
+      currency: 'INR',
+      receipt: `receipt_lab_${labOrder._id}`,
+    };
+    
+    const order = await razorpay.orders.create(options);
+    
+    if (!order) {
+      return res.status(500).json({ success: false, message: 'Failed to create Razorpay Order' });
+    }
+    
+    const payment = await Payment.create({
+      user: req.user._id,
+      labOrder: labOrder._id,
+      amount: labOrder.totalAmount,
+      currency: 'INR',
+      razorpayOrderId: order.id,
+    });
+    
+    res.json({ success: true, data: { order, payment, keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_dummykey' } });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @POST /api/payment/lab/verify
+exports.verifyLabPayment = async (req, res, next) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Missing payment details' });
+    }
+    
+    const payment = await Payment.findOne({ razorpayOrderId: razorpay_order_id });
+    if (!payment) return res.status(404).json({ success: false, message: 'Payment record not found' });
+    
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'dummysecret')
+      .update(body.toString())
+      .digest('hex');
+      
+    if (expectedSignature === razorpay_signature) {
+      payment.razorpayPaymentId = razorpay_payment_id;
+      payment.razorpaySignature = razorpay_signature;
+      payment.status = 'SUCCESS';
+      await payment.save();
+      
+      const LabOrder = require('../models/LabOrder');
+      const PartnerWallet = require('../models/PartnerWallet');
+      const PartnerTransaction = require('../models/PartnerTransaction');
+      
+      const labOrder = await LabOrder.findByIdAndUpdate(payment.labOrder, { 
+        paymentStatus: 'collected', 
+        paymentMethod: 'razorpay',
+        paymentCollectedAt: Date.now(),
+        paymentCollectedBy: 'system',
+        reportLocked: false,
+        reportReleasedAt: Date.now(),
+        releaseReason: 'Online Payment Verified'
+      }, { new: true });
+      
+      // If the order was already completed/report_uploaded while pending (e.g. they uploaded report and waited for patient to pay)
+      // we need to process financial settlement NOW, because previously it wouldn't have credited the wallet if it was unpaid.
+      // Wait, we need to ensure we don't double credit. We'll handle wallet credit carefully.
+      // Actually, if we just set paymentStatus to paid, the admin or partner can see it. Let's process earnings here.
+      if (labOrder && (labOrder.status === 'completed' || labOrder.status === 'report_uploaded')) {
+          // Check if transaction already exists
+          const existingTx = await PartnerTransaction.findOne({ order: labOrder._id, type: 'credit' });
+          if (!existingTx) {
+              const platformFee = labOrder.totalAmount * 0.2;
+              const netAmount = labOrder.totalAmount - platformFee;
+              
+              const wallet = await PartnerWallet.findOneAndUpdate(
+                  { partner: labOrder.partner },
+                  { $inc: { balance: netAmount, totalEarned: netAmount } },
+                  { new: true, upsert: true }
+              );
+              
+              await PartnerTransaction.create({
+                  partner: labOrder.partner,
+                  wallet: wallet._id,
+                  order: labOrder._id,
+                  type: 'credit',
+                  amount: labOrder.totalAmount,
+                  platformCommission: platformFee,
+                  netAmount: netAmount,
+                  description: `Earnings for Lab Order #${labOrder._id.toString().slice(-6).toUpperCase()} (Online Payment)`
+              });
+          }
+      }
+      
+      res.json({ success: true, message: 'Payment successfully verified', data: labOrder });
+    } else {
+      payment.status = 'FAILED';
+      await payment.save();
+      res.status(400).json({ success: false, message: 'Invalid payment signature' });
+    }
+  } catch (err) {
+    next(err);
+  }
+};

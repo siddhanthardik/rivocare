@@ -30,9 +30,9 @@ export default function ProviderKYC() {
   const loadStatus = async () => {
     try {
       const { data } = await kycService.getKYCStatus();
-      if (data.data) {
-        setStatus(data.data.status);
-        setKycData(data.data);
+      if (data) {
+        setStatus(data.status);
+        setKycData(data);
       }
     } catch (err) {
       if (err.response?.status !== 404) {

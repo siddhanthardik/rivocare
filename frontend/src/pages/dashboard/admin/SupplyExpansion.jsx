@@ -40,10 +40,10 @@ export default function SupplyExpansion() {
     ])
       .then(([leadsRes, gapsRes]) => {
         setData({
-          leads: leadsRes.data.data.leads,
-          stats: leadsRes.data.data.stats,
-          gaps: gapsRes.data.data.gaps,
-          providerStats: gapsRes.data.data.providerStats
+          leads: leadsRes.data.leads,
+          stats: leadsRes.data.stats,
+          gaps: gapsRes.data.gaps,
+          providerStats: gapsRes.data.providerStats
         });
       })
       .catch((err) => {
@@ -68,7 +68,7 @@ export default function SupplyExpansion() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="page-title">Supply Expansion</h1>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Supply Expansion</h1>
         <p className="text-slate-500">Manage provider pipeline, referrals, and fill critical coverage gaps.</p>
       </div>
 

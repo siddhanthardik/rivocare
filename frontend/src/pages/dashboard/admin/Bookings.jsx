@@ -45,7 +45,7 @@ export default function AdminBookings() {
 
   useEffect(() => {
     bookingService.getAll({ limit: 100, ...(filter !== 'all' && { status: filter }) })
-      .then((res) => setBookings(res.data.data.bookings))
+      .then((res) => setBookings(res.data.bookings))
       .catch(() => toast.error('Failed to load bookings'))
       .finally(() => setLoading(false));
   }, [refresh, filter]);
@@ -89,7 +89,7 @@ export default function AdminBookings() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="page-title">All Bookings</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">All Bookings</h1>
           <p className="text-slate-500">Monitor and manage all platform consultation requests.</p>
         </div>
         <div className="flex bg-slate-100 p-1 rounded-lg self-start overflow-x-auto max-w-full">

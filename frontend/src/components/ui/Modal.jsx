@@ -17,11 +17,11 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', f
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={cn('relative bg-white rounded-xl shadow-modal w-full animate-slide-up overflow-hidden', sizes[size], className)}>
+      <div className={cn('relative bg-white rounded-[2.5rem] shadow-modal w-full animate-slide-up overflow-hidden', sizes[size], className)}>
         {/* Header */}
         {!hideHeader && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+          <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">{title}</h2>
             <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
               <X size={18} />
             </button>

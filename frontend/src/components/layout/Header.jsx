@@ -9,6 +9,7 @@ const DASHBOARD_PATHS = {
   patient: '/dashboard/patient',
   provider: '/dashboard/provider',
   admin: '/dashboard/admin',
+  partner: '/dashboard/partner/lab',
 };
 
 export default function Header() {
@@ -41,7 +42,7 @@ export default function Header() {
         </div>
         <div className="flex flex-wrap items-center gap-6">
           <Link 
-            to={user ? (user.role === 'patient' ? '/dashboard/patient/refer' : (user.role === 'provider' ? '/dashboard/provider/referrals' : '/refer')) : '/refer'} 
+            to={user ? (user.role === 'patient' ? '/dashboard/patient/refer' : (user.role === 'provider' ? '/dashboard/provider/referrals' : (user.role === 'partner' ? '/dashboard/partner/lab/wallet' : '/refer'))) : '/refer'} 
             className="flex items-center gap-1.5 hover:text-blue-300 transition"
           >
             <GiftIcon /> Refer & Earn
@@ -103,7 +104,7 @@ export default function Header() {
             </div>
           ) : (
             <div className="flex items-center gap-2 sm:gap-4">
-              <NotificationBell />
+              {user.role !== 'partner' && <NotificationBell />}
               <Link to={DASHBOARD_PATHS[user.role]} className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 px-3 py-2 rounded-lg transition-colors hover:bg-blue-50">
                 <LayoutDashboard size={16} />
                 Dashboard

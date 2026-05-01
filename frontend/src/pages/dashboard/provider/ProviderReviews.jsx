@@ -18,7 +18,7 @@ export default function ProviderReviews({ providerId }) {
     setLoading(true);
     reviewService
       .getProviderReviews(providerId, { page, limit: 5 })
-      .then((res) => setData(res.data.data))
+      .then((res) => setData(res.data))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [providerId, page]);

@@ -79,7 +79,25 @@ const userSchema = new mongoose.Schema(
     coords: {
       lat: { type: Number },
       lng: { type: Number }
-    }
+    },
+
+    // Family Profiles & Saved Addresses
+    familyMembers: [{
+      name: { type: String, required: true },
+      relationship: { type: String, enum: ['Spouse', 'Child', 'Parent', 'Sibling', 'Other'] },
+      age: { type: Number },
+      gender: { type: String, enum: ['Male', 'Female', 'Other'] },
+      phone: { type: String }
+    }],
+    savedAddresses: [{
+      type: { type: String, enum: ['Home', 'Work', 'Parents', 'Other'], default: 'Home' },
+      fullAddress: { type: String, required: true },
+      city: { type: String },
+      locality: { type: String },
+      pincode: { type: String },
+      landmark: { type: String },
+      isDefault: { type: Boolean, default: false }
+    }]
   },
   { timestamps: true }
 );

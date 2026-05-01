@@ -35,6 +35,7 @@ const providerSchema = new mongoose.Schema(
     totalEarnings: { type: Number, default: 0 },
     isBlocked: { type: Boolean, default: false },
     warningCount: { type: Number, default: 0 },
+    notes: { type: String, default: '{}' }, // Used for serialized availability JSON
   },
   { timestamps: true }
 );

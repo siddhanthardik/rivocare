@@ -41,4 +41,6 @@ export const SERVICE_CONFIG = {
   physiotherapist: { label: 'Physiotherapist', icon: '🦴', color: 'bg-orange-50 text-orange-700' },
   doctor:          { label: 'Doctor',          icon: '👨‍⚕️', color: 'bg-blue-50 text-blue-700' },
   caretaker:       { label: 'Caretaker',       icon: '🤲', color: 'bg-green-50 text-green-700' },
+  procedure:       { label: 'Procedures',      icon: '🩹', color: 'bg-indigo-50 text-indigo-700' },
+  package:         { label: 'Packages',        icon: '🎁', color: 'bg-purple-50 text-purple-700' },
 };

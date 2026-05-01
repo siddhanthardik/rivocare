@@ -30,18 +30,18 @@ export default function AdminPlansPackages() {
     try {
       if (activeTab === 'plans') {
         const res = await adminService.getPlans();
-        setPlans(res.data.data.plans);
+        setPlans(res.data.plans);
       } else if (activeTab === 'packages') {
         const res = await adminService.getPackages();
-        setPackages(res.data.data.packages);
+        setPackages(res.data.packages);
       } else {
         const [assignRes, provRes] = await Promise.all([
           adminService.getPendingAssignments(),
           providerService.getAll({ status: 'verified', limit: 100 })
         ]);
-        setPendingSubs(assignRes.data.data.pendingSubs);
-        setPendingPkgs(assignRes.data.data.pendingPkgs);
-        setProviders(provRes.data.data.providers || []);
+        setPendingSubs(assignRes.data.pendingSubs);
+        setPendingPkgs(assignRes.data.pendingPkgs);
+        setProviders(provRes.data.providers || []);
       }
     } catch (err) {
       toast.error('Failed to load data');

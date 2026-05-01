@@ -1,9 +1,9 @@
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { LogOut, X, CheckCircle2, MessageCircle, Stethoscope, User, ShieldCheck } from 'lucide-react';
+import { X, CheckCircle2, Stethoscope, User, ShieldCheck } from 'lucide-react';
 import { cn } from '../../utils';
 import { useAuth } from '../../context/AuthContext';
 import Avatar from '../ui/Avatar';
-import Button from '../ui/Button';
+import SidebarSupportBlock from './SidebarSupportBlock';
 
 /* ── Role display config ─────────────────────────────────────── */
 const ROLE_CONFIG = {
@@ -25,6 +25,12 @@ const ROLE_CONFIG = {
     dot: 'bg-purple-500',
     icon: ShieldCheck,
   },
+  partner: {
+    label: 'Lab Partner',
+    badge: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+    dot: 'bg-indigo-500',
+    icon: ShieldCheck,
+  },
 };
 
 export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' }) {
@@ -44,18 +50,24 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
     ? 'bg-emerald-50 text-emerald-700'
     : role === 'admin'
     ? 'bg-purple-50 text-purple-700'
+    : role === 'partner'
+    ? 'bg-indigo-50 text-indigo-700'
     : 'bg-blue-50 text-blue-600';
 
   const activeIconClass = role === 'provider'
     ? 'text-emerald-600'
     : role === 'admin'
     ? 'text-purple-600'
+    : role === 'partner'
+    ? 'text-indigo-600'
     : 'text-blue-600';
 
   const activeBadgeClass = role === 'provider'
     ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
     : role === 'admin'
     ? 'bg-purple-100 text-purple-700 border-purple-200'
+    : role === 'partner'
+    ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
     : 'bg-blue-100 text-blue-600 border-blue-200';
 
   return (
@@ -66,33 +78,33 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
       )}
 
       <aside className={cn(
-        'fixed top-0 left-0 h-full w-72 bg-white border-r border-slate-100 flex flex-col z-40 transition-transform duration-300 shadow-xl',
-        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+        'fixed top-0 left-0 h-full w-64 bg-white border-r border-slate-100/80 flex flex-col z-40 transition-transform duration-300',
+        isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0',
         'lg:static lg:shadow-none lg:h-auto lg:min-h-screen'
       )}>
-        {/* Logo */}
-        <div className="flex items-center justify-between px-7 py-7">
+        {/* ── Logo / Close ─────────────────────────────────────── */}
+        <div className="flex items-center justify-between px-5 py-5 border-b border-slate-100/60 shrink-0">
           <Link to="/" className="flex items-center">
-            <img src="/images/logo.png" alt="Rivo Care Logo" className="h-9 w-auto" />
+            <img src="/images/logo.png" alt="Rivo Care Logo" className="h-7 w-auto" />
           </Link>
-          <button onClick={onClose} className="lg:hidden p-2 rounded-xl text-slate-400 hover:bg-slate-100">
-            <X size={20} />
+          <button onClick={onClose} className="lg:hidden p-2 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors">
+            <X size={16} />
           </button>
         </div>
 
-        {/* ── Profile Card ──────────────────────────────────── */}
-        <div className="px-5 mb-6">
+        {/* ── Profile Card ─────────────────────────────────────── */}
+        <div className="px-4 pt-4 pb-2 shrink-0">
           <div className={cn(
-            'rounded-[2rem] p-4 flex items-center gap-4 border transition-all duration-300',
-            role === 'provider' ? 'bg-emerald-50/40 border-emerald-100/40 hover:bg-emerald-50/60' :
-            role === 'admin'    ? 'bg-purple-50/40 border-purple-100/40 hover:bg-purple-50/60' :
-                                  'bg-slate-50/60 border-slate-100/40 hover:bg-slate-50/80'
+            'rounded-2xl p-3.5 flex items-center gap-3 border transition-all duration-300',
+            role === 'provider' ? 'bg-emerald-50/40 border-emerald-100/40' :
+            role === 'admin'    ? 'bg-purple-50/40 border-purple-100/40' :
+                                  'bg-slate-50/80 border-slate-100/60'
           )}>
             {/* Avatar with role dot */}
             <div className="relative shrink-0">
-              <Avatar name={user?.name} size="lg" className="rounded-2xl shadow-sm" />
+              <Avatar name={user?.name} size="md" className="rounded-xl shadow-sm" />
               <div className={cn(
-                'absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white shadow-sm animate-pulse',
+                'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white shadow-sm',
                 roleConfig.dot
               )} />
             </div>
@@ -101,30 +113,25 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
                 <p className="text-sm font-black text-slate-900 truncate leading-tight">{user?.name?.split(' ')[0]}</p>
-                {role === 'provider' && <CheckCircle2 size={12} className="text-emerald-500" />}
+                {role === 'provider' && <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />}
               </div>
-
-              {/* Role label */}
-              <div className="flex flex-col gap-1.5 mt-2">
-                <span className={cn(
-                  'inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border w-fit',
-                  roleConfig.badge
-                )}>
-                  <RoleIcon size={8} />
-                  {roleConfig.label}
-                </span>
-                {role === 'provider' && (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600/70">
-                    <ShieldCheck size={10} /> Professional
-                  </span>
-                )}
-              </div>
+              <span className={cn(
+                'inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border mt-1',
+                roleConfig.badge
+              )}>
+                <RoleIcon size={7} />
+                {roleConfig.label}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* ── Nav Items ──────────────────────────────────────── */}
-        <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-0.5 custom-scrollbar">
+        {/* ── Nav Items ─────────────────────────────────────────── */}
+        {/*
+          flex-1 + overflow-y-auto lets the nav list scroll independently
+          while the support block stays pinned to the bottom of the sidebar.
+        */}
+        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
@@ -132,16 +139,16 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
               end={item.end}
               onClick={onClose}
               className={({ isActive }) => cn(
-                'flex items-center gap-3 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all duration-150 group',
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-150 group',
                 isActive
                   ? activeClass + ' shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                  : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900'
               )}
             >
               {({ isActive }) => (
                 <>
                   <item.icon
-                    size={19}
+                    size={16}
                     className={cn(
                       'transition-colors shrink-0',
                       isActive ? activeIconClass : 'text-slate-400 group-hover:text-slate-600'
@@ -150,7 +157,7 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
                   <span className="flex-1 truncate">{item.label}</span>
                   {item.badge && (
                     <span className={cn(
-                      'min-w-[20px] h-5 text-[10px] font-bold rounded-full flex items-center justify-center border px-1',
+                      'min-w-[18px] h-[18px] text-[9px] font-black rounded-lg flex items-center justify-center border px-1',
                       isActive ? activeBadgeClass : 'bg-slate-100 text-slate-600 border-slate-200'
                     )}>
                       {item.badge}
@@ -162,43 +169,8 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
           ))}
         </nav>
 
-        {/* ── Help Card ──────────────────────────────────────── */}
-        <div className="px-5 py-5">
-          <div className="bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-[1.75rem] p-5 border border-slate-100 relative overflow-hidden group">
-            <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-              <MessageCircle size={72} />
-            </div>
-            <div className="relative z-10">
-              <h4 className="text-sm font-bold text-slate-900 mb-1">Need help fast?</h4>
-              <p className="text-[11px] text-slate-500 leading-relaxed mb-4">Our care team is just a message away.</p>
-              <div className="flex -space-x-2 mb-4">
-                {[1, 2, 3].map(i => (
-                  <img
-                    key={i}
-                    src={`https://i.pravatar.cc/100?img=${i + 10}`}
-                    alt="support"
-                    className="w-6 h-6 rounded-full border-2 border-white shadow-sm"
-                  />
-                ))}
-                <div className="w-6 h-6 rounded-full border-2 border-white bg-blue-100 flex items-center justify-center text-[8px] font-bold text-blue-600 shadow-sm">+5</div>
-              </div>
-              <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-blue-500/20 text-xs">
-                Chat with Support
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Logout ─────────────────────────────────────────── */}
-        <div className="px-4 pb-6">
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-5 py-3.5 rounded-2xl text-sm font-bold text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all border border-transparent hover:border-red-100 group"
-          >
-            <LogOut size={19} className="group-hover:translate-x-1 transition-transform" />
-            Sign Out
-          </button>
-        </div>
+        {/* ── Support + Logout (pinned to bottom) ───────────────── */}
+        <SidebarSupportBlock onLogout={handleLogout} role={role} />
       </aside>
     </>
   );

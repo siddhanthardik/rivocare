@@ -49,7 +49,7 @@ export default function JoinProvider() {
       });
       
       // Update global auth context
-      login(res.data.data.user, res.data.data.accessToken, res.data.data.refreshToken);
+      login(res.data.user, res.data.accessToken, res.data.refreshToken);
       toast.success('Account created successfully!');
       
       // Redirect to provider dashboard for onboarding

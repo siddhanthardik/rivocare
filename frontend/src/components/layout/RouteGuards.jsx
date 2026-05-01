@@ -8,7 +8,7 @@ export function GuestRoute() {
   const location = useLocation();
   if (loading) return <PageLoader />;
   if (user) {
-    const paths = { patient: '/dashboard/patient', provider: '/dashboard/provider', admin: '/dashboard/admin' };
+    const paths = { patient: '/dashboard/patient', provider: '/dashboard/provider', admin: '/dashboard/admin', partner: '/dashboard/partner/lab' };
     return <Navigate to={paths[user.role] || '/'} replace />;
   }
   return <Outlet />;
@@ -19,9 +19,13 @@ export function ProtectedRoute({ role }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   if (loading) return <PageLoader />;
-  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!user) {
+    const isPartnerPath = location.pathname.startsWith('/dashboard/partner');
+    const loginPath = isPartnerPath ? '/partner/lab/login' : '/login';
+    return <Navigate to={loginPath} state={{ from: location }} replace />;
+  }
   if (role && user.role !== role) {
-    const paths = { patient: '/dashboard/patient', provider: '/dashboard/provider', admin: '/dashboard/admin' };
+    const paths = { patient: '/dashboard/patient', provider: '/dashboard/provider', admin: '/dashboard/admin', partner: '/dashboard/partner/lab' };
     return <Navigate to={paths[user.role] || '/'} replace />;
   }
   return <Outlet />;

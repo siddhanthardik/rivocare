@@ -18,8 +18,55 @@ const formatBookingResponse = (booking, userRole) => {
 
 // @POST /api/bookings
 exports.createBooking = async (req, res, next) => {
+  console.log("BOOKING REQUEST:", {
+    provider: req.body.providerId,
+    scheduledAt: req.body.scheduledAt,
+    service: req.body.service
+  });
+  console.log('[BOOKING_AUDIT] Incoming Payload:', JSON.stringify(req.body, null, 2));
+  
   try {
     const { providerId, service, address, pincode, scheduledAt, durationHours, notes } = req.body;
+
+    // 🛡️ Strict Field Validation
+    if (!providerId || !service || !address || !pincode || !scheduledAt) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required booking fields (provider, service, address, pincode, or schedule).' 
+      });
+    }
+
+    // 🕒 Reject Past Bookings
+    const bookingDate = new Date(scheduledAt);
+    if (bookingDate < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot create a booking for a past date or time.'
+      });
+    }
+
+    // ⏳ Validate Duration Limits
+    if (durationHours && (durationHours < 1 || durationHours > 1000)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid duration. Must be between 1 and 1000 hours.'
+      });
+    }
+
+    // 🕵️ Notes & Metadata Audit
+    if (notes && notes.includes('{"assignment"')) {
+      try {
+        const jsonMatch = notes.match(/\{"assignment".*\}/);
+        if (jsonMatch) {
+          const metadata = JSON.parse(jsonMatch[0]);
+          if (!metadata.assignment || !metadata.assignment.primaryProviderId) {
+            console.warn('[BOOKING_AUDIT] Invalid metadata detected in notes');
+          }
+        }
+      } catch (e) {
+        console.error('[BOOKING_AUDIT] Metadata parsing failed', e);
+      }
+    }
 
     // 📍 Service Area Validation
     const validPincode = await ServiceablePincode.findOne({ pincode, isActive: true });
@@ -63,15 +110,11 @@ exports.createBooking = async (req, res, next) => {
 
     const hours = durationHours || 1;
 
-    // 💰 Pricing Snapshot: fetch admin base price + provider markup
-    const serviceDoc = await Service.findOne({ name: service, isActive: true });
-    const servicBasePrice = serviceDoc ? serviceDoc.basePrice : provider.pricePerHour;
-    const provMarkup = provider.markup || 0;
-    let estimatedPrice = (servicBasePrice + provMarkup) * hours;
-    
-    // Apply discount
-    if (referralDiscount > 0) {
-      estimatedPrice = Math.max(0, estimatedPrice - referralDiscount);
+    // 💰 Secure Server-Side Pricing Calculation
+    const totalAmount = provider.pricePerHour * hours;
+
+    if (!totalAmount) {
+      return res.status(400).json({ success: false, message: "Pricing calculation failed" });
     }
 
     // Booking expires in 5 minutes (300 seconds) if not accepted
@@ -86,13 +129,13 @@ exports.createBooking = async (req, res, next) => {
       scheduledAt: scheduledDate,
       durationHours: hours,
       notes,
-      totalAmount: estimatedPrice,
-      basePrice: servicBasePrice,
-      providerMarkup: provMarkup,
-      estimatedPrice,
-      referralDiscountApplied: referralDiscount, // Track it
+      totalAmount,
+      basePrice: provider.pricePerHour,
+      estimatedPrice: totalAmount,
+      referralDiscountApplied: referralDiscount > 0 ? 100 : 0, // Track it
       expiresAt,
     });
+    console.log('[BOOKING_AUDIT] Created Booking Document:', JSON.stringify(booking, null, 2));
 
     // Update user profile if address or pincode is missing
     let userModified = false;

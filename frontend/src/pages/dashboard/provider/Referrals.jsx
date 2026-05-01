@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { providerService } from '../../../services';
 import { PageLoader } from '../../../components/ui/Feedback';
+import { formatDate } from '../../../utils/format';
 import Button from '../../../components/ui/Button';
 import { cn } from '../../../utils';
 
@@ -16,7 +17,7 @@ export default function ProviderReferrals() {
 
   useEffect(() => {
     providerService.getMyReferral()
-      .then(res => setData(res.data.data))
+      .then(res => setData(res.data))
       .catch((err) => {
         toast.error('Failed to load referral data');
         console.error(err);
@@ -171,7 +172,7 @@ export default function ProviderReferrals() {
                   {data.history.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
                       <td className="px-8 py-6 text-sm font-black text-slate-900">{item.name}</td>
-                      <td className="px-8 py-6 text-sm font-bold text-slate-500">{new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                      <td className="px-8 py-6 text-sm font-bold text-slate-500">{formatDate(item.date)}</td>
                       <td className="px-8 py-6">
                         <span className={cn(
                           "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider",

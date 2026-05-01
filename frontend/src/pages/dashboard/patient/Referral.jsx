@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { authService } from '../../../services';
 import { PageLoader } from '../../../components/ui/Feedback';
+import { formatDate } from '../../../utils/format';
 import Button from '../../../components/ui/Button';
 import { cn } from '../../../utils';
 
@@ -16,7 +17,7 @@ export default function PatientReferral() {
 
   useEffect(() => {
     authService.getReferrals()
-      .then(res => setData(res.data.data))
+      .then(res => setData(res.data))
       .catch((err) => {
         toast.error('Failed to load referral data');
         console.error(err);
@@ -26,18 +27,27 @@ export default function PatientReferral() {
 
   const copyToClipboard = () => {
     if (!data) return;
-    navigator.clipboard.writeText(data.referralLink);
+    
+    // Ensure we use the environment-specific URL for the referral link
+    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const referralLink = `${baseUrl}/register?ref=${data.referralCode}`;
+    
+    navigator.clipboard.writeText(referralLink);
     toast.success('Referral link copied!');
   };
 
   const shareViaWhatsApp = () => {
-    const text = encodeURIComponent(`Hi! I'm using Rivo Care for trusted home healthcare. You can also get expert care at home by using my link to register: ${data.referralLink}`);
+    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const referralLink = `${baseUrl}/register?ref=${data.referralCode}`;
+    const text = encodeURIComponent(`Hi! I'm using Rivo Care for trusted home healthcare. You can also get expert care at home by using my link to register: ${referralLink}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
   const shareViaEmail = () => {
+    const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    const referralLink = `${baseUrl}/register?ref=${data.referralCode}`;
     const subject = encodeURIComponent('Trusted Home Healthcare with Rivo Care');
-    const body = encodeURIComponent(`Hi,\n\nI've been using Rivo Care for home healthcare and highly recommend it. They provide expert nursing, physiotherapy, and doctor visits at home.\n\nYou can register using my link here: ${data.referralLink}\n\nBest regards!`);
+    const body = encodeURIComponent(`Hi,\n\nI've been using Rivo Care for home healthcare and highly recommend it. They provide expert nursing, physiotherapy, and doctor visits at home.\n\nYou can register using my link here: ${referralLink}\n\nBest regards!`);
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
@@ -171,7 +181,7 @@ export default function PatientReferral() {
                   {data.history.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
                       <td className="px-8 py-6 text-sm font-black text-slate-900">{item.name}</td>
-                      <td className="px-8 py-6 text-sm font-bold text-slate-500">{new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                      <td className="px-8 py-6 text-sm font-bold text-slate-500">{formatDate(item.date)}</td>
                       <td className="px-8 py-6">
                         <span className={cn(
                           "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider",

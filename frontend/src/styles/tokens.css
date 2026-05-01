@@ -1,0 +1,17 @@
+:root {
+  --rivo-primary: 15 23 42;    /* slate-900 */
+  --rivo-secondary: 71 85 105; /* slate-600 */
+  --rivo-blue: 37 99 235;      /* blue-600 */
+  --rivo-emerald: 16 185 129;  /* emerald-500 */
+  --rivo-bg: 248 250 252;      /* slate-50 */
+  --rivo-border: 241 245 249;  /* slate-100 */
+  --rivo-radius: 12px;
+  --rivo-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+@layer base {
+  body {
+    background-color: rgb(var(--rivo-bg));
+    color: rgb(var(--rivo-primary));
+  }
+}

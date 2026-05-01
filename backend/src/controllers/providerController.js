@@ -40,6 +40,18 @@ exports.getProviderById = async (req, res, next) => {
   }
 };
 
+// @GET /api/providers/me — authenticated provider fetches their own full profile
+exports.getMyProfile = async (req, res, next) => {
+  try {
+    const provider = await Provider.findOne({ user: req.user._id })
+      .populate('user', 'name email phone avatar');
+    if (!provider) return res.status(404).json({ success: false, message: 'Provider profile not found' });
+    res.json({ success: true, data: { provider } });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // @PUT /api/providers/availability — toggle online/offline
 exports.toggleAvailability = async (req, res, next) => {
   try {
@@ -62,10 +74,10 @@ exports.toggleAvailability = async (req, res, next) => {
 // @PUT /api/providers/profile — update provider profile
 exports.updateProviderProfile = async (req, res, next) => {
   try {
-    const { bio, experience, pincodesServed, pricePerHour, services, markup } = req.body;
+    const { bio, experience, pincodesServed, pricePerHour, services, markup, notes } = req.body;
     const provider = await Provider.findOneAndUpdate(
       { user: req.user._id },
-      { bio, experience, pincodesServed, pricePerHour, services, markup },
+      { bio, experience, pincodesServed, pricePerHour, services, markup, notes },
       { new: true, runValidators: true }
     ).populate('user', 'name email phone avatar');
 
@@ -151,5 +163,45 @@ exports.updateAssignmentStatus = async (req, res, next) => {
     }
 
     res.json({ success: true, message: `Assignment ${status.toLowerCase()}`, data: { assignment } });
+  } catch (err) { next(err); }
+};
+// @GET /api/provider/me/availability — get structured availability config
+exports.getAvailability = async (req, res, next) => {
+  try {
+    const provider = await Provider.findOne({ user: req.user._id });
+    if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
+
+    let availability = {
+      isAvailable: true,
+      workingDays: [],
+      startTime: '09:00',
+      endTime: '19:00',
+      shiftType: 'custom',
+      blockedSlots: []
+    };
+
+    try {
+      const notes = JSON.parse(provider.notes || '{}');
+      if (notes.availability) availability = { ...availability, ...notes.availability };
+    } catch (e) { /* notes not JSON, use defaults */ }
+
+    res.json({ success: true, data: { availability } });
+  } catch (err) { next(err); }
+};
+
+// @PUT /api/provider/me/availability — save availability config into notes
+exports.updateAvailability = async (req, res, next) => {
+  try {
+    const provider = await Provider.findOne({ user: req.user._id });
+    if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
+
+    let existingNotes = {};
+    try { existingNotes = JSON.parse(provider.notes || '{}'); } catch (e) {}
+
+    const updatedNotes = JSON.stringify({ ...existingNotes, availability: req.body });
+    provider.notes = updatedNotes;
+    await provider.save();
+
+    res.json({ success: true, message: 'Availability saved', data: { availability: req.body } });
   } catch (err) { next(err); }
 };

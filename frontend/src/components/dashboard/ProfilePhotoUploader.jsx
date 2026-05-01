@@ -111,7 +111,7 @@ export default function ProfilePhotoUploader() {
       formData.append('avatar', fileToUpload);
       
       const { data } = await authService.uploadAvatar(formData);
-      updateUser(data.data.user);
+      updateUser(data.user);
       toast.success('Profile photo updated successfully!', { id: toastId });
       setPreview(null);
       stopCamera();
@@ -138,7 +138,7 @@ export default function ProfilePhotoUploader() {
 
     try {
       const { data } = await authService.removeAvatar();
-      updateUser(data.data.user);
+      updateUser(data.user);
       toast.success('Profile photo removed', { id: toastId });
     } catch (err) {
       toast.error('Failed to remove photo', { id: toastId });

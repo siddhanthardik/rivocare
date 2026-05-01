@@ -26,10 +26,10 @@ export default function PlansPackages() {
         subscriptionService.getMySubscriptions(),
         subscriptionService.getMyPackages()
       ]);
-      setPlans(pRes.data.data.plans);
-      setPackages(pkgRes.data.data.packages);
-      setMySubs(mySubRes.data.data.subscriptions);
-      setMyPkgs(myPkgRes.data.data.packages);
+      setPlans(pRes.data.plans);
+      setPackages(pkgRes.data.packages);
+      setMySubs(mySubRes.data.subscriptions);
+      setMyPkgs(myPkgRes.data.packages);
     } catch (err) {
       toast.error('Failed to load plans and packages');
     } finally {

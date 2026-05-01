@@ -5,7 +5,7 @@ const serviceSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker'],
+      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker', 'procedure', 'package'],
       unique: true,
     },
     label: { type: String, required: true },

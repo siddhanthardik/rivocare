@@ -28,7 +28,7 @@ export default function ServiceAreas() {
   const fetchPincodes = async () => {
     try {
       const res = await adminService.getPincodes();
-      setPincodes(res.data.data.pincodes);
+      setPincodes(res.data.pincodes);
     } catch (err) {
       toast.error('Failed to load service areas');
     } finally {
@@ -58,7 +58,7 @@ export default function ServiceAreas() {
     setSubmitting(true);
     try {
       const res = await adminService.addPincode(formData);
-      setPincodes(prev => [res.data.data.pincode, ...prev]);
+      setPincodes(prev => [res.data.pincode, ...prev]);
       toast.success('Service area added successfully');
       setModalOpen(false);
       setFormData({ pincode: '', areaName: '', city: '', state: '', isActive: true });

@@ -1,5 +1,5 @@
 const express = require('express');
-const { createOrder, verifyPayment, payWithWallet } = require('../controllers/paymentController');
+const { createOrder, verifyPayment, payWithWallet, createLabPayment, verifyLabPayment } = require('../controllers/paymentController');
 const { protect, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -14,5 +14,9 @@ router.post('/verify', requireRole('patient'), verifyPayment);
 
 // Pay using wallet balance
 router.post('/pay-with-wallet', requireRole('patient'), payWithWallet);
+
+// Lab Order Payments
+router.post('/lab/create-order', requireRole('patient'), createLabPayment);
+router.post('/lab/verify', requireRole('patient'), verifyLabPayment);
 
 module.exports = router;

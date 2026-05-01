@@ -7,10 +7,15 @@ let io;
 const userSockets = new Map();
 
 module.exports = {
-  init: (server) => {
+  init: (server, allowedOrigins) => {
+    const origins = allowedOrigins || [
+      process.env.CLIENT_URL || 'http://localhost:5173',
+      'http://localhost:5174'
+    ];
+
     io = socketIO(server, {
       cors: {
-        origin: [process.env.CLIENT_URL || 'http://localhost:5173', 'http://localhost:5174'],
+        origin: origins,
         methods: ['GET', 'POST'],
         credentials: true,
       },
