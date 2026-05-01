@@ -68,6 +68,9 @@ export default function ProviderBookings() {
   const [refresh, setRefresh] = useState(0);
   const [updatingId, setUpdatingId] = useState(null);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const BOOKINGS_PER_PAGE = 10;
+
   const [priceModal, setPriceModal] = useState(false);
   const [priceTarget, setPriceTarget] = useState(null);
   const [priceForm, setPriceForm] = useState({ newFinalPrice: '', reason: '' });
@@ -77,6 +80,10 @@ export default function ProviderBookings() {
     const interval = setInterval(() => setRefresh(r => r + 1), 15000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
 
   useEffect(() => {
     bookingService.getAll({ limit: 50, ...(filter !== 'all' && { status: filter }) })
@@ -121,6 +128,12 @@ export default function ProviderBookings() {
       setSavingPrice(false);
     }
   };
+
+  const totalPages = Math.ceil(bookings.length / BOOKINGS_PER_PAGE);
+  const paginatedBookings = bookings.slice(
+    (currentPage - 1) * BOOKINGS_PER_PAGE,
+    currentPage * BOOKINGS_PER_PAGE
+  );
 
   if (loading) return <PageLoader />;
 
@@ -172,15 +185,59 @@ export default function ProviderBookings() {
         </Card>
       ) : (
         <div className="flex flex-col gap-5">
-          {bookings.map((booking) => (
-            <BookingCard
-              key={booking._id}
-              booking={booking}
-              onStatusUpdate={handleStatusUpdate}
-              updatingId={updatingId}
-              onUpdatePrice={openPriceModal}
-            />
-          ))}
+          {paginatedBookings.length === 0 ? (
+            <p className="text-center text-slate-400 py-6 font-black text-sm uppercase tracking-widest">
+              No bookings on this page
+            </p>
+          ) : (
+            paginatedBookings.map((booking) => (
+              <BookingCard
+                key={booking._id}
+                booking={booking}
+                onStatusUpdate={handleStatusUpdate}
+                updatingId={updatingId}
+                onUpdatePrice={openPriceModal}
+              />
+            ))
+          )}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-2 pt-4 border-t border-slate-100">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 rounded-xl disabled:opacity-30 hover:bg-slate-50 transition-colors"
+              >
+                ← Prev
+              </button>
+              
+              <div className="flex gap-1 flex-wrap justify-center">
+                {[...Array(totalPages)].map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={cn(
+                      "w-8 h-8 flex items-center justify-center text-xs font-black rounded-lg transition-colors",
+                      currentPage === i + 1
+                        ? "bg-slate-900 text-white"
+                        : "border border-slate-200 text-slate-500 hover:bg-slate-50"
+                    )}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-slate-200 rounded-xl disabled:opacity-30 hover:bg-slate-50 transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
