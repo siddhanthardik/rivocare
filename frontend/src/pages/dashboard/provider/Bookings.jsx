@@ -95,8 +95,12 @@ export default function ProviderBookings() {
   const handleStatusUpdate = async (id, status) => {
     setUpdatingId(id);
     try {
-      await bookingService.updateStatus(id, { status });
-      toast.success(`Booking ${status}`);
+      const res = await bookingService.updateStatus(id, { status });
+      if (res.softWarning) {
+        toast.error(res.message || 'You have pending completions. Please complete them soon.', { duration: 5000 });
+      } else {
+        toast.success(`Booking ${status}`);
+      }
       setRefresh(r => r + 1);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Update failed');
@@ -428,17 +432,32 @@ function BookingCard({ booking, onStatusUpdate, updatingId, onUpdatePrice }) {
         {booking.status === 'confirmed' && (
           <div className="flex gap-2">
             <button
-              onClick={() => onStatusUpdate(booking._id, 'completed')}
+              onClick={() => onStatusUpdate(booking._id, 'in-progress')}
               disabled={isUpdating}
               className="flex-1 text-sm font-black py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white transition-all"
             >
-              {isUpdating ? '...' : '✓ Complete'}
+              {isUpdating ? '...' : '▶ Start Service'}
             </button>
             <button
               onClick={() => onUpdatePrice(booking)}
               className="text-sm font-black py-2.5 px-4 rounded-xl border-2 border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-all"
             >
               ₹ Edit
+            </button>
+          </div>
+        )}
+
+        {booking.status === 'in-progress' && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => onStatusUpdate(booking._id, 'completed')}
+              disabled={isUpdating}
+              className="flex-1 text-sm font-black py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white transition-all"
+            >
+              {isUpdating ? '...' : (() => {
+                const end = booking.scheduledAt ? new Date(new Date(booking.scheduledAt).getTime() + (booking.durationHours || 1) * 3600000) : null;
+                return (end && new Date() > end) ? 'Mark Completed (Late)' : 'Mark Completed';
+              })()}
             </button>
           </div>
         )}

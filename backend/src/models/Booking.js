@@ -73,6 +73,14 @@ const bookingSchema = new mongoose.Schema(
     startedAt: { type: Date, default: null }, // Actual start time
     completedAt: { type: Date, default: null }, // Actual complete time
     expiresAt: { type: Date, default: null }, // Auto-expiring timer
+    completionType: {
+      type: String,
+      enum: ['manual', 'late', 'auto', 'system'],
+      default: 'manual',
+    },
+    completionMeta: {
+      markedLate: { type: Boolean, default: false },
+    },
     patientVerifiedCompletion: { type: Boolean, default: null }, // null = unverified, true = yes, false = no
     systemFlags: { type: [String], default: [] }, // e.g. 'SHORT_COMPLETION_TIME', 'PATIENT_DENIED_COMPLETION'
     rating: { type: Number, min: 1, max: 5, default: null },

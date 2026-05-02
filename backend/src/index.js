@@ -164,4 +164,7 @@ socketHelper.init(server, allowedOrigins);
 const { startCron } = require('../cron/reassignment');
 startCron();
 
+const { startAutoCompletionCron } = require('../cron/autoComplete');
+startAutoCompletionCron();
+
 module.exports = app;

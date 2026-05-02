@@ -347,15 +347,20 @@ exports.updateBookingStatus = async (req, res, next) => {
       }
     }
 
-    // 🔒 ACTIVE BOOKING LOCK: Prevent provider from juggling multiple jobs
+    // ⚠️ SOFT ACTIVE BOOKING WARNING: Allow acceptance but warn if many pending
+    let softWarningPayload = null;
     if ((status === 'confirmed' || status === 'in-progress') && req.user.role === 'provider') {
-      const activeJob = await Booking.findOne({
+      const pendingCount = await Booking.countDocuments({
         provider: booking.provider,
         status: { $in: ['in-progress', 'confirmed'] },
         _id: { $ne: booking._id }
       });
-      if (activeJob) {
-          return res.status(409).json({ success: false, message: 'Complete current booking to accept new ones.' });
+      if (pendingCount > 2) {
+        softWarningPayload = {
+          message: 'You have pending completions. Please complete them soon.',
+          pendingCount,
+          softWarning: true,
+        };
       }
     }
 
@@ -426,6 +431,11 @@ exports.updateBookingStatus = async (req, res, next) => {
     }
     
     if (status === 'completed') {
+      // 🛡️ DUPLICATE COMPLETION GUARD
+      if (booking.status === 'completed') {
+        return res.json({ success: true, message: 'Booking already completed.', data: { booking } });
+      }
+
       // 🔒 PRICE APPROVAL GUARD: Cannot complete if price was updated but patient hasn't approved
       if (booking.priceUpdated && !booking.priceApprovedByPatient) {
         return res.status(400).json({
@@ -433,8 +443,20 @@ exports.updateBookingStatus = async (req, res, next) => {
           message: 'Patient must approve the updated price before completing the service.',
         });
       }
-      booking.completedAt = new Date();
-      
+
+      const now = new Date();
+      booking.completedAt = now;
+
+      // ⏰ LATE COMPLETION DETECTION
+      const scheduledEnd = booking.scheduledAt
+        ? new Date(booking.scheduledAt.getTime() + (booking.durationHours || 1) * 3600000)
+        : null;
+      const isLate = scheduledEnd && now > scheduledEnd;
+      booking.completionType = isLate ? 'late' : 'manual';
+      if (isLate) booking.completionMeta = { markedLate: true };
+
+      console.log('[COMPLETION]', { bookingId: booking._id, completionType: booking.completionType, completedAt: now });
+
       // ⚠️ FRAUD FLAG: Short duration check (< 10 minutes)
       if (booking.startedAt) {
         const durationMinutes = (booking.completedAt - booking.startedAt) / 60000;
@@ -569,7 +591,12 @@ exports.updateBookingStatus = async (req, res, next) => {
 
     const formattedBooking = formatBookingResponse(booking, req.user.role);
 
-    res.json({ success: true, message: `Booking ${status}`, data: { booking: formattedBooking } });
+    res.json({ 
+      success: true, 
+      message: `Booking ${status}`, 
+      data: { booking: formattedBooking },
+      ...(softWarningPayload || {})
+    });
   } catch (err) {
     next(err);
   }
