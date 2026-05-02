@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import { bookingService } from '../../../services';
 import { formatDate, formatDateTime, SERVICE_CONFIG, cn } from '../../../utils';
+import { safe } from '../../../utils/safeGet';
 import { PageLoader } from '../../../components/ui/Feedback';
 import Button from '../../../components/ui/Button';
 import { PageWrapper, Card, Row, Section, KPIChip, StatusPill } from '../../../components/ui/Layout';
@@ -137,15 +138,17 @@ export default function PatientOverview() {
 }
 
 function BookingRow({ booking: b }) {
-  const service = SERVICE_CONFIG[b.service];
+  if (!b) return null;
+  const serviceSlug = typeof b.service === 'string' ? b.service : b.service?.slug;
+  const service = SERVICE_CONFIG[serviceSlug] || b.service || { label: "Service", icon: "🩺" };
   
   return (
     <Row className="flex-col md:flex-row gap-4 md:items-center p-3">
       <div className="flex items-center gap-4 flex-1 min-w-0">
         <div className="relative shrink-0">
           <img 
-            src={b.provider.user.profileImage || `https://ui-avatars.com/api/?name=${b.provider.user.name}&background=6366f1&color=fff`} 
-            alt={b.provider.user.name} 
+            src={b.provider?.user?.profileImage || `https://ui-avatars.com/api/?name=${b.provider?.user?.name || 'Expert'}&background=6366f1&color=fff`} 
+            alt={safe(b.provider?.user?.name, "Expert")} 
             className="w-10 h-10 rounded-lg object-cover border border-gray-100"
           />
           <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
@@ -154,10 +157,10 @@ function BookingRow({ booking: b }) {
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <h4 className="typo-value !text-gray-900 truncate leading-tight">{service.label}</h4>
+            <h4 className="typo-value !text-gray-900 truncate leading-tight">{safe(service?.label, "Service")}</h4>
             <StatusPill status={b.status} className="scale-90" />
           </div>
-          <p className="typo-micro font-bold text-slate-400 uppercase tracking-tighter">{b.provider.user.name}</p>
+          <p className="typo-micro font-bold text-slate-400 uppercase tracking-tighter">{safe(b.provider?.user?.name, "Expert")}</p>
         </div>
       </div>
 
@@ -169,14 +172,14 @@ function BookingRow({ booking: b }) {
               <Calendar size={12} className="text-blue-500" /> {formatDate(b.scheduledAt)}
             </div>
             <div className="flex items-center gap-1.5 typo-micro font-bold text-gray-700">
-              <Clock size={12} className="text-blue-500" /> {formatDateTime(b.scheduledAt).split('at')[1]}
+              <Clock size={12} className="text-blue-500" /> {b.scheduledAt ? formatDateTime(b.scheduledAt).split('at')[1] : '--:--'}
             </div>
           </div>
         </div>
         <div className="space-y-0.5">
           <p className="typo-micro font-black text-slate-300 uppercase">Location</p>
           <div className="flex items-center gap-1.5 typo-micro font-bold text-gray-700">
-            <MapPin size={12} className="text-blue-500" /> At Home
+            <MapPin size={12} className="text-blue-500" /> {safe(b.addressType, "At Home")}
           </div>
         </div>
       </div>

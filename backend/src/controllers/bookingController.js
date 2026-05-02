@@ -208,7 +208,16 @@ exports.getBookings = async (req, res, next) => {
           as: 'providerUserData'
         }
       },
-      { $unwind: '$providerUserData' }
+      { $unwind: '$providerUserData' },
+      {
+        $lookup: {
+          from: 'services',
+          localField: 'service',
+          foreignField: '_id',
+          as: 'serviceData'
+        }
+      },
+      { $unwind: { path: '$serviceData', preserveNullAndEmptyArrays: true } }
     );
 
     if (q) {
@@ -256,8 +265,16 @@ exports.getBookings = async (req, res, next) => {
             email: b.providerUserData.email,
             avatar: b.providerUserData.avatar
           }
-        }
+        },
+        service: b.serviceData ? {
+          _id: b.serviceData._id,
+          name: b.serviceData.name,
+          slug: b.serviceData.slug,
+          label: b.serviceData.label,
+          icon: b.serviceData.icon
+        } : { label: "Service", slug: "nurse", icon: "🩺" }
       };
+      delete b.serviceData;
       delete formatted.patientData;
       delete formatted.providerData;
       delete formatted.providerUserData;
@@ -280,7 +297,8 @@ exports.getBookingById = async (req, res, next) => {
   try {
     const booking = await Booking.findById(req.params.id)
       .populate('patient', 'name email phone avatar')
-      .populate({ path: 'provider', populate: { path: 'user', select: 'name email phone avatar' } });
+      .populate({ path: 'provider', populate: { path: 'user', select: 'name email phone avatar' } })
+      .populate('service');
 
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
 
@@ -587,6 +605,7 @@ exports.updateBookingStatus = async (req, res, next) => {
     await booking.populate([
       { path: 'patient', select: 'name email phone' },
       { path: 'provider', populate: { path: 'user', select: 'name email phone' } },
+      { path: 'service' }
     ]);
 
     const formattedBooking = formatBookingResponse(booking, req.user.role);
