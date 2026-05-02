@@ -35,9 +35,15 @@ const providerSchema = new mongoose.Schema(
     isBlocked: { type: Boolean, default: false },
     warningCount: { type: Number, default: 0 },
     notes: { type: String, default: '{}' }, // Used for serialized availability JSON
+    location: {
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: { type: [Number], default: [77.1025, 28.7041] }, // Default to Delhi [lng, lat]
+    },
   },
   { timestamps: true }
 );
+
+providerSchema.index({ location: '2dsphere' });
 
 // Virtual: update rating
 providerSchema.methods.updateRating = function (newRating) {

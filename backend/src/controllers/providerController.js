@@ -4,16 +4,16 @@ const Service = require('../models/Service');
 const ServiceAssignment = require('../models/ServiceAssignment');
 const PatientSubscription = require('../models/PatientSubscription');
 const PatientPackage = require('../models/PatientPackage');
+const { calculateProviderScore, resolvePincode } = require('../services/matchingEngine');
 
 // @GET /api/providers?service=nurse&pincode=400001
 exports.getProviders = async (req, res, next) => {
   try {
     const { service, pincode, page = 1, limit = 12 } = req.query;
-    // 🛡️ Debug: Temporarily disabled isOnline check
     const filter = { isVerified: true, isBlocked: { $ne: true } }; 
 
+    let serviceId = null;
     if (service) {
-      let serviceId = null;
       if (mongoose.Types.ObjectId.isValid(service)) {
         serviceId = service;
       } else {
@@ -25,30 +25,53 @@ exports.getProviders = async (req, res, next) => {
         });
         if (sDoc) serviceId = sDoc._id;
       }
-
-      if (serviceId) {
-        filter.services = serviceId;
-      } else {
-        return res.json({ success: true, data: { providers: [], total: 0, page: 1, totalPages: 0 } });
-      }
-    }
-    
-    if (pincode) {
-      filter.pincodesServed = String(pincode);
+      if (serviceId) filter.services = serviceId;
     }
 
-    console.log('[PROVIDER_SEARCH] Final Filter:', JSON.stringify(filter));
-
-    const total = await Provider.countDocuments(filter);
-    const providers = await Provider.find(filter)
+    // 🚀 Broad fetch for scoring (instead of strict pincode filter)
+    const rawProviders = await Provider.find(filter)
       .populate('user', 'name email phone avatar')
-      .sort({ rating: -1 })
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit));
+      .lean();
+
+    const targetCoords = resolvePincode(pincode);
+    
+    // 🧮 Score and Rank
+    const scoredProviders = rawProviders.map(p => {
+      const isExactMatch = p.pincodesServed && p.pincodesServed.includes(String(pincode));
+      const { score, distance } = calculateProviderScore(p, targetCoords, isExactMatch);
+      
+      return {
+        ...p,
+        matchScore: score,
+        distance: parseFloat(distance.toFixed(2)),
+        isExactMatch,
+        tier: isExactMatch ? 'EXACT' : (distance < 10 ? 'NEARBY' : 'FLEXIBLE')
+      };
+    });
+
+    // Sort by score descending
+    scoredProviders.sort((a, b) => b.matchScore - a.matchScore);
+
+    // Paginate in-memory
+    const startIndex = (Number(page) - 1) * Number(limit);
+    const paginatedProviders = scoredProviders.slice(startIndex, startIndex + Number(limit));
 
     res.json({
       success: true,
-      data: { providers, total, page: Number(page), totalPages: Math.ceil(total / limit) },
+      data: { 
+        providers: paginatedProviders, 
+        total: scoredProviders.length, 
+        page: Number(page), 
+        totalPages: Math.ceil(scoredProviders.length / limit),
+        metadata: {
+          searchCoords: targetCoords,
+          tierCounts: {
+            exact: scoredProviders.filter(p => p.tier === 'EXACT').length,
+            nearby: scoredProviders.filter(p => p.tier === 'NEARBY').length,
+            flexible: scoredProviders.filter(p => p.tier === 'FLEXIBLE').length
+          }
+        }
+      },
     });
   } catch (err) {
     next(err);
