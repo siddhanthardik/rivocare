@@ -8,6 +8,13 @@ const Notification = require('../models/Notification');
 const socketHelper = require('../socket');
 const ServiceablePincode = require('../models/ServiceablePincode');
 
+// Safegaurd: Ensure SubscriptionPlan exists
+try {
+  require.resolve('../models/SubscriptionPlan');
+} catch (e) {
+  throw new Error("SubscriptionPlan model missing");
+}
+
 const formatBookingResponse = (booking, userRole) => {
   const b = booking.toObject ? booking.toObject() : booking;
   if (userRole === 'provider' && !['confirmed', 'in-progress', 'completed'].includes(b.status)) {
@@ -59,12 +66,12 @@ exports.createBooking = async (req, res, next) => {
     const Transaction = require('../models/Transaction');
     const Offering = require('../models/Offering');
     const pricingService = require('../services/pricingService');
-    const Plan = require('../models/Plan');
+    const SubscriptionPlan = require('../models/SubscriptionPlan');
 
     let plan = null;
     if (planId) {
-      plan = await Plan.findById(planId);
-      if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
+      plan = await SubscriptionPlan.findById(planId);
+      if (!plan) throw new Error("Invalid plan selected");
     }
 
     const serviceDoc = await Service.findById(serviceId);
