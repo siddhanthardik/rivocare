@@ -25,6 +25,10 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'LabTest',
     },
+    plan: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Plan',
+    },
     address: { type: String, required: true, trim: true },
     pincode: {
       type: String,
@@ -40,7 +44,10 @@ const bookingSchema = new mongoose.Schema(
     },
     notes: { type: String, maxlength: 500, default: '' },
     totalAmount: { type: Number, required: true, min: 0 },
+    finalAmount: { type: Number, default: null }, // Added for new pricing logic
     basePrice: { type: Number, min: 0, default: 0 },
+    planPrice: { type: Number, min: 0, default: 0 },
+    pricingSource: { type: String, enum: ['plan', 'service'], default: 'service' },
     providerMarkup: { type: Number, default: 0, min: 0 },
     estimatedPrice: { type: Number, min: 0, default: 0 },
     finalPrice: { type: Number, default: null },

@@ -256,7 +256,7 @@ function BookingRow({ booking: b, isReviewed, onCancel, onRate, onApprovePrice, 
         </div>
         <div className="space-y-0.5">
            <p className="typo-micro font-black text-slate-300 uppercase">Service Fee</p>
-           <p className="typo-value !text-gray-900 leading-none">{formatCurrency(b.price)}</p>
+           <p className="typo-value !text-gray-900 leading-none">{formatCurrency(b.finalAmount || b.totalAmount || 0)}</p>
         </div>
       </div>
 
@@ -267,7 +267,7 @@ function BookingRow({ booking: b, isReviewed, onCancel, onRate, onApprovePrice, 
           {b.status === 'completed' && !isReviewed && (
             <button onClick={() => onRate(b)} className="btn-primary-sm !px-6 !py-2">Rate</button>
           )}
-          {b.status === 'confirmed' && !b.priceApprovedByPatient && b.price > 0 && (
+          {b.status === 'confirmed' && !b.priceApprovedByPatient && (b.finalAmount || b.totalAmount || 0) > 0 && (
             <button 
               onClick={() => onApprovePrice(b._id)} 
               disabled={approvingId === b._id}

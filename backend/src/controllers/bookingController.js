@@ -27,7 +27,7 @@ exports.createBooking = async (req, res, next) => {
   console.log('[BOOKING_AUDIT] Incoming Payload:', JSON.stringify(req.body, null, 2));
   
   try {
-    const { providerId, service: serviceId, address, pincode, scheduledAt, durationHours, notes, testId, offeringId } = req.body;
+    const { providerId, service: serviceId, address, pincode, scheduledAt, durationHours, notes, testId, offeringId, planId } = req.body;
 
     // 🛡️ Strict Field Validation
     if (!providerId || !serviceId || !address || !pincode || !scheduledAt) {
@@ -59,6 +59,13 @@ exports.createBooking = async (req, res, next) => {
     const Transaction = require('../models/Transaction');
     const Offering = require('../models/Offering');
     const pricingService = require('../services/pricingService');
+    const Plan = require('../models/Plan');
+
+    let plan = null;
+    if (planId) {
+      plan = await Plan.findById(planId);
+      if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
+    }
 
     const serviceDoc = await Service.findById(serviceId);
     if (!serviceDoc) return res.status(404).json({ success: false, message: 'Service not found' });
@@ -102,7 +109,16 @@ exports.createBooking = async (req, res, next) => {
       return res.status(400).json({ success: false, message: err.message });
     }
 
-    const { totalAmount, basePrice, platformFee, providerEarning, labPayout } = pricingData;
+    const { totalAmount, basePrice: calcBasePrice, platformFee, providerEarning, labPayout } = pricingData;
+
+    const pricingSource = plan ? "plan" : "service";
+    const basePrice = calcBasePrice || 0;
+    const planPrice = plan?.price || 0;
+    const finalAmount = plan ? planPrice : basePrice * hours;
+
+    if (!finalAmount || finalAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid booking price' });
+    }
 
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
@@ -110,13 +126,17 @@ exports.createBooking = async (req, res, next) => {
       patient: req.user._id,
       provider: providerId,
       service: serviceId,
+      plan: plan ? plan._id : undefined,
       address,
       pincode,
       scheduledAt: scheduledDate,
       durationHours: hours,
       notes,
       totalAmount,
+      finalAmount,
       basePrice,
+      planPrice,
+      pricingSource,
       estimatedPrice: totalAmount,
       platformFee,
       providerEarning,

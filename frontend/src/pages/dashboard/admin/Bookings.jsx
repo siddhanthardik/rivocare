@@ -47,6 +47,10 @@ export default function AdminBookings() {
   const [overrideForm, setOverrideForm] = useState({ overridePrice: '', reason: '' });
   const [saving, setSaving] = useState(false);
 
+  // Detail Modal
+  const [detailModal, setDetailModal] = useState(false);
+  const [detailTarget, setDetailTarget] = useState(null);
+
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -163,12 +167,13 @@ export default function AdminBookings() {
                   {bookings.map((b) => {
                     const effectivePrice = b.pricingType === 'OVERRIDE'
                       ? b.overridePrice
-                      : (b.finalPrice && b.priceApprovedByPatient ? b.finalPrice : b.estimatedPrice || b.totalAmount);
+                      : (b.finalAmount || b.amount || b.totalAmount || 0);
 
                     return (
                       <tr
                         key={b._id}
-                        className={`hover:bg-slate-50 transition-colors ${b.pricingType === 'OVERRIDE' ? 'bg-purple-50/30' : ''}`}
+                        onClick={() => { setDetailTarget(b); setDetailModal(true); }}
+                        className={`hover:bg-slate-50 cursor-pointer transition-colors ${b.pricingType === 'OVERRIDE' ? 'bg-purple-50/30' : ''}`}
                       >
                         <td className="px-5 py-4">
                           <p className="font-mono text-xs text-slate-400 mb-1" title={b._id}>...{b._id.slice(-6)}</p>
@@ -237,7 +242,7 @@ export default function AdminBookings() {
                               size="sm"
                               variant="outline"
                               className="flex items-center gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50 ml-auto"
-                              onClick={() => openOverride(b)}
+                              onClick={(e) => { e.stopPropagation(); openOverride(b); }}
                             >
                               <Crown size={13} />
                               Set Price
@@ -404,6 +409,56 @@ export default function AdminBookings() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Admin Booking Detail Modal */}
+      <Modal
+        isOpen={detailModal}
+        onClose={() => setDetailModal(false)}
+        title="Booking Pricing Details"
+      >
+        {detailTarget && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <p className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">Service</p>
+                <p className="font-semibold text-slate-800">{SERVICE_CONFIG[detailTarget.service]?.label || 'Unknown'}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <p className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">Duration</p>
+                <p className="font-semibold text-slate-800">{detailTarget.durationHours || 1} hour(s)</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <p className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">Pricing Source</p>
+                <p className="font-semibold text-slate-800 capitalize">{detailTarget.pricingSource || 'Legacy / Service'}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <p className="text-xs text-slate-500 uppercase tracking-widest font-black mb-1">Plan</p>
+                <p className="font-semibold text-slate-800">{detailTarget.plan ? 'Yes (Attached)' : 'None'}</p>
+              </div>
+            </div>
+
+            <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl mt-4">
+              <p className="text-xs font-black text-emerald-800 uppercase tracking-widest mb-3">Financial Breakdown</p>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-emerald-700">Base Service Price</span>
+                  <span className="font-bold text-emerald-900">{formatCurrency(detailTarget.basePrice || 0)}</span>
+                </div>
+                {detailTarget.pricingSource === 'plan' && (
+                  <div className="flex justify-between">
+                    <span className="text-emerald-700">Plan Price</span>
+                    <span className="font-bold text-emerald-900">{formatCurrency(detailTarget.planPrice || 0)}</span>
+                  </div>
+                )}
+                <div className="pt-2 border-t border-emerald-200 flex justify-between font-black text-lg text-emerald-900">
+                  <span>Final Fixed Amount</span>
+                  <span>{formatCurrency(detailTarget.finalAmount || detailTarget.amount || detailTarget.totalAmount || 0)}</span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </Modal>
