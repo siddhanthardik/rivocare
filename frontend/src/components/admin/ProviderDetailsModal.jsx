@@ -147,11 +147,11 @@ export default function ProviderDetailsModal({ providerId, isOpen, onClose }) {
             <p className="text-sm text-slate-500 italic p-4 text-center">No bookings found for this provider.</p>
           ) : (
             <div className="max-h-[350px] overflow-y-auto pr-2 space-y-3">
-              {bookings.map(b => (
+              {(bookings || []).map(b => (
                 <div key={b._id} className="p-4 border border-slate-100 rounded-xl hover:shadow-sm bg-slate-50/50">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <span className="text-xs font-bold bg-primary-100 text-primary-700 px-2 py-0.5 rounded capitalize">{b.service}</span>
+                      <span className="text-xs font-bold bg-primary-100 text-primary-700 px-2 py-0.5 rounded capitalize">{b.service?.label || b.service?.name || "Service"}</span>
                       <p className="text-sm font-bold text-slate-800 mt-1">Patient: {b.patient?.name}</p>
                     </div>
                     <Badge status={b.status} />

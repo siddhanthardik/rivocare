@@ -30,7 +30,7 @@ export default function ProviderAssignments() {
   }, []);
 
   const parsedBookings = useMemo(() => {
-    return bookings.map(b => {
+    return (bookings || []).map(b => {
       let assignment = null;
       let planDetails = '';
       if (b.notes) {
@@ -105,7 +105,7 @@ export default function ProviderAssignments() {
       <Card key={b._id} noPadding className={cn("overflow-hidden transition-all border-amber-200 ring-1 ring-amber-100", isExpired && "opacity-50 grayscale")}>
         <Row className="!p-4 items-center bg-amber-50/30">
           <div className="w-1/4 border-r border-amber-100 pr-4">
-            <p className="typo-value font-black text-slate-900">{SERVICE_CONFIG[b.service]?.label}</p>
+            <p className="typo-value font-black text-slate-900">{SERVICE_CONFIG[b.service?.slug || b.service]?.label || (typeof b.service === 'object' ? b.service?.label : b.service)}</p>
             {b.planDetails && <p className="typo-micro text-slate-500 font-bold truncate mt-1">{b.planDetails}</p>}
           </div>
 
@@ -168,7 +168,7 @@ export default function ProviderAssignments() {
                   <Row className="!p-3">
                     <div className="flex-1">
                       <p className="typo-body font-bold text-slate-800">{formatDateTime(b.scheduledAt)}</p>
-                      <p className="typo-micro text-slate-500 mt-0.5">{SERVICE_CONFIG[b.service]?.label} • {b.pincode}</p>
+                      <p className="typo-micro text-slate-500 mt-0.5">{SERVICE_CONFIG[b.service?.slug || b.service]?.label || (typeof b.service === 'object' ? b.service?.label : b.service)} • {b.pincode}</p>
                     </div>
                     <StatusPill status="confirmed" color="emerald" />
                   </Row>

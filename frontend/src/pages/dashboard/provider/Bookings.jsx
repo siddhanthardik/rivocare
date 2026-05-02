@@ -194,7 +194,7 @@ export default function ProviderBookings() {
               No bookings on this page
             </p>
           ) : (
-            paginatedBookings.map((booking) => (
+            (paginatedBookings || []).map((booking) => (
               <BookingCard
                 key={booking._id}
                 booking={booking}
@@ -283,7 +283,8 @@ export default function ProviderBookings() {
 
 // ── Compact Decision Card ───────────────────────────────────────────────────
 function BookingCard({ booking, onStatusUpdate, updatingId, onUpdatePrice }) {
-  const service = SERVICE_CONFIG[booking.service];
+  const serviceSlug = typeof booking.service === 'object' ? booking.service?.slug : booking.service;
+  const service = SERVICE_CONFIG[serviceSlug];
   const isUpdating = updatingId === booking._id;
   const startTime = getTimeFromScheduledAt(booking.scheduledAt);
   const endTime = calculateEndTime(startTime, booking.durationHours);
@@ -328,7 +329,7 @@ function BookingCard({ booking, onStatusUpdate, updatingId, onUpdatePrice }) {
           </div>
           <div>
             <p className={cn("text-sm font-black leading-tight", booking.status === 'pending' ? "text-white" : "text-slate-800")}>
-              {service?.label || booking.service}
+              {service?.label || booking.service?.label || booking.service?.name || "Service"}
             </p>
             <p className={cn("text-[10px] font-bold uppercase tracking-widest", booking.status === 'pending' ? "text-slate-500" : "text-slate-400")}>
               #{booking._id.slice(-6).toUpperCase()}

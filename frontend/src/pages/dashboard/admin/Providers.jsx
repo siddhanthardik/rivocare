@@ -105,8 +105,8 @@ export default function AdminProviders() {
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
                         {(!p.services || p.services.length === 0) ? <span className="text-slate-400 italic">None selected</span> : p.services.map(s => (
-                          <span key={s} className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-100 text-slate-600 border border-slate-200">
-                            {SERVICE_CONFIG[s]?.label || s}
+                          <span key={s._id || s} className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-100 text-slate-600 border border-slate-200">
+                            {SERVICE_CONFIG[s?.slug || s]?.label || s?.label || s?.name || s}
                           </span>
                         ))}
                       </div>

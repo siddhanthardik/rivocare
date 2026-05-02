@@ -164,7 +164,7 @@ export default function AdminBookings() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {bookings.map((b) => {
+                  {(bookings || []).map((b) => {
                     const effectivePrice = b.pricingType === 'OVERRIDE'
                       ? b.overridePrice
                       : (b.finalAmount || b.amount || b.totalAmount || 0);
@@ -182,8 +182,8 @@ export default function AdminBookings() {
 
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-2">
-                            <span>{SERVICE_CONFIG[b.service]?.icon}</span>
-                            <span className="font-medium text-slate-800">{SERVICE_CONFIG[b.service]?.label}</span>
+                            <span>{SERVICE_CONFIG[b.service?.slug || b.service]?.icon}</span>
+                            <span className="font-medium text-slate-800">{SERVICE_CONFIG[b.service?.slug || b.service]?.label || (typeof b.service === 'object' ? b.service?.label : b.service)}</span>
                           </div>
                           <p className="text-xs text-slate-500 mt-1">{b.durationHours} hr{b.durationHours > 1 ? 's' : ''}</p>
                         </td>

@@ -1,517 +1,497 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, CheckCircle, ShieldCheck, Zap, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, ShieldCheck, Zap, Navigation, User, Plus, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { providerService, bookingService, pricingService } from '@/services';
 import { cn } from '../../utils';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
 import Avatar from '../../components/ui/Avatar';
 
-// Service image map: key → /public/images/<file>
 const SERVICE_IMG = {
-  nurse:            '/images/service-nursing.png',
-  nursing:          '/images/service-nursing.png',
-  physiotherapist:  '/images/service-physio.png',
-  physiotherapy:    '/images/service-physio.png',
-  doctor:           '/images/service-doctor.png',
-  caretaker:        '/images/service-eldercare.png',
-  eldercare:        '/images/service-eldercare.png',
+  nurse: '/images/service-nursing.png',
+  nursing: '/images/service-nursing.png',
+  physiotherapist: '/images/service-physio.png',
+  physiotherapy: '/images/service-physio.png',
+  doctor: '/images/service-doctor.png',
+  caretaker: '/images/service-eldercare.png',
+  eldercare: '/images/service-eldercare.png',
+};
+const getServiceImg = (s) => SERVICE_IMG[(s.slug || s.name || '').toLowerCase()] || null;
+
+const haversine = (c1, c2) => {
+  const R = 6371;
+  const dLat = (c2.lat - c1.lat) * Math.PI / 180;
+  const dLon = (c2.lng - c1.lng) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(c1.lat*Math.PI/180)*Math.cos(c2.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 };
 
-const getServiceImg = (s) => {
-  const key = (s.slug || s.name || '').toLowerCase();
-  return SERVICE_IMG[key] || s.icon || null;
-};
+const fmtDist = (km) => km < 1 ? `${Math.round(km*1000)} m` : `${km.toFixed(1)} km`;
 
-const STEPS = [
-  { id: 1, label: 'Service' },
-  { id: 2, label: 'Offering' },
-  { id: 3, label: 'Patient' },
-  { id: 4, label: 'Location' },
-  { id: 5, label: 'Schedule' },
-  { id: 6, label: 'Expert' },
-];
+const STEPS = ['Service · Patient · Address', 'Plan · Schedule', 'Expert · Confirm'];
 
 export default function BookingWizard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // Data
   const [services, setServices] = useState([]);
   const [plans, setPlans] = useState([]);
+  const [providers, setProviders] = useState([]);
   const [fetchingServices, setFetchingServices] = useState(true);
   const [fetchingPlans, setFetchingPlans] = useState(false);
+  const [fetchingProviders, setFetchingProviders] = useState(false);
 
-  const [step, setStep] = useState(1);
-  const [booking, setBooking] = useState({
+  // Booking state
+  const [sel, setSel] = useState({
     service: null,
     plan: null,
-    patient: null,
-    address: null,
-    slot: null,
+    slot: { date: '', time: '' },
     provider: null,
-    durationHours: 1,
-    notes: '',
   });
+
+  // Patient — pre-fill from profile
+  const [patient, setPatient] = useState({
+    name: user?.name || '',
+    age: '',
+    gender: user?.gender || '',
+    useProfile: true,
+  });
+
+  // Address — pre-fill from profile
+  const [address, setAddress] = useState({
+    fullAddress: user?.address || '',
+    pincode: user?.pincode || '',
+    coords: user?.coords ? { lat: user.coords.lat, lng: user.coords.lng } : null,
+    useProfile: !!(user?.address),
+  });
+
+  const [geoLoading, setGeoLoading] = useState(false);
 
   useEffect(() => {
     pricingService.getServices()
-      .then(res => setServices(res.data || []))
+      .then(r => setServices(r.data || []))
       .catch(() => toast.error('Failed to load services'))
       .finally(() => setFetchingServices(false));
   }, []);
 
   useEffect(() => {
-    if (booking.service?._id) {
-      setFetchingPlans(true);
-      pricingService.getPlansByService(booking.service._id)
-        .then(res => setPlans(res.data || []))
-        .catch(() => toast.error('Failed to load offerings'))
-        .finally(() => setFetchingPlans(false));
-    }
-  }, [booking.service?._id]);
+    if (!sel.service?._id) return;
+    setFetchingPlans(true);
+    pricingService.getPlansByService(sel.service._id)
+      .then(r => setPlans(r.data || []))
+      .catch(() => toast.error('Failed to load plans'))
+      .finally(() => setFetchingPlans(false));
+  }, [sel.service?._id]);
 
-  const update = (key, value) => setBooking(prev => ({ ...prev, [key]: value }));
+  useEffect(() => {
+    if (step !== 2 || !sel.service?._id) return;
+    setFetchingProviders(true);
+    providerService.getAll({ service: sel.service._id, pincode: address.pincode })
+      .then(r => {
+        let list = r.data?.providers || [];
+        // Re-rank using real GPS if available
+        if (address.coords) {
+          list = list.map(p => {
+            const pCoords = p.location?.coordinates;
+            let dist = p.distance ?? 99;
+            if (pCoords) dist = haversine(address.coords, { lat: pCoords[1], lng: pCoords[0] });
+            return { ...p, distance: parseFloat(dist.toFixed(2)) };
+          });
+          list.sort((a, b) => a.distance - b.distance || b.matchScore - a.matchScore);
+        }
+        setProviders(list);
+        if (list.length && !sel.provider) setSel(s => ({ ...s, provider: list[0] }));
+      })
+      .catch(() => setProviders([]))
+      .finally(() => setFetchingProviders(false));
+  }, [step, sel.service?._id, address.pincode]);
 
-  const isStepValid = (s) => {
-    switch (s) {
-      case 1: return !!booking.service;
-      case 2: return !!booking.plan;
-      case 3: return !!booking.patient?.name && !!booking.patient?.age && !!booking.patient?.gender;
-      case 4: return !!booking.address?.fullAddress && !!booking.address?.pincode;
-      case 5: return !!booking.slot?.date && !!booking.slot?.time;
-      case 6: return !!booking.provider;
-      default: return false;
-    }
+  const detectLocation = () => {
+    if (!navigator.geolocation) return toast.error('Geolocation not supported');
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        try {
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+          const d = await r.json();
+          setAddress(a => ({
+            ...a,
+            coords: { lat, lng },
+            pincode: d.address?.postcode || a.pincode,
+            fullAddress: d.display_name || a.fullAddress,
+          }));
+          toast.success('Location captured!');
+        } catch { setAddress(a => ({ ...a, coords: { lat, lng } })); }
+        finally { setGeoLoading(false); }
+      },
+      () => { setGeoLoading(false); toast.error('Location denied'); }
+    );
+  };
+
+  const isValid = () => {
+    if (step === 0) return !!(sel.service && patient.name && patient.gender && address.fullAddress && address.pincode);
+    if (step === 1) return !!(sel.plan && sel.slot.date && sel.slot.time);
+    if (step === 2) return !!sel.provider;
+    return false;
   };
 
   const handleNext = () => {
-    if (!isStepValid(step)) { toast.error('Please complete all required fields.'); return; }
-    if (step < 6) setStep(p => p + 1);
+    if (!isValid()) return toast.error('Please complete all required fields.');
+    if (step < 2) setStep(s => s + 1);
     else handleConfirm();
   };
 
   const handleConfirm = async () => {
-    if (loading) return;
     setLoading(true);
     try {
-      const [year, month, day] = booking.slot.date.split('-');
-      const [hours, minutes] = booking.slot.time.split(':');
-      const scheduledAt = new Date(year, month - 1, day, hours, minutes);
+      const [yr, mo, da] = sel.slot.date.split('-');
+      const [hr, min] = sel.slot.time.split(':');
       await bookingService.create({
-        providerId: booking.provider._id,
-        service: booking.service._id,
-        address: booking.address.fullAddress,
-        pincode: booking.address.pincode,
-        scheduledAt,
-        durationHours: booking.plan.durationHours || 1,
-        notes: JSON.stringify({ planId: booking.plan._id, patient: booking.patient, flowVersion: 'v3_unified' }),
+        providerId: sel.provider._id,
+        service: sel.service._id,
+        address: address.fullAddress,
+        pincode: address.pincode,
+        scheduledAt: new Date(yr, mo-1, da, hr, min),
+        durationHours: sel.plan.durationHours || 1,
+        notes: JSON.stringify({ planId: sel.plan._id, patient, flowVersion: 'v4_3step' }),
       });
       setIsSuccess(true);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Booking failed.');
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Booking failed');
+    } finally { setLoading(false); }
   };
 
-  // ── Step 1: Service Selection ────────────────────────────────
-  const renderService = () => (
-    <div className="space-y-3 animate-fade-in">
-      <div className="mb-4">
-        <h3 className="text-base font-bold text-slate-800">What care do you need?</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Choose a service to get started</p>
-      </div>
-      {fetchingServices ? (
-        <div className="py-10 text-center text-sm text-slate-300 font-semibold animate-pulse">Loading services...</div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
-          {services.map(s => {
-            const img = getServiceImg(s);
-            const isSelected = booking.service?._id === s._id;
-            return (
-              <button
-                key={s._id}
-                onClick={() => { update('service', s); update('plan', null); }}
-                className={cn(
-                  'flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition-all duration-200 active:scale-[0.97] hover:shadow-md group',
-                  isSelected
-                    ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100'
-                    : 'border-slate-100 bg-white hover:border-blue-200 hover:bg-blue-50/30'
-                )}
-                style={{ minHeight: '72px' }}
-              >
-                {/* Icon / Image */}
-                <div className={cn(
-                  'w-11 h-11 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden transition-transform group-hover:scale-105',
-                  isSelected ? 'bg-blue-100' : 'bg-slate-100'
-                )}>
-                  {img && !img.startsWith('/') ? (
-                    <span className="text-2xl leading-none">{img}</span>
-                  ) : img ? (
-                    <img src={img} alt={s.name} className="w-full h-full object-cover" onError={e => { e.target.style.display='none'; }} />
-                  ) : (
-                    <span className="text-2xl">🏥</span>
-                  )}
-                </div>
+  // ── Renderers ────────────────────────────────────────────────
 
-                {/* Text */}
-                <div className="flex-1 min-w-0">
-                  <p className={cn(
-                    'text-sm font-bold leading-tight truncate',
-                    isSelected ? 'text-blue-700' : 'text-slate-800'
-                  )}>
-                    {s.name}
-                  </p>
-                  {s.description && (
-                    <p className="text-[10px] text-slate-400 mt-0.5 truncate">{s.description}</p>
-                  )}
-                </div>
-
-                {/* Check */}
-                {isSelected && <CheckCircle size={16} className="text-blue-500 flex-shrink-0" />}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-
-  // ── Step 2: Plan / Offering ──────────────────────────────────
-  const renderPlan = () => (
-    <div className="space-y-3 animate-fade-in">
-      <div className="mb-4">
-        <h3 className="text-base font-bold text-slate-800">Choose a plan</h3>
-        <p className="text-xs text-slate-400 mt-0.5">{booking.service?.name} offerings</p>
-      </div>
-      {fetchingPlans ? (
-        <div className="py-10 text-center text-sm text-slate-300 font-semibold animate-pulse">Loading plans...</div>
-      ) : plans.length === 0 ? (
-        <div className="py-10 text-center text-slate-400 text-sm font-semibold">No plans available for this service yet.</div>
-      ) : (
-        <div className="space-y-2">
-          {plans.map(p => {
-            const isSelected = booking.plan?._id === p._id;
-            return (
-              <button
-                key={p._id}
-                onClick={() => update('plan', p)}
-                className={cn(
-                  'w-full flex items-center justify-between p-4 rounded-2xl border-2 text-left transition-all duration-200 active:scale-[0.98] hover:shadow-sm',
-                  isSelected ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-white hover:border-blue-200'
-                )}
-              >
-                <div>
-                  <p className={cn('font-bold text-sm', isSelected ? 'text-blue-700' : 'text-slate-800')}>{p.name}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {p.planType === 'subscription' ? `${p.sessionsPerWeek} sessions/week` : `${p.totalSessions} total sessions`}
-                  </p>
-                </div>
-                <div className="text-right flex-shrink-0 ml-3">
-                  <p className={cn('font-black text-lg', isSelected ? 'text-blue-600' : 'text-slate-800')}>₹{p.price}</p>
-                  <p className="text-[9px] text-slate-400 uppercase tracking-wider">starting from</p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-
-  // ── Step 3: Patient ──────────────────────────────────────────
-  const renderPatient = () => (
-    <div className="space-y-3 animate-fade-in">
-      <div className="mb-4">
-        <h3 className="text-base font-bold text-slate-800">Patient details</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Who is receiving care?</p>
-      </div>
-      <div className="space-y-3 bg-white rounded-2xl border border-slate-100 p-4">
-        <Input label="Patient Name" value={booking.patient?.name || ''} onChange={e => update('patient', { ...booking.patient, name: e.target.value })} />
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Age" type="number" value={booking.patient?.age || ''} onChange={e => update('patient', { ...booking.patient, age: e.target.value })} />
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gender</label>
-            <select className="input-base text-sm" value={booking.patient?.gender || ''} onChange={e => update('patient', { ...booking.patient, gender: e.target.value })}>
-              <option value="">Select</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Step 4: Address ──────────────────────────────────────────
-  const renderAddress = () => (
-    <div className="space-y-3 animate-fade-in">
-      <div className="mb-4">
-        <h3 className="text-base font-bold text-slate-800">Service address</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Where should we send the expert?</p>
-      </div>
-      <div className="space-y-3 bg-white rounded-2xl border border-slate-100 p-4">
-        <Input label="Pincode" maxLength="6" value={booking.address?.pincode || ''} onChange={e => update('address', { ...booking.address, pincode: e.target.value.replace(/\D/g, '') })} />
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Full Address</label>
-          <textarea
-            className="input-base text-sm min-h-[96px] resize-none"
-            placeholder="Street, House No, Landmark..."
-            value={booking.address?.fullAddress || ''}
-            onChange={e => update('address', { ...booking.address, fullAddress: e.target.value })}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Step 5: Schedule ─────────────────────────────────────────
-  const renderSlot = () => {
-    const dates = Array.from({ length: 7 }).map((_, i) => {
-      const d = new Date(); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0];
-    });
-    const slots = ['09:00', '11:00', '13:00', '15:00', '17:00', '19:00'];
-    return (
-      <div className="space-y-4 animate-fade-in">
-        <div className="mb-2">
-          <h3 className="text-base font-bold text-slate-800">Pick a slot</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Choose your preferred day and time</p>
-        </div>
-        {/* Date row */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {dates.map(d => {
-            const isSelected = booking.slot?.date === d;
-            return (
-              <button
-                key={d}
-                onClick={() => update('slot', { ...booking.slot, date: d })}
-                className={cn(
-                  'flex-shrink-0 w-[60px] flex flex-col items-center py-3 rounded-2xl border-2 text-center transition-all active:scale-95',
-                  isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white border-slate-100 text-slate-700 hover:border-blue-200'
-                )}
-              >
-                <span className="text-[9px] font-black uppercase opacity-70">{new Date(d).toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                <span className="text-xl font-black leading-tight">{new Date(d).getDate()}</span>
-              </button>
-            );
-          })}
-        </div>
-        {/* Time grid */}
-        <div className="grid grid-cols-3 gap-2">
-          {slots.map(t => {
-            const isSelected = booking.slot?.time === t;
-            return (
-              <button
-                key={t}
-                onClick={() => update('slot', { ...booking.slot, time: t })}
-                className={cn(
-                  'py-3 text-sm font-bold rounded-2xl border-2 transition-all active:scale-95',
-                  isSelected ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-slate-100 text-slate-700 hover:border-blue-200'
-                )}
-              >
-                {t}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  // ── Step 6: Provider ─────────────────────────────────────────
-  const [providers, setProviders] = useState([]);
-  const [fetchingProviders, setFetchingProviders] = useState(false);
-
-  useEffect(() => {
-    if (booking.slot?.date && booking.slot?.time && booking.service?._id) {
-      setFetchingProviders(true);
-      providerService.getAll({ service: booking.service._id, pincode: booking.address?.pincode })
-        .then(res => {
-          const list = res.data.providers || [];
-          setProviders(list);
-          if (list.length > 0 && !booking.provider) update('provider', list[0]);
-        })
-        .catch(() => setProviders([]))
-        .finally(() => setFetchingProviders(false));
-    }
-  }, [booking.slot, booking.service?._id, booking.address?.pincode]);
-
-  const renderProvider = () => {
-    const totalExact = providers.filter(p => p.tier === 'EXACT').length;
-    const totalNearby = providers.filter(p => p.tier === 'NEARBY').length;
-
-    return (
-      <div className="space-y-3 animate-fade-in">
-        <div className="mb-3">
-          <h3 className="text-base font-bold text-slate-800">Choose your expert</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Top-rated {booking.service?.name}s near you</p>
-        </div>
-
-        {fetchingProviders ? (
-          <div className="py-10 text-center text-sm text-slate-300 font-semibold animate-pulse">Finding experts...</div>
-        ) : providers.length === 0 ? (
-          <div className="text-center p-8 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-            <p className="font-semibold text-slate-500 text-sm mb-4">No experts found in this area.</p>
-            <Button onClick={() => setStep(5)} size="sm" variant="outline">Change Schedule</Button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {totalExact === 0 && totalNearby > 0 && (
-              <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl mb-1">
-                <Zap size={12} className="text-amber-600 flex-shrink-0" />
-                <p className="text-xs font-semibold text-amber-800">
-                  Smart Match — Showing nearby experts for pincode {booking.address?.pincode}
-                </p>
-              </div>
-            )}
-            {providers.map(p => {
-              const isSelected = booking.provider?._id === p._id;
-              const tierColor = p.tier === 'EXACT' ? 'bg-emerald-500' : p.tier === 'NEARBY' ? 'bg-blue-500' : 'bg-slate-400';
+  const renderStep0 = () => (
+    <div className="space-y-5 animate-fade-in">
+      {/* Service */}
+      <section>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Service</p>
+        {fetchingServices ? <div className="h-20 flex items-center justify-center text-slate-300 text-sm animate-pulse">Loading…</div> : (
+          <div className="grid grid-cols-2 gap-2">
+            {services.map(s => {
+              const img = getServiceImg(s);
+              const sel_ = sel.service?._id === s._id;
               return (
-                <button
-                  key={p._id}
-                  onClick={() => update('provider', p)}
-                  className={cn(
-                    'w-full flex items-center gap-3 p-3 rounded-2xl border-2 text-left transition-all duration-200 active:scale-[0.98] relative overflow-hidden group hover:shadow-sm',
-                    isSelected ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100' : 'border-slate-100 bg-white hover:border-blue-200'
-                  )}
-                  style={{ minHeight: '72px' }}
-                >
-                  {/* Tier badge */}
-                  <span className={cn('absolute top-0 right-0 text-[8px] font-black uppercase px-2 py-0.5 text-white rounded-bl-xl tracking-wider', tierColor)}>
-                    {p.tier}
-                  </span>
-
-                  <Avatar name={p.user?.name} src={p.user?.avatar} size="md" className="flex-shrink-0 ring-2 ring-white shadow" />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className={cn('text-sm font-bold truncate', isSelected ? 'text-blue-700' : 'text-slate-800')}>{p.user?.name}</p>
-                      {p.tier === 'EXACT' && <CheckCircle size={12} className="text-emerald-500 flex-shrink-0" />}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{p.experience} yrs</span>
-                      <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⭐ {p.rating?.toFixed(1) || 'N/A'}</span>
-                      {p.distance !== undefined && (
-                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">📍 {p.distance} km</span>
-                      )}
-                    </div>
+                <button key={s._id} onClick={() => setSel(p => ({ ...p, service: s, plan: null }))}
+                  className={cn('flex items-center gap-2.5 p-3 rounded-xl border-2 text-left transition-all active:scale-[0.97] hover:shadow-sm',
+                    sel_ ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-white hover:border-blue-200')}>
+                  <div className={cn('w-10 h-10 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center', sel_ ? 'bg-blue-100' : 'bg-slate-100')}>
+                    {img ? <img src={img} alt={s.name} className="w-full h-full object-cover" onError={e => e.target.style.display='none'} /> : <span className="text-xl">🏥</span>}
                   </div>
-
-                  <ShieldCheck size={20} className={cn('flex-shrink-0 transition-colors', isSelected ? 'text-blue-500' : 'text-slate-200 group-hover:text-slate-300')} />
+                  <span className={cn('text-sm font-bold truncate', sel_ ? 'text-blue-700' : 'text-slate-800')}>{s.name}</span>
+                  {sel_ && <CheckCircle size={14} className="text-blue-500 ml-auto flex-shrink-0" />}
                 </button>
               );
             })}
           </div>
         )}
+      </section>
+
+      {/* Patient */}
+      <section>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Patient</p>
+          {user && (
+            <button onClick={() => {
+              if (!patient.useProfile) {
+                setPatient({ name: user.name, age: '', gender: user.gender || '', useProfile: true });
+              } else {
+                setPatient(p => ({ ...p, useProfile: false }));
+              }
+            }} className="text-[10px] font-bold text-blue-600 flex items-center gap-1">
+              {patient.useProfile ? <><Plus size={10}/> Add Different</> : <><User size={10}/> Use My Profile</>}
+            </button>
+          )}
+        </div>
+        <div className="bg-white border border-slate-100 rounded-xl p-3 space-y-2.5">
+          {patient.useProfile && user ? (
+            <div className="flex items-center gap-3 p-2 bg-blue-50 rounded-lg border border-blue-100">
+              <User size={16} className="text-blue-500" />
+              <div>
+                <p className="text-sm font-bold text-slate-800">{user.name}</p>
+                <p className="text-[10px] text-slate-400">{user.gender || 'Gender not set'} · Patient</p>
+              </div>
+              <CheckCircle size={14} className="text-blue-500 ml-auto" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              <input className="col-span-3 input-base text-sm py-2" placeholder="Patient name *" value={patient.name}
+                onChange={e => setPatient(p => ({ ...p, name: e.target.value }))} />
+              <input className="input-base text-sm py-2" placeholder="Age" type="number" value={patient.age}
+                onChange={e => setPatient(p => ({ ...p, age: e.target.value }))} />
+              <select className="col-span-2 input-base text-sm py-2" value={patient.gender}
+                onChange={e => setPatient(p => ({ ...p, gender: e.target.value }))}>
+                <option value="">Gender *</option>
+                <option>Male</option><option>Female</option><option>Other</option>
+              </select>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Address */}
+      <section>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Address</p>
+          <button onClick={detectLocation} disabled={geoLoading}
+            className="text-[10px] font-bold text-blue-600 flex items-center gap-1">
+            <Navigation size={10} className={geoLoading ? 'animate-spin' : ''} />
+            {geoLoading ? 'Detecting…' : 'Use GPS'}
+          </button>
+        </div>
+        <div className="bg-white border border-slate-100 rounded-xl p-3 space-y-2">
+          {address.coords && (
+            <div className="flex items-center gap-2 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded-lg">
+              <MapPin size={10} /> GPS captured — provider distances will be precise
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-2">
+            <input className="col-span-2 input-base text-sm py-2" placeholder="Full address *" value={address.fullAddress}
+              onChange={e => setAddress(a => ({ ...a, fullAddress: e.target.value }))} />
+            <input className="input-base text-sm py-2" placeholder="Pincode *" maxLength={6} value={address.pincode}
+              onChange={e => setAddress(a => ({ ...a, pincode: e.target.value.replace(/\D/g,'') }))} />
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderStep1 = () => {
+    const dates = Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i);return d.toISOString().split('T')[0];});
+    const times = ['08:00','10:00','12:00','14:00','16:00','18:00'];
+    return (
+      <div className="space-y-5 animate-fade-in">
+        {/* Plans */}
+        <section>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Select Plan</p>
+          {fetchingPlans ? <div className="h-16 flex items-center justify-center text-slate-300 text-sm animate-pulse">Loading plans…</div> : plans.length === 0 ? (
+            <div className="h-16 flex items-center justify-center text-slate-400 text-sm">No plans available.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {plans.map(p => {
+                const isSel = sel.plan?._id === p._id;
+                return (
+                  <button key={p._id} onClick={() => setSel(s => ({ ...s, plan: p }))}
+                    className={cn('w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left',
+                      isSel ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-white hover:border-blue-200')}>
+                    <div>
+                      <p className={cn('text-sm font-bold', isSel ? 'text-blue-700' : 'text-slate-800')}>{p.name}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {p.planType==='subscription' ? `${p.sessionsPerWeek} sessions/week` : `${p.totalSessions} total sessions`}
+                        {p.durationHours ? ` · ${p.durationHours}h` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right ml-3">
+                      <p className={cn('font-black text-base', isSel ? 'text-blue-600' : 'text-slate-800')}>₹{p.price}</p>
+                      <p className="text-[9px] text-slate-400">starting from</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Date */}
+        <section>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Date</p>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {dates.map(d => {
+              const isSel = sel.slot.date === d;
+              return (
+                <button key={d} onClick={() => setSel(s=>({...s,slot:{...s.slot,date:d}}))}
+                  className={cn('flex-shrink-0 w-14 flex flex-col items-center py-2.5 rounded-xl border-2 transition-all active:scale-95',
+                    isSel ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-100 text-slate-700 hover:border-blue-200')}>
+                  <span className="text-[9px] font-black uppercase opacity-70">{new Date(d).toLocaleDateString('en-US',{weekday:'short'})}</span>
+                  <span className="text-lg font-black">{new Date(d).getDate()}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Time */}
+        <section>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Time</p>
+          <div className="grid grid-cols-3 gap-2">
+            {times.map(t => {
+              const isSel = sel.slot.time === t;
+              return (
+                <button key={t} onClick={() => setSel(s=>({...s,slot:{...s.slot,time:t}}))}
+                  className={cn('py-2.5 text-sm font-bold rounded-xl border-2 transition-all active:scale-95',
+                    isSel ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-100 text-slate-700 hover:border-blue-200')}>
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+        </section>
       </div>
     );
   };
 
-  // ── Success ──────────────────────────────────────────────────
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="bg-white rounded-3xl shadow-2xl p-10 text-center max-w-sm w-full">
-          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
-            <CheckCircle size={40} />
+  const renderStep2 = () => (
+    <div className="space-y-4 animate-fade-in">
+      <section>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Choose Expert</p>
+        {fetchingProviders ? (
+          <div className="h-20 flex items-center justify-center text-slate-300 text-sm animate-pulse">Finding experts…</div>
+        ) : providers.length === 0 ? (
+          <div className="text-center py-8 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+            <p className="text-sm text-slate-400 font-semibold">No experts found.</p>
+            <button onClick={() => setStep(1)} className="mt-2 text-xs font-bold text-blue-600">← Change Schedule</button>
           </div>
-          <h2 className="text-2xl font-black text-slate-900 mb-2">Booking Confirmed!</h2>
-          <p className="text-sm text-slate-500 mb-8">Your care expert has been requested. We'll notify you once confirmed.</p>
-          <Button onClick={() => navigate('/dashboard/patient/bookings')} className="w-full bg-blue-600 text-white rounded-2xl">
-            Go to Bookings
-          </Button>
-        </div>
-      </div>
-    );
-  }
+        ) : (
+          <div className="space-y-2">
+            {/* Smart match banner */}
+            {providers.every(p => p.tier !== 'EXACT') && providers.some(p => p.tier === 'NEARBY') && (
+              <div className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                <Zap size={11} className="text-amber-600 flex-shrink-0" />
+                <p className="text-[10px] font-bold text-amber-800">Smart Match — Showing nearby experts for your area</p>
+              </div>
+            )}
+            {providers.map((p, idx) => {
+              const isSel = sel.provider?._id === p._id;
+              // Badges
+              const badges = [];
+              if (idx === 0) badges.push({ label: 'Best Match', color: 'bg-blue-600' });
+              const sortedByDist = [...providers].sort((a,b)=>a.distance-b.distance);
+              if (p._id === sortedByDist[0]?._id) badges.push({ label: 'Nearest', color: 'bg-emerald-600' });
+              if (p.isOnline) badges.push({ label: 'Available', color: 'bg-green-500' });
+              const tierColor = p.tier==='EXACT' ? 'bg-emerald-500' : p.tier==='NEARBY' ? 'bg-blue-500' : 'bg-slate-400';
 
-  // ── Main Wizard Shell ────────────────────────────────────────
-  const progress = ((step - 1) / (STEPS.length - 1)) * 100;
+              return (
+                <button key={p._id} onClick={() => setSel(s=>({...s,provider:p}))}
+                  className={cn('w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98] relative overflow-hidden',
+                    isSel ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100' : 'border-slate-100 bg-white hover:border-blue-200')}>
+                  {/* Tier ribbon */}
+                  <span className={cn('absolute top-0 right-0 text-[8px] font-black uppercase px-2 py-0.5 text-white rounded-bl-xl', tierColor)}>
+                    {p.tier}
+                  </span>
+                  <Avatar name={p.user?.name} src={p.user?.avatar} size="md" className="flex-shrink-0 ring-2 ring-white shadow" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className={cn('text-sm font-bold truncate', isSel ? 'text-blue-700' : 'text-slate-800')}>{p.user?.name}</p>
+                      {badges.map(b => (
+                        <span key={b.label} className={cn('text-[8px] font-black px-1.5 py-0.5 rounded-full text-white', b.color)}>{b.label}</span>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{p.experience} yrs</span>
+                      <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⭐ {p.rating?.toFixed(1)||'N/A'}</span>
+                      {p.distance !== undefined && (
+                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">📍 {fmtDist(p.distance)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <ShieldCheck size={18} className={cn('flex-shrink-0', isSel ? 'text-blue-500' : 'text-slate-200')} />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Confirm summary */}
+      {sel.provider && sel.plan && (
+        <section className="bg-slate-50 rounded-xl border border-slate-200 p-3 space-y-1.5 text-xs">
+          <p className="font-bold text-slate-700 text-[11px] uppercase tracking-wider mb-2">Booking Summary</p>
+          {[
+            ['Service', sel.service?.name],
+            ['Plan', `${sel.plan?.name} — ₹${sel.plan?.price}`],
+            ['Patient', patient.useProfile ? user?.name : patient.name],
+            ['Date & Time', sel.slot.date && sel.slot.time ? `${sel.slot.date} at ${sel.slot.time}` : '—'],
+            ['Expert', sel.provider?.user?.name],
+            ['Address', address.fullAddress ? address.fullAddress.slice(0,60)+'…' : '—'],
+          ].map(([k,v]) => (
+            <div key={k} className="flex justify-between gap-2">
+              <span className="text-slate-400 font-medium">{k}</span>
+              <span className="text-slate-700 font-semibold text-right">{v}</span>
+            </div>
+          ))}
+        </section>
+      )}
+    </div>
+  );
+
+  // ── Success ──────────────────────────────────────────────────
+  if (isSuccess) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+      <div className="bg-white rounded-3xl shadow-2xl p-10 text-center max-w-sm w-full">
+        <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
+          <CheckCircle size={40} />
+        </div>
+        <h2 className="text-2xl font-black text-slate-900 mb-2">Booking Confirmed!</h2>
+        <p className="text-sm text-slate-500 mb-8">Your care expert has been requested. We'll notify you once confirmed.</p>
+        <Button onClick={() => navigate('/dashboard/patient/bookings')} className="w-full bg-blue-600 text-white rounded-2xl">
+          Go to Bookings
+        </Button>
+      </div>
+    </div>
+  );
+
+  // ── Shell ────────────────────────────────────────────────────
+  const progress = (step / 2) * 100;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-start py-6 px-4">
-      <div className="w-full max-w-xl bg-white rounded-3xl shadow-xl overflow-hidden">
+      <div className="w-full max-w-lg bg-white rounded-3xl shadow-xl overflow-hidden">
 
         {/* Header */}
-        <div className="bg-slate-900 px-5 pt-5 pb-4">
-          <div className="flex items-center justify-between mb-3">
-            <button
-              onClick={() => setStep(p => Math.max(1, p - 1))}
-              disabled={step === 1}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all active:scale-90 disabled:opacity-30"
-            >
-              <ChevronLeft size={18} className="text-white" />
+        <div className="bg-slate-900 px-4 pt-4 pb-3">
+          <div className="flex items-center justify-between mb-2">
+            <button onClick={() => setStep(s=>Math.max(0,s-1))} disabled={step===0}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all disabled:opacity-30 active:scale-90">
+              <ChevronLeft size={16} className="text-white" />
             </button>
-
             <div className="text-center">
-              <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.4em] opacity-80">Step {step} of {STEPS.length}</p>
-              <h2 className="text-lg font-black text-white tracking-tight">{STEPS[step - 1].label}</h2>
+              <p className="text-[9px] font-black text-blue-400 uppercase tracking-[0.4em] opacity-80">Step {step+1} of 3</p>
+              <h2 className="text-sm font-black text-white">{STEPS[step]}</h2>
             </div>
-
-            <div className="w-9" /> {/* Spacer */}
+            <div className="w-8" />
           </div>
-
-          {/* Slim progress bar */}
-          <div className="relative w-full h-1 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="absolute inset-y-0 left-0 bg-blue-500 rounded-full transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+          {/* Progress */}
+          <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
-
-          {/* Step dots */}
-          <div className="flex justify-center gap-2 mt-3">
-            {STEPS.map(s => (
-              <div
-                key={s.id}
-                className={cn(
-                  'h-1 rounded-full transition-all duration-500',
-                  s.id === step ? 'w-8 bg-blue-400' : s.id < step ? 'w-4 bg-emerald-400' : 'w-4 bg-white/20'
-                )}
-              />
+          <div className="flex justify-center gap-1.5 mt-2">
+            {[0,1,2].map(i => (
+              <div key={i} className={cn('h-1 rounded-full transition-all duration-500',
+                i===step ? 'w-8 bg-blue-400' : i<step ? 'w-4 bg-emerald-400' : 'w-4 bg-white/20')} />
             ))}
           </div>
         </div>
 
         {/* Body */}
-        <div className="p-5 min-h-[420px]">
-          {step === 1 && renderService()}
-          {step === 2 && renderPlan()}
-          {step === 3 && renderPatient()}
-          {step === 4 && renderAddress()}
-          {step === 5 && renderSlot()}
-          {step === 6 && renderProvider()}
+        <div className="p-4 min-h-[400px]">
+          {step === 0 && renderStep0()}
+          {step === 1 && renderStep1()}
+          {step === 2 && renderStep2()}
         </div>
 
-        {/* Footer CTA */}
-        <div className="px-5 pb-5 pt-2 border-t border-slate-100">
-          <button
-            onClick={handleNext}
-            disabled={!isStepValid(step) || loading}
-            className={cn(
-              'w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]',
-              isStepValid(step) && !loading
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-            )}
-          >
-            {loading ? 'Confirming...' : step === 6 ? 'Finalize Booking' : 'Continue'}
-            {!loading && <ChevronRight size={16} />}
+        {/* Footer */}
+        <div className="px-4 pb-4 pt-2 border-t border-slate-100">
+          <button onClick={handleNext} disabled={!isValid()||loading}
+            className={cn('w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]',
+              isValid()&&!loading ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed')}>
+            {loading ? 'Confirming…' : step===2 ? 'Confirm Booking' : 'Continue'}
+            {!loading && <ChevronRight size={15} />}
           </button>
         </div>
       </div>
-
       <style>{`
-        @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-        .animate-fade-in { animation: fadeIn 0.3s ease forwards; }
-        .scrollbar-hide::-webkit-scrollbar { display:none; }
-        .scrollbar-hide { -ms-overflow-style:none; scrollbar-width:none; }
+        @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        .animate-fade-in{animation:fadeIn 0.25s ease forwards}
+        .scrollbar-hide::-webkit-scrollbar{display:none}
+        .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
       `}</style>
     </div>
   );

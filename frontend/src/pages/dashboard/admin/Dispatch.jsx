@@ -33,7 +33,7 @@ export default function DispatchDashboard() {
 
   // Parse notes to extract assignment and plan data safely
   const parsedBookings = useMemo(() => {
-    return bookings.map(b => {
+    return (bookings || []).map(b => {
       let assignment = null;
       let planDetails = '';
       if (b.notes) {
@@ -107,8 +107,8 @@ export default function DispatchDashboard() {
           {/* Column 1: Service */}
           <div className="w-1/4 border-r border-gray-100 pr-3 flex flex-col justify-center">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xl bg-white p-1.5 rounded-lg shadow-sm border border-gray-100">{SERVICE_CONFIG[b.service]?.icon}</span>
-              <p className="typo-value font-black">{SERVICE_CONFIG[b.service]?.label}</p>
+              <span className="text-xl bg-white p-1.5 rounded-lg shadow-sm border border-gray-100">{SERVICE_CONFIG[b.service?.slug || b.service]?.icon}</span>
+              <p className="typo-value font-black">{SERVICE_CONFIG[b.service?.slug || b.service]?.label || (typeof b.service === 'object' ? b.service?.label : b.service)}</p>
             </div>
             {b.planDetails && <p className="typo-micro text-gray-500 font-bold truncate">{b.planDetails}</p>}
           </div>

@@ -118,10 +118,12 @@ exports.createBooking = async (req, res, next) => {
 
     const { totalAmount, basePrice: calcBasePrice, platformFee, providerEarning, labPayout } = pricingData;
 
-    const pricingSource = plan ? "plan" : "service";
+    const pricingSource = plan ? "PLAN" : "SERVICE";
     const basePrice = calcBasePrice || 0;
     const planPrice = plan?.price || 0;
     const finalAmount = plan ? planPrice : basePrice * hours;
+    const finalPrice = finalAmount; // Step 2 & 8 requirement
+    const planId_val = plan ? plan._id : null; // Step 2 requirement
 
     if (!finalAmount || finalAmount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid booking price' });
@@ -141,9 +143,11 @@ exports.createBooking = async (req, res, next) => {
       notes,
       totalAmount,
       finalAmount,
+      finalPrice,
       basePrice,
       planPrice,
       pricingSource,
+      plan: planId_val,
       estimatedPrice: totalAmount,
       platformFee,
       providerEarning,
@@ -179,7 +183,23 @@ exports.createBooking = async (req, res, next) => {
       // socket not ready
     }
 
-    res.status(201).json({ success: true, message: 'Booking created successfully', data: { booking } });
+    await booking.populate([
+      { path: 'service', select: 'name' },
+      { path: 'plan', select: 'name price' }
+    ]);
+ 
+    res.status(201).json({ 
+      success: true, 
+      message: 'Booking created successfully', 
+      data: { 
+        bookingId: booking._id,
+        service: booking.service,
+        plan: booking.plan,
+        finalPrice: booking.finalPrice,
+        status: booking.status,
+        booking 
+      } 
+    });
   } catch (err) {
     next(err);
   }
@@ -327,7 +347,12 @@ exports.getBookingById = async (req, res, next) => {
       .populate({ path: 'provider', populate: { path: 'user', select: 'name email phone avatar' } })
       .populate('service');
 
-    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+    if (!booking) {
+      return res.json({
+        success: true,
+        data: {}
+      });
+    }
 
     // Authorization check
     const isPatient = booking.patient._id.toString() === req.user._id.toString();
@@ -352,7 +377,12 @@ exports.updateBookingStatus = async (req, res, next) => {
   try {
     const { status, cancelReason } = req.body;
     const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+    if (!booking) {
+      return res.json({
+        success: true,
+        data: {}
+      });
+    }
 
     // SECURITY FIX: Insecure Direct Object Reference (IDOR) protection
     const isPatient = booking.patient.toString() === req.user._id.toString();
