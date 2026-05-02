@@ -30,11 +30,11 @@ exports.getLabById = async (req, res, next) => {
 // Search tests/packages across all verified labs
 exports.searchTests = async (req, res, next) => {
   try {
-    const { q, category } = req.query;
+    const { q, department } = req.query;
     let query = { isActive: true };
     
     if (q) query.$text = { $search: q };
-    if (category) query.category = category;
+    if (department) query.department = department;
 
     const tests = await LabTest.find(query)
       .populate({
@@ -58,11 +58,67 @@ exports.bookTest = async (req, res, next) => {
       paymentMethod, patientDetails
     } = req.body;
     
+    let calculatedTotalAmount = 0;
+    let platformFee = 0;
+    let labPayout = 0;
+
+    // Load tests and lab profile for commission hierarchy
+    const tests = await LabTest.find({ _id: { $in: testIds } });
+    const labProfile = await LabProfile.findOne({ partner: partnerId });
+
+    // Ensure we track breakdown
+    let commissionUsed = null;
+    let commissionSource = 'default';
+
+    tests.forEach(test => {
+      let cType = 'percentage';
+      let cVal = 20; // default 20%
+      let cSource = 'default';
+
+      if (test.commissionOverride && test.commissionOverride.active) {
+        cType = test.commissionOverride.commissionType;
+        cVal = test.commissionOverride.commissionValue;
+        cSource = 'override';
+      } else if (labProfile && labProfile.commissions) {
+        const deptComm = labProfile.commissions.find(d => d.department === test.department);
+        if (deptComm) {
+          cType = deptComm.commissionType;
+          cVal = deptComm.commissionValue;
+          cSource = 'department';
+        }
+      }
+
+      const tPrice = test.price;
+      calculatedTotalAmount += tPrice;
+
+      let fee = 0;
+      if (cType === 'percentage') {
+        const rate = (cVal > 1) ? cVal / 100 : cVal;
+        fee = Math.round(tPrice * rate);
+      } else {
+        fee = cVal;
+      }
+      
+      platformFee += fee;
+      labPayout += (tPrice - fee);
+      
+      // Store the last one for logging, or you could change schema to an array
+      commissionUsed = cVal;
+      commissionSource = cSource;
+    });
+
+    // Security: ensure frontend totalAmount matches calculated (or just use calculated)
+    const orderTotal = totalAmount || calculatedTotalAmount;
+
     const order = await LabOrder.create({
       patient: req.user.id,
       partner: partnerId,
       tests: testIds,
-      totalAmount,
+      totalAmount: orderTotal,
+      platformFee,
+      labPayout,
+      commissionUsed,
+      commissionSource,
       scheduledDate,
       scheduledTime,
       collectionType,
@@ -115,7 +171,7 @@ exports.getMyOrders = async (req, res, next) => {
   try {
     let orders = await LabOrder.find({ patient: req.user.id })
       .populate('partner', 'name')
-      .populate('tests', 'name price category')
+      .populate('tests', 'name price department')
       .sort('-createdAt');
       
     // Strip report URL if uncollected
@@ -152,8 +208,8 @@ exports.getInvoice = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Invoice is only available for collected payments' });
     }
 
-    const platformFee = order.totalAmount * 0.2;
-    const labAmount = order.totalAmount - platformFee;
+    const platformFee = order.platformFee || (order.totalAmount * 0.2);
+    const labAmount = order.labPayout || (order.totalAmount - platformFee);
 
     // GST is typically 18% in India, calculated backwards from total
     // Total = Base + (Base * 0.18) => Base = Total / 1.18

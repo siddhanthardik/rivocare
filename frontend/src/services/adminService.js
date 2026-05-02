@@ -44,6 +44,7 @@ const adminService = {
   updateBlog: (id, data) => api.put(`/admin/blogs/${id}`, data),
   deleteBlog: (id) => api.delete(`/admin/blogs/${id}`),
   uploadBlogHero: (id, formData) => api.post(`/admin/blogs/${id}/hero`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  getErrorLogs: () => api.get('/logs/errors'),
 };
 
 export default adminService;

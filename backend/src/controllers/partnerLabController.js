@@ -1,7 +1,7 @@
 const Partner = require('../models/Partner');
 const LabProfile = require('../models/LabProfile');
-const LabOrder = require('../models/LabOrder');
 const LabTest = require('../models/LabTest');
+const { autoAssignDepartment } = require('../constants/departments');
 const PartnerStaff = require('../models/PartnerStaff');
 const PartnerWallet = require('../models/PartnerWallet');
 const jwt = require('jsonwebtoken');
@@ -538,30 +538,20 @@ exports.getTests = async (req, res, next) => {
   }
 };
 
+// @desc    Add Test
 exports.addTest = async (req, res, next) => {
   try {
-    const test = await LabTest.create({ ...req.body, partner: req.partner.id });
+    let data = { ...req.body };
+    
+    if (!data.department) {
+      data.department = autoAssignDepartment(data.testName || data.name);
+      console.log(`[AUTO_ASSIGN] Assigned department "${data.department}" to test "${data.testName || data.name}"`);
+    }
+
+    const test = await LabTest.create({ ...data, partner: req.partner.id });
     res.status(201).json({ success: true, data: test });
   } catch (err) {
     next(err);
   }
 };
 
-// @desc    Manage Tests
-exports.getTests = async (req, res, next) => {
-  try {
-    const tests = await LabTest.find({ partner: req.partner.id });
-    res.status(200).json({ success: true, data: tests });
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.addTest = async (req, res, next) => {
-  try {
-    const test = await LabTest.create({ ...req.body, partner: req.partner.id });
-    res.status(201).json({ success: true, data: test });
-  } catch (err) {
-    next(err);
-  }
-};

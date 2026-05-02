@@ -20,8 +20,11 @@ export default function AdminProviders() {
     if (filter === 'unverified') params.verified = false;
 
     adminService.getProviders(params)
-      .then((res) => setProviders(res.data.providers))
-      .catch((err) => toast.error('Failed to load providers'))
+      .then((res) => setProviders(res.data.providers || []))
+      .catch((err) => {
+        toast.error('Failed to load providers');
+        setProviders([]);
+      })
       .finally(() => setLoading(false));
   }, [refresh, filter]);
 
@@ -77,7 +80,7 @@ export default function AdminProviders() {
       </div>
 
       <div className="card overflow-hidden">
-        {providers.length === 0 ? (
+        {(!Array.isArray(providers) || providers.length === 0) ? (
           <EmptyState title="No providers found" description="No providers match the selected filter." />
         ) : (
           <div className="overflow-x-auto">
@@ -101,7 +104,7 @@ export default function AdminProviders() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
-                        {p.services.length === 0 ? <span className="text-slate-400 italic">None selected</span> : p.services.map(s => (
+                        {(!p.services || p.services.length === 0) ? <span className="text-slate-400 italic">None selected</span> : p.services.map(s => (
                           <span key={s} className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-100 text-slate-600 border border-slate-200">
                             {SERVICE_CONFIG[s]?.label || s}
                           </span>
@@ -110,7 +113,7 @@ export default function AdminProviders() {
                     </td>
                     <td className="px-6 py-4">
                       <p className="font-medium text-slate-700">{p.experience} Years</p>
-                      <p className="text-primary-600 font-medium">{formatCurrency(p.pricePerHour)} / hr</p>
+                      <p className="text-primary-600 font-medium">Standard Pricing</p>
                     </td>
                     <td className="px-6 py-4">
                       {p.isVerified ? (

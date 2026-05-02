@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Provider = require('../models/Provider');
 const Service = require('../models/Service');
 const ServiceAssignment = require('../models/ServiceAssignment');
@@ -8,14 +9,39 @@ const PatientPackage = require('../models/PatientPackage');
 exports.getProviders = async (req, res, next) => {
   try {
     const { service, pincode, page = 1, limit = 12 } = req.query;
-    const filter = { isVerified: true, isOnline: true, isBlocked: { $ne: true } };
+    // 🛡️ Debug: Temporarily disabled isOnline check
+    const filter = { isVerified: true, isBlocked: { $ne: true } }; 
 
-    if (service) filter.services = service;
-    if (pincode) filter.pincodesServed = pincode;
+    if (service) {
+      let serviceId = null;
+      if (mongoose.Types.ObjectId.isValid(service)) {
+        serviceId = service;
+      } else {
+        const sDoc = await Service.findOne({ 
+          $or: [
+            { name: { $regex: new RegExp(`^${service}$`, 'i') } },
+            { slug: String(service).toLowerCase() }
+          ]
+        });
+        if (sDoc) serviceId = sDoc._id;
+      }
+
+      if (serviceId) {
+        filter.services = serviceId;
+      } else {
+        return res.json({ success: true, data: { providers: [], total: 0, page: 1, totalPages: 0 } });
+      }
+    }
+    
+    if (pincode) {
+      filter.pincodesServed = String(pincode);
+    }
+
+    console.log('[PROVIDER_SEARCH] Final Filter:', JSON.stringify(filter));
 
     const total = await Provider.countDocuments(filter);
     const providers = await Provider.find(filter)
-      .populate('user', 'name email phone')
+      .populate('user', 'name email phone avatar')
       .sort({ rating: -1 })
       .limit(Number(limit))
       .skip((Number(page) - 1) * Number(limit));
@@ -74,10 +100,25 @@ exports.toggleAvailability = async (req, res, next) => {
 // @PUT /api/providers/profile — update provider profile
 exports.updateProviderProfile = async (req, res, next) => {
   try {
-    const { bio, experience, pincodesServed, pricePerHour, services, markup, notes } = req.body;
+    const { bio, experience, pincodesServed, services, markup, notes } = req.body;
+    
+    // 🛡️ Normalization
+    const normalizedPincodes = (pincodesServed || []).map(p => String(p));
+    let serviceIds = [];
+    if (services && Array.isArray(services)) {
+      const sDocs = await Service.find({ 
+        $or: [
+          { name: { $in: services.map(s => new RegExp(`^${s}$`, 'i')) } },
+          { slug: { $in: services.map(s => String(s).toLowerCase()) } },
+          { _id: { $in: services.filter(s => mongoose.Types.ObjectId.isValid(s)) } }
+        ]
+      });
+      serviceIds = sDocs.map(s => s._id);
+    }
+
     const provider = await Provider.findOneAndUpdate(
       { user: req.user._id },
-      { bio, experience, pincodesServed, pricePerHour, services, markup, notes },
+      { bio, experience, pincodesServed: normalizedPincodes, services: serviceIds, markup, notes },
       { new: true, runValidators: true }
     ).populate('user', 'name email phone avatar');
 

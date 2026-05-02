@@ -1,12 +1,29 @@
 const Partner = require('../models/Partner');
 const LabProfile = require('../models/LabProfile');
 const LabOrder = require('../models/LabOrder');
+const { LAB_DEPARTMENT_KEYS } = require('../constants/departments');
 
 // @desc    Get all lab partners
 exports.getPartners = async (req, res, next) => {
   try {
-    const partners = await Partner.find().select('-password').sort('-createdAt');
-    res.status(200).json({ success: true, data: partners });
+    const Partner = require('../models/Partner');
+    const LabProfile = require('../models/LabProfile');
+    
+    const partners = await Partner.find().select('-password').sort('-createdAt').lean();
+    
+    // Attach LabProfile data
+    const profiles = await LabProfile.find({ partner: { $in: partners.map(p => p._id) } }).lean();
+    const profileMap = profiles.reduce((acc, profile) => {
+      acc[profile.partner.toString()] = profile;
+      return acc;
+    }, {});
+
+    const enrichedPartners = partners.map(p => ({
+      ...p,
+      profile: profileMap[p._id.toString()] || null
+    }));
+
+    res.status(200).json({ success: true, data: enrichedPartners });
   } catch (err) {
     next(err);
   }
@@ -212,7 +229,7 @@ exports.getFinanceMetrics = async (req, res, next) => {
       if (o.status === 'completed' || o.status === 'report_uploaded') {
         if (o.paymentStatus === 'collected' || o.paymentStatus === 'paid') {
           totalGmv += o.totalAmount;
-          platformRevenue += (o.totalAmount * 0.2);
+          platformRevenue += (o.platformFee || (o.totalAmount * 0.2));
         }
         if (o.paymentMethod === 'cod' && o.paymentStatus !== 'collected') {
           codPending += o.totalAmount;
@@ -324,8 +341,8 @@ exports.manageFinanceStatus = async (req, res, next) => {
         
         const existingTx = await PartnerTransaction.findOne({ order: order._id, type: 'credit' });
         if (!existingTx && newStatus === 'collected') {
-          const platformFee = order.totalAmount * 0.2;
-          const netAmount = order.totalAmount - platformFee;
+          const platformFee = order.platformFee !== undefined ? order.platformFee : (order.totalAmount * 0.2);
+          const netAmount = order.labPayout !== undefined ? order.labPayout : (order.totalAmount - platformFee);
           
           const wallet = await PartnerWallet.findOneAndUpdate(
             { partner: order.partner },
@@ -356,3 +373,129 @@ exports.manageFinanceStatus = async (req, res, next) => {
     next(err);
   }
 };
+
+// @desc    Get all Lab Tests across all partners (Admin)
+exports.getAdminTests = async (req, res, next) => {
+  try {
+    const LabTest = require('../models/LabTest');
+    const tests = await LabTest.find().populate('partner', 'name email').sort({ createdAt: -1 });
+    res.json({ success: true, data: tests });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Update Lab Test Pricing & Commission Override (Admin)
+exports.updateAdminTestPricing = async (req, res, next) => {
+  try {
+    const { overrideActive, commissionType, commissionValue } = req.body;
+    const LabTest = require('../models/LabTest');
+    
+    const commissionOverride = {
+      active: !!overrideActive,
+      commissionType: commissionType || 'percentage',
+      commissionValue: commissionValue >= 0 ? commissionValue : 0.2
+    };
+
+    const test = await LabTest.findByIdAndUpdate(
+      req.params.id,
+      { commissionOverride },
+      { new: true, runValidators: true }
+    ).populate('partner', 'name email');
+
+    if (!test) {
+      return res.status(404).json({ success: false, message: 'Lab test not found' });
+    }
+
+    res.json({ success: true, message: 'Lab test pricing updated', data: test });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Update Lab Commission (Standardized PUT API)
+exports.updateLabCommission = async (req, res, next) => {
+  const { labId } = req.params;
+  const { commissions } = req.body;
+  
+  // Logging for debugging
+  console.log(`[COMMISSION_UPDATE] labId: ${labId}`, commissions);
+
+  try {
+    if (!labId) {
+      return res.status(400).json({ success: false, message: 'Lab ID is required' });
+    }
+
+    if (!commissions || !Array.isArray(commissions)) {
+      return res.status(400).json({ success: false, message: 'Invalid payload: commissions array is required' });
+    }
+
+    // Validate department keys and percentage bounds
+    for (const comm of commissions) {
+      if (!LAB_DEPARTMENT_KEYS.includes(comm.department)) {
+        return res.status(400).json({ success: false, message: `Invalid department: ${comm.department}` });
+      }
+      if (comm.commissionType === 'percentage' && (comm.commissionValue < 0 || comm.commissionValue > 100)) {
+        return res.status(400).json({ success: false, message: `Percentage for ${comm.label || comm.department} must be between 0-100` });
+      }
+    }
+
+    const LabProfile = require('../models/LabProfile');
+    const LabCommission = require('../models/LabCommission');
+
+    // 1. Update legacy profile field
+    const profile = await LabProfile.findOneAndUpdate(
+      { partner: labId },
+      { commissions },
+      { new: true, runValidators: true }
+    );
+
+    // 2. Update new dedicated model
+    const commissionPromises = commissions.map(comm => 
+      LabCommission.findOneAndUpdate(
+        { partner: labId, department: comm.department },
+        { 
+          commissionType: comm.commissionType, 
+          commissionValue: comm.commissionValue,
+          isActive: true 
+        },
+        { upsert: true, new: true }
+      )
+    );
+    await Promise.all(commissionPromises);
+
+    if (!profile) {
+      console.warn(`[COMMISSION_UPDATE_FAILED] Lab profile not found for Lab ID: ${labId}`);
+      return res.status(404).json({ success: false, message: 'Lab profile not found' });
+    }
+
+    res.json({ success: true, message: 'Lab commissions updated successfully', data: commissions });
+  } catch (err) {
+    console.error(`[COMMISSION_API_ERROR] ${err.message}`, { labId, commissions });
+    next(err);
+  }
+};
+
+// @desc    Update Lab Department Commissions (Admin - Deprecated)
+exports.updateLabDepartmentCommissions = async (req, res, next) => {
+  try {
+    const { partnerId } = req.params;
+    const { departmentCommissions } = req.body; 
+    
+    const LabProfile = require('../models/LabProfile');
+    const profile = await LabProfile.findOneAndUpdate(
+      { partner: partnerId },
+      { commissions: departmentCommissions },
+      { new: true }
+    );
+
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Lab profile not found' });
+    }
+
+    res.json({ success: true, message: 'Department commissions updated', data: profile.commissions });
+  } catch (err) {
+    next(err);
+  }
+};
+

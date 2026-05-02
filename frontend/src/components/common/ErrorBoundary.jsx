@@ -12,6 +12,32 @@ export default class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("🔥 UI Crash:", error, errorInfo);
+    
+    try {
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+
+      const payload = {
+        message: error.message || 'Unknown Error',
+        stack: error.stack,
+        route: window.location.pathname,
+        component: errorInfo.componentStack,
+        user: user ? { id: user._id || user.id, email: user.email, role: user.role } : null,
+        browser: {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          language: navigator.language
+        }
+      };
+
+      fetch('/api/logs/frontend-error', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(e => console.error('Logging failed', e));
+    } catch (e) {
+      console.error('Error in ErrorBoundary logger', e);
+    }
   }
 
   handleReload = () => {

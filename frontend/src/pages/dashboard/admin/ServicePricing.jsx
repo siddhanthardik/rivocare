@@ -5,16 +5,12 @@ import { PageLoader } from '../../../components/ui/Feedback';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import { 
-  IndianRupee, Pencil, TrendingUp, ShieldCheck, 
-  Info, LayoutGrid, FlaskConical, MapPin, 
-  Plus, Search, Save, Trash2 
+  IndianRupee, Pencil, Plus, Search, LayoutGrid, FlaskConical 
 } from 'lucide-react';
 import { cn } from '../../../utils';
 
 const TABS = [
   { id: 'care', label: 'Home Care Services', icon: LayoutGrid },
-  { id: 'lab', label: 'Lab Tests', icon: FlaskConical },
-  { id: 'overrides', label: 'Pricing Overrides', icon: MapPin },
 ];
 
 export default function AdminServicePricing() {
@@ -41,8 +37,8 @@ export default function AdminServicePricing() {
 
   const filteredPricing = useMemo(() => {
     return pricing.filter(p => {
-      const isType = activeTab === 'overrides' ? true : (activeTab === 'lab' ? p.serviceType === 'lab' : p.serviceType !== 'lab');
-      const matchesSearch = p.label.toLowerCase().includes(searchTerm.toLowerCase()) || p.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const isType = p.service !== 'lab';
+      const matchesSearch = p.service.toLowerCase().includes(searchTerm.toLowerCase());
       return isType && matchesSearch;
     });
   }, [pricing, activeTab, searchTerm]);
@@ -68,14 +64,14 @@ export default function AdminServicePricing() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pricing OS</h1>
-          <p className="text-slate-500 font-medium mt-1">Global command center for margins, base rates, and regional surcharges.</p>
+          <p className="text-slate-500 font-medium mt-1">Global command center for base rates and payouts.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input 
               type="text" 
-              placeholder="Search rules..." 
+              placeholder="Search services..." 
               className="input-base pl-10 w-64 bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -118,32 +114,29 @@ export default function AdminServicePricing() {
              <table className="w-full text-left border-collapse">
                 <thead>
                    <tr className="bg-slate-50/50 border-b border-slate-100">
-                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Service & Category</th>
-                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Base Price</th>
-                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Multiplier</th>
-                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Margin</th>
-                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total (Est)</th>
+                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Service</th>
+                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Base Price / Hr</th>
+                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Payout Type</th>
+                      <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Payout Value</th>
                       <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                    {filteredPricing.map(p => {
-                     const subtotal = p.basePrice * p.multiplier;
-                     const total = subtotal * (1 + p.platformMargin);
                      return (
                        <tr key={p._id} className="hover:bg-slate-50/50 transition-colors group">
                           <td className="px-8 py-6">
-                             <p className="font-black text-slate-900">{p.label}</p>
-                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{p.serviceType} / {p.category}</p>
+                             <p className="font-black text-slate-900 capitalize">{p.service}</p>
                           </td>
                           <td className="px-8 py-6 text-center font-bold text-slate-700">₹{p.basePrice}</td>
                           <td className="px-8 py-6 text-center">
-                             <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-black">x{p.multiplier}</span>
+                             <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-black capitalize">{p.providerPayoutType}</span>
                           </td>
                           <td className="px-8 py-6 text-center">
-                             <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-xs font-black">{(p.platformMargin * 100).toFixed(0)}%</span>
+                             <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-lg text-xs font-black">
+                               {p.providerPayoutType === 'percentage' ? `${(p.providerPayoutValue * 100).toFixed(0)}%` : `₹${p.providerPayoutValue}`}
+                             </span>
                           </td>
-                          <td className="px-8 py-6 text-right font-black text-slate-900 text-lg">₹{Math.round(total)}</td>
                           <td className="px-8 py-6 text-right">
                              <Button 
                                variant="ghost" 
@@ -192,12 +185,10 @@ export default function AdminServicePricing() {
 
 function PricingForm({ id, initialData, onSubmit }) {
   const [formData, setFormData] = useState({
-    serviceType: initialData?.serviceType || 'nurse',
-    category: initialData?.category || '',
-    label: initialData?.label || '',
+    service: initialData?.service || 'nurse',
     basePrice: initialData?.basePrice || 0,
-    multiplier: initialData?.multiplier || 1,
-    platformMargin: initialData?.platformMargin || 0.15,
+    providerPayoutType: initialData?.providerPayoutType || 'percentage',
+    providerPayoutValue: initialData?.providerPayoutValue || 0.8,
   });
 
   const handleSubmit = (e) => {
@@ -207,97 +198,75 @@ function PricingForm({ id, initialData, onSubmit }) {
 
   return (
     <form id={id} onSubmit={handleSubmit} className="space-y-6">
-       <div className="grid grid-cols-2 gap-4">
-          <div>
-             <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Service Type</label>
-             <select 
-               className="input-base" 
-               value={formData.serviceType}
-               onChange={e => setFormData({...formData, serviceType: e.target.value})}
-             >
-                <option value="nurse">Nurse</option>
-                <option value="physiotherapist">Physiotherapist</option>
-                <option value="doctor">Doctor</option>
-                <option value="caretaker">Caretaker</option>
-                <option value="procedure">Procedure</option>
-                <option value="package">Package</option>
-                <option value="lab">Lab Test</option>
-             </select>
-          </div>
-          <div>
-             <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Category ID</label>
-             <input 
-               type="text" 
-               placeholder="e.g. 12h_shift" 
-               className="input-base"
-               required
-               value={formData.category}
-               onChange={e => setFormData({...formData, category: e.target.value})}
-             />
-          </div>
+       <div>
+          <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Service</label>
+          <select 
+            className="input-base" 
+            value={formData.service}
+            onChange={e => setFormData({...formData, service: e.target.value})}
+            disabled={!!initialData?._id}
+          >
+             <option value="nurse">Nurse</option>
+             <option value="physiotherapist">Physiotherapist</option>
+             <option value="doctor">Doctor</option>
+             <option value="caretaker">Caretaker</option>
+             <option value="procedure">Procedure</option>
+             <option value="package">Package</option>
+             <option value="lab">Lab Test</option>
+          </select>
        </div>
 
        <div>
-          <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Display Label</label>
+          <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Base Price (₹ per hr/session)</label>
           <input 
-            type="text" 
-            placeholder="e.g. 12h Day Shift" 
+            type="number" 
             className="input-base"
             required
-            value={formData.label}
-            onChange={e => setFormData({...formData, label: e.target.value})}
+            value={formData.basePrice}
+            onChange={e => setFormData({...formData, basePrice: Number(e.target.value)})}
           />
        </div>
 
-       <div className="grid grid-cols-3 gap-4">
+       <div className="grid grid-cols-2 gap-4">
           <div>
-             <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Base Price (₹)</label>
-             <input 
-               type="number" 
-               className="input-base"
-               required
-               value={formData.basePrice}
-               onChange={e => setFormData({...formData, basePrice: Number(e.target.value)})}
-             />
+             <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Payout Type</label>
+             <select 
+               className="input-base" 
+               value={formData.providerPayoutType}
+               onChange={e => setFormData({...formData, providerPayoutType: e.target.value})}
+             >
+                <option value="percentage">Percentage</option>
+                <option value="flat">Flat Amount</option>
+             </select>
           </div>
           <div>
-             <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Multiplier</label>
-             <input 
-               type="number" 
-               step="0.1" 
-               className="input-base font-black text-blue-600"
-               required
-               value={formData.multiplier}
-               onChange={e => setFormData({...formData, multiplier: Number(e.target.value)})}
-             />
-          </div>
-          <div>
-             <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Margin (%)</label>
+             <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Payout Value</label>
              <input 
                type="number" 
                step="0.01" 
-               className="input-base font-black text-amber-600"
+               className="input-base font-black text-blue-600"
                required
-               value={formData.platformMargin}
-               onChange={e => setFormData({...formData, platformMargin: Number(e.target.value)})}
+               value={formData.providerPayoutValue}
+               onChange={e => setFormData({...formData, providerPayoutValue: Number(e.target.value)})}
              />
+             <p className="text-[10px] text-slate-400 mt-1">E.g. 0.8 for 80%, or 500 for flat ₹500</p>
           </div>
        </div>
 
        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Live Price Preview</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Preview Example (1 Hour/Session)</p>
           <div className="flex items-center justify-between">
              <div>
                 <p className="text-2xl font-black text-slate-900">
-                  ₹{Math.round((formData.basePrice * formData.multiplier) * (1 + formData.platformMargin))}
+                  ₹{formData.providerPayoutType === 'percentage' ? Math.round(formData.basePrice * formData.providerPayoutValue) : formData.providerPayoutValue}
                 </p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Estimated Patient Price</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Provider Earning</p>
              </div>
              <div className="text-right">
-                <p className="text-sm font-black text-emerald-600">
-                  + ₹{Math.round((formData.basePrice * formData.multiplier) * formData.platformMargin)}
+                <p className="text-sm font-black text-amber-600">
+                  ₹{formData.basePrice - (formData.providerPayoutType === 'percentage' ? Math.round(formData.basePrice * formData.providerPayoutValue) : formData.providerPayoutValue)}
                 </p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Platform Take</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Platform Fee</p>
              </div>
           </div>
        </div>

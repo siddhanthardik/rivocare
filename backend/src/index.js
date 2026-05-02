@@ -25,6 +25,7 @@ const partnerLabRoutes = require('./routes/partnerLabs.js');
 const adminLabRoutes = require('./routes/adminLabs.js');
 const reconciliationRoutes = require('./routes/reconciliation.js');
 const pricingRoutes = require('./routes/pricingRoutes');
+const logRoutes = require('./routes/logs');
 
 const app = express();
 
@@ -129,6 +130,7 @@ app.use('/api/partner/lab', partnerLabRoutes);
 app.use('/api/admin/labs', adminLabRoutes);
 app.use('/api/admin/labs/reconciliation', reconciliationRoutes);
 app.use('/api/pricing', pricingRoutes);
+app.use('/api/logs', logRoutes);
 
 // ── Health Check ───────────────────────────────────────────
 app.get('/api/health', (req, res) => {

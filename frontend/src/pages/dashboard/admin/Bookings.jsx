@@ -6,7 +6,7 @@ import { PageLoader, EmptyState } from '../../../components/ui/Feedback';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
-import { ShieldAlert, IndianRupee, AlertCircle, CheckCircle, Crown } from 'lucide-react';
+import { ShieldAlert, IndianRupee, AlertCircle, CheckCircle, Crown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // ── Price source badge ────────────────────────────────────────
 function PriceSourceBadge({ booking }) {
@@ -36,6 +36,10 @@ export default function AdminBookings() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [refresh, setRefresh] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Override Modal
   const [overrideModal, setOverrideModal] = useState(false);
@@ -43,12 +47,30 @@ export default function AdminBookings() {
   const [overrideForm, setOverrideForm] = useState({ overridePrice: '', reason: '' });
   const [saving, setSaving] = useState(false);
 
+  // Debounce search
   useEffect(() => {
-    bookingService.getAll({ limit: 100, ...(filter !== 'all' && { status: filter }) })
-      .then((res) => setBookings(res.data.bookings))
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // Reset to page 1 on search
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setLoading(true);
+    bookingService.getAll({ 
+      page, 
+      limit: 10, 
+      status: filter !== 'all' ? filter : undefined,
+      q: debouncedSearch || undefined
+    })
+      .then((res) => {
+        setBookings(res.data.bookings || []);
+        setTotalPages(res.data.totalPages || 1);
+      })
       .catch(() => toast.error('Failed to load bookings'))
       .finally(() => setLoading(false));
-  }, [refresh, filter]);
+  }, [refresh, filter, page, debouncedSearch]);
 
   const openOverride = (booking) => {
     setOverrideTarget(booking);
@@ -92,18 +114,30 @@ export default function AdminBookings() {
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">All Bookings</h1>
           <p className="text-slate-500">Monitor and manage all platform consultation requests.</p>
         </div>
-        <div className="flex bg-slate-100 p-1 rounded-lg self-start overflow-x-auto max-w-full">
-          {['all', 'pending', 'confirmed', 'in-progress', 'completed', 'cancelled'].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`shrink-0 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md capitalize transition-colors ${
-                filter === f ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {f}
-            </button>
-          ))}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="Search ID, Patient, Provider..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="input-base pl-9 py-2 text-sm w-full sm:w-64"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          </div>
+          <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-full">
+            {['all', 'pending', 'confirmed', 'in-progress', 'completed', 'cancelled'].map((f) => (
+              <button
+                key={f}
+                onClick={() => { setFilter(f); setPage(1); }}
+                className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${
+                  filter === f ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -111,117 +145,169 @@ export default function AdminBookings() {
         {bookings.length === 0 ? (
           <EmptyState title="No bookings found" description="No platform bookings match the selected filter." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-slate-50 text-slate-500 font-medium uppercase text-xs border-b border-slate-100">
-                <tr>
-                  <th className="px-5 py-4">ID & Date</th>
-                  <th className="px-5 py-4">Service</th>
-                  <th className="px-5 py-4">Patient & Provider</th>
-                  <th className="px-5 py-4">Status</th>
-                  <th className="px-5 py-4">Pricing</th>
-                  <th className="px-5 py-4 text-right">Amount</th>
-                  <th className="px-5 py-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {bookings.map((b) => {
-                  const effectivePrice = b.pricingType === 'OVERRIDE'
-                    ? b.overridePrice
-                    : (b.finalPrice && b.priceApprovedByPatient ? b.finalPrice : b.estimatedPrice || b.totalAmount);
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-slate-500 font-medium uppercase text-xs border-b border-slate-100">
+                  <tr>
+                    <th className="px-5 py-4">ID & Date</th>
+                    <th className="px-5 py-4">Service</th>
+                    <th className="px-5 py-4">Patient & Provider</th>
+                    <th className="px-5 py-4">Status</th>
+                    <th className="px-5 py-4">Pricing</th>
+                    <th className="px-5 py-4 text-right">Amount</th>
+                    <th className="px-5 py-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {bookings.map((b) => {
+                    const effectivePrice = b.pricingType === 'OVERRIDE'
+                      ? b.overridePrice
+                      : (b.finalPrice && b.priceApprovedByPatient ? b.finalPrice : b.estimatedPrice || b.totalAmount);
 
-                  return (
-                    <tr
-                      key={b._id}
-                      className={`hover:bg-slate-50 transition-colors ${b.pricingType === 'OVERRIDE' ? 'bg-purple-50/30' : ''}`}
-                    >
-                      <td className="px-5 py-4">
-                        <p className="font-mono text-xs text-slate-400 mb-1" title={b._id}>...{b._id.slice(-6)}</p>
-                        <p className="font-medium text-slate-800 whitespace-nowrap">{formatDateTime(b.scheduledAt)}</p>
-                      </td>
+                    return (
+                      <tr
+                        key={b._id}
+                        className={`hover:bg-slate-50 transition-colors ${b.pricingType === 'OVERRIDE' ? 'bg-purple-50/30' : ''}`}
+                      >
+                        <td className="px-5 py-4">
+                          <p className="font-mono text-xs text-slate-400 mb-1" title={b._id}>...{b._id.slice(-6)}</p>
+                          <p className="font-medium text-slate-800 whitespace-nowrap">{formatDateTime(b.scheduledAt)}</p>
+                        </td>
 
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
-                          <span>{SERVICE_CONFIG[b.service]?.icon}</span>
-                          <span className="font-medium text-slate-800">{SERVICE_CONFIG[b.service]?.label}</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">{b.durationHours} hr{b.durationHours > 1 ? 's' : ''}</p>
-                      </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <span>{SERVICE_CONFIG[b.service]?.icon}</span>
+                            <span className="font-medium text-slate-800">{SERVICE_CONFIG[b.service]?.label}</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">{b.durationHours} hr{b.durationHours > 1 ? 's' : ''}</p>
+                        </td>
 
-                      <td className="px-5 py-4">
-                        <div className="mb-2">
-                          <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">👤 Patient</span>
-                          <p className="font-medium text-slate-800">{b.patient?.name}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">⚕️ Provider</span>
-                          <p className="font-medium text-slate-800">{b.provider?.user?.name}</p>
-                        </div>
-                      </td>
+                        <td className="px-5 py-4">
+                          <div className="mb-2">
+                            <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">👤 Patient</span>
+                            <p className="font-medium text-slate-800">{b.patient?.name}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">⚕️ Provider</span>
+                            <p className="font-medium text-slate-800">{b.provider?.user?.name}</p>
+                          </div>
+                        </td>
 
-                      <td className="px-5 py-4">
-                        <Badge status={b.status} />
-                        {b.paymentStatus === 'PAID' && (
-                          <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-1">
-                            <CheckCircle size={11} /> Paid
-                          </p>
-                        )}
-                      </td>
-
-                      {/* Pricing column — the key new column */}
-                      <td className="px-5 py-4">
-                        <PriceSourceBadge booking={b} />
-                        <div className="mt-2 text-xs space-y-0.5 text-slate-500">
-                          <p>Base: ₹{b.basePrice || 0}</p>
-                          <p>Markup: ₹{b.providerMarkup || 0}</p>
-                          <p>Estimated: ₹{b.estimatedPrice || b.totalAmount}</p>
-                          {b.pricingType === 'OVERRIDE' && (
-                            <p className="text-purple-700 font-semibold">Override: ₹{b.overridePrice}</p>
-                          )}
-                          {b.overrideReason && (
-                            <p className="text-purple-600 italic truncate max-w-[160px]" title={b.overrideReason}>
-                              "{b.overrideReason}"
+                        <td className="px-5 py-4">
+                          <Badge status={b.status} />
+                          {b.paymentStatus === 'PAID' && (
+                            <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-1">
+                              <CheckCircle size={11} /> Paid
                             </p>
                           )}
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="px-5 py-4 text-right">
-                        <span className={`font-bold text-lg ${b.pricingType === 'OVERRIDE' ? 'text-purple-700' : 'text-slate-800'}`}>
-                          {formatCurrency(effectivePrice)}
-                        </span>
-                        {b.pricingType === 'OVERRIDE' && b.estimatedPrice !== effectivePrice && (
-                          <p className="text-xs text-slate-400 line-through text-right">
-                            ₹{b.estimatedPrice}
-                          </p>
-                        )}
-                      </td>
+                        <td className="px-5 py-4">
+                          <PriceSourceBadge booking={b} />
+                          <div className="mt-2 text-xs space-y-0.5 text-slate-500">
+                            <p>Base: ₹{b.basePrice || 0}</p>
+                            <p>Markup: ₹{b.providerMarkup || 0}</p>
+                            <p>Estimated: ₹{b.estimatedPrice || b.totalAmount}</p>
+                            {b.pricingType === 'OVERRIDE' && (
+                              <p className="text-purple-700 font-semibold">Override: ₹{b.overridePrice}</p>
+                            )}
+                            {b.overrideReason && (
+                              <p className="text-purple-600 italic truncate max-w-[160px]" title={b.overrideReason}>
+                                "{b.overrideReason}"
+                              </p>
+                            )}
+                          </div>
+                        </td>
 
-                      <td className="px-5 py-4 text-right">
-                        {canOverride(b) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex items-center gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50 ml-auto"
-                            onClick={() => openOverride(b)}
+                        <td className="px-5 py-4 text-right">
+                          <span className={`font-bold text-lg ${b.pricingType === 'OVERRIDE' ? 'text-purple-700' : 'text-slate-800'}`}>
+                            {formatCurrency(effectivePrice)}
+                          </span>
+                          {b.pricingType === 'OVERRIDE' && b.estimatedPrice !== effectivePrice && (
+                            <p className="text-xs text-slate-400 line-through text-right">
+                              ₹{b.estimatedPrice}
+                            </p>
+                          )}
+                        </td>
+
+                        <td className="px-5 py-4 text-right">
+                          {canOverride(b) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex items-center gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-50 ml-auto"
+                              onClick={() => openOverride(b)}
+                            >
+                              <Crown size={13} />
+                              Set Price
+                            </Button>
+                          )}
+                          {b.paymentStatus === 'PAID' && (
+                            <span className="text-xs text-slate-400 italic">Paid — locked</span>
+                          )}
+                          {b.status === 'cancelled' && (
+                            <span className="text-xs text-slate-400 italic">Cancelled</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-4 bg-slate-50 border-t border-slate-100">
+                <div className="text-xs text-slate-500 font-medium">
+                  Page <span className="text-slate-900">{page}</span> of <span className="text-slate-900">{totalPages}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronLeft size={16} />
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {[...Array(totalPages)].map((_, i) => {
+                      const p = i + 1;
+                      if (p === 1 || p === totalPages || (p >= page - 1 && p <= page + 1)) {
+                        return (
+                          <button
+                            key={p}
+                            onClick={() => setPage(p)}
+                            className={`h-8 w-8 text-xs font-bold rounded-lg transition-colors ${
+                              page === p ? 'bg-primary-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-200'
+                            }`}
                           >
-                            <Crown size={13} />
-                            Set Price
-                          </Button>
-                        )}
-                        {b.paymentStatus === 'PAID' && (
-                          <span className="text-xs text-slate-400 italic">Paid — locked</span>
-                        )}
-                        {b.status === 'cancelled' && (
-                          <span className="text-xs text-slate-400 italic">Cancelled</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            {p}
+                          </button>
+                        );
+                      }
+                      if (p === page - 2 || p === page + 2) {
+                        return <span key={p} className="text-slate-400 text-xs px-1">...</span>;
+                      }
+                      return null;
+                    })}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronRight size={16} />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

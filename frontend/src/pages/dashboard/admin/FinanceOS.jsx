@@ -21,21 +21,40 @@ export default function FinanceOS() {
 
   const fetchMetrics = async () => {
     try {
-      const { data } = await labService.getFinanceMetrics();
-      setMetrics(data);
+      const res = await labService.getFinanceMetrics();
+      setMetrics(res.data || {
+        totalGmv: 0,
+        platformRevenue: 0,
+        todayCollected: 0,
+        lockedReports: 0,
+        codPending: 0,
+        pendingPayouts: 0,
+        wallets: [],
+        recentSettlements: []
+      });
     } catch (err) {
       toast.error('Failed to load finance data');
+      setMetrics({
+        totalGmv: 0,
+        platformRevenue: 0,
+        todayCollected: 0,
+        lockedReports: 0,
+        codPending: 0,
+        pendingPayouts: 0,
+        wallets: [],
+        recentSettlements: []
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleProcessPayout = async (partnerId, amount) => {
+    if (!partnerId || !amount) return;
     if (!window.confirm(`Process payout of ₹${amount} to partner?`)) return;
     
     try {
       setProcessingId(partnerId);
-      // Generate a mock bank reference for the prototype
       const ref = `TXN${Math.floor(Math.random() * 10000000)}`;
       await labService.processSettlement({
         partnerId,
@@ -52,7 +71,7 @@ export default function FinanceOS() {
     }
   };
 
-  if (loading) return <PageLoader />;
+  if (loading || !metrics) return <PageLoader />;
 
   return (
     <div className="space-y-6 animate-fade-in pb-20 max-w-7xl mx-auto">
@@ -83,7 +102,7 @@ export default function FinanceOS() {
              <Activity size={80} />
           </div>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Total GMV (Collected)</p>
-          <h3 className="text-3xl font-black text-slate-900">₹{metrics.totalGmv?.toLocaleString() || 0}</h3>
+          <h3 className="text-3xl font-black text-slate-900">₹{(metrics.totalGmv || 0).toLocaleString()}</h3>
           <p className="text-xs font-bold text-emerald-500 mt-2 flex items-center gap-1"><TrendingUp size={12}/> +12% this month</p>
         </div>
         <div className="bg-indigo-600 text-white p-5 rounded-2xl shadow-lg shadow-indigo-600/20 relative overflow-hidden">
@@ -91,14 +110,14 @@ export default function FinanceOS() {
              <Wallet size={80} />
           </div>
           <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-2">Platform Revenue</p>
-          <h3 className="text-3xl font-black">₹{metrics.platformRevenue?.toLocaleString() || 0}</h3>
+          <h3 className="text-3xl font-black">₹{(metrics.platformRevenue || 0).toLocaleString()}</h3>
         </div>
         <div className="bg-emerald-600 text-white p-5 rounded-2xl shadow-lg shadow-emerald-600/20 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
              <Calendar size={80} />
           </div>
           <p className="text-[10px] font-black text-emerald-200 uppercase tracking-widest mb-2">Collected Today</p>
-          <h3 className="text-3xl font-black">₹{metrics.todayCollected?.toLocaleString() || 0}</h3>
+          <h3 className="text-3xl font-black">₹{(metrics.todayCollected || 0).toLocaleString()}</h3>
         </div>
         
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
@@ -108,12 +127,12 @@ export default function FinanceOS() {
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">COD Pending (Cash at Labs)</p>
-          <h3 className="text-2xl font-black text-red-600">₹{metrics.codPending?.toLocaleString() || 0}</h3>
+          <h3 className="text-2xl font-black text-red-600">₹{(metrics.codPending || 0).toLocaleString()}</h3>
           <p className="text-[9px] font-bold text-slate-400 mt-1.5">Requires offline collection</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Partner Payouts Pending</p>
-          <h3 className="text-2xl font-black text-orange-600">₹{metrics.pendingPayouts?.toLocaleString() || 0}</h3>
+          <h3 className="text-2xl font-black text-orange-600">₹{(metrics.pendingPayouts || 0).toLocaleString()}</h3>
         </div>
       </div>
 
@@ -132,27 +151,27 @@ export default function FinanceOS() {
                    </tr>
                 </thead>
                 <tbody>
-                   {metrics.wallets.filter(w => w.balance > 0).length === 0 ? (
+                   {(metrics.wallets || []).filter(w => w.balance > 0).length === 0 ? (
                       <tr>
                          <td colSpan="3" className="p-8 text-center text-slate-400 font-bold text-sm">All partners are fully settled.</td>
                       </tr>
                    ) : (
-                     metrics.wallets.filter(w => w.balance > 0).map(wallet => (
-                        <tr key={wallet._id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                     (metrics.wallets || []).filter(w => w.balance > 0).map(wallet => (
+                        <tr key={wallet?._id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                            <td className="p-4">
                              <p className="text-sm font-black text-slate-900">{wallet.partner?.name}</p>
                              <p className="text-[10px] font-bold text-slate-400">{wallet.partner?.email}</p>
                            </td>
                            <td className="p-4">
-                             <p className="text-lg font-black text-orange-600">₹{wallet.balance.toLocaleString()}</p>
+                             <p className="text-lg font-black text-orange-600">₹{(wallet.balance || 0).toLocaleString()}</p>
                            </td>
                            <td className="p-4 text-right">
                              <Button 
-                               onClick={() => handleProcessPayout(wallet.partner._id, wallet.balance)}
-                               disabled={processingId === wallet.partner._id}
-                               className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-xl text-xs font-black disabled:opacity-50"
+                                onClick={() => handleProcessPayout(wallet.partner?._id, wallet.balance)}
+                                disabled={processingId === wallet.partner?._id}
+                                className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-xl text-xs font-black disabled:opacity-50"
                              >
-                               {processingId === wallet.partner._id ? 'Processing...' : 'Settle Now'}
+                                {processingId === wallet.partner?._id ? 'Processing...' : 'Settle Now'}
                              </Button>
                            </td>
                         </tr>
@@ -167,18 +186,18 @@ export default function FinanceOS() {
         <div className="space-y-4">
            <h3 className="text-lg font-black text-slate-900 px-2 flex items-center gap-2"><Banknote size={18}/> Recent Payouts</h3>
            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-2">
-              {metrics.recentSettlements.length === 0 ? (
+              {(metrics.recentSettlements || []).length === 0 ? (
                  <div className="p-8 text-center text-slate-400 font-bold text-sm">No recent settlements.</div>
               ) : (
                  <div className="space-y-1">
-                    {metrics.recentSettlements.map(set => (
-                       <div key={set._id} className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors">
+                    {(metrics.recentSettlements || []).map(set => (
+                       <div key={set?._id} className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors">
                           <div>
                              <p className="text-sm font-black text-slate-900">{set.partner?.name}</p>
                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formatDate(set.createdAt)} • {set.payoutReference}</p>
                           </div>
                           <div className="text-right">
-                             <p className="text-sm font-black text-emerald-600">₹{set.netPayout.toLocaleString()}</p>
+                             <p className="text-sm font-black text-emerald-600">₹{(set.netPayout || 0).toLocaleString()}</p>
                              <p className="text-[10px] font-black text-emerald-600 flex items-center justify-end gap-1"><CheckCircle2 size={10}/> Paid</p>
                           </div>
                        </div>
@@ -187,9 +206,7 @@ export default function FinanceOS() {
               )}
            </div>
         </div>
-
       </div>
-
     </div>
   );
 }

@@ -58,8 +58,9 @@ import AdminKYC from './pages/dashboard/admin/AdminKYC';
 import AdminRevenueDashboard from './pages/dashboard/admin/RevenueDashboard';
 import AdminFraudDashboard from './pages/dashboard/admin/FraudDashboard';
 import AdminServiceAreas from './pages/dashboard/admin/ServiceAreas';
-import AdminPlansPackages from './pages/dashboard/admin/PlansPackages';
-import AdminServicePricing from './pages/dashboard/admin/ServicePricing';
+import AdminPricingOS from './pages/dashboard/admin/PricingOS';
+
+import AdminLabPricing from './pages/dashboard/admin/LabPricing';
 import AdminSupplyExpansion from './pages/dashboard/admin/SupplyExpansion';
 import ContentManagement from './components/admin/ContentManagement';
 import AdminDispatch from './pages/dashboard/admin/Dispatch';
@@ -87,10 +88,11 @@ import LabOrdersOverview from './pages/dashboard/admin/LabOrdersOverview';
 import LabAnalytics from './pages/dashboard/admin/LabAnalytics';
 import FinanceOS from './pages/dashboard/admin/FinanceOS';
 import LabReconciliation from './pages/dashboard/admin/LabReconciliation';
+import ErrorLogs from './pages/dashboard/admin/ErrorLogs';
 // -----------------------
 
 // Nav items
-import { LayoutDashboard, Calendar, User, ToggleLeft, TrendingUp, Users, ShieldCheck, BookOpen, UserCheck, BarChart2, ShieldAlert, MapPin, DollarSign, Activity, FileText, FlaskConical, Wallet } from 'lucide-react';
+import { LayoutDashboard, Calendar, User, ToggleLeft, TrendingUp, Users, ShieldCheck, BookOpen, UserCheck, BarChart2, ShieldAlert, MapPin, DollarSign, Activity, FileText, FlaskConical, Wallet, AlertOctagon } from 'lucide-react';
 
 const patientNav = [
   { path: '/dashboard/patient', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -111,6 +113,7 @@ const providerNav = [
   { path: '/dashboard/provider/referrals', label: 'Refer & Earn', icon: Users },
   { path: '/dashboard/provider/kyc', label: 'KYC & Verification', icon: ShieldCheck },
   { path: '/dashboard/provider/profile', label: 'Profile', icon: User },
+  { path: '/dashboard/provider/onboarding', label: 'Onboarding', icon: UserCheck },
 ];
 const partnerNav = [
   { path: '/dashboard/partner/lab', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -122,9 +125,9 @@ const partnerNav = [
 const adminNav = [
   { path: '/dashboard/admin', label: 'Overview', icon: LayoutDashboard, end: true },
   { path: '/dashboard/admin/revenue', label: 'Revenue', icon: BarChart2 },
-  { path: '/dashboard/admin/plans', label: 'Plans & Packages', icon: BookOpen },
+  { path: '/dashboard/admin/pricing', label: 'Pricing OS', icon: DollarSign },
   { path: '/dashboard/admin/content', label: 'Content Management', icon: BookOpen },
-  { path: '/dashboard/admin/pricing', label: 'Service Pricing', icon: DollarSign },
+  { path: '/dashboard/admin/lab-pricing', label: 'Lab Pricing', icon: FlaskConical },
   { path: '/dashboard/admin/supply', label: 'Supply Expansion', icon: Users },
   { path: '/dashboard/admin/users', label: 'Users', icon: Users },
   { path: '/dashboard/admin/providers', label: 'Providers', icon: ShieldCheck },
@@ -138,6 +141,7 @@ const adminNav = [
   { path: '/dashboard/admin/bookings', label: 'Bookings', icon: Calendar },
   { path: '/dashboard/admin/dispatch', label: 'Control Tower', icon: Activity },
   { path: '/dashboard/admin/fraud', label: 'Fraud Analytics', icon: ShieldAlert },
+  { path: '/dashboard/admin/errors', label: 'System Errors', icon: AlertOctagon },
 ];
 
 export default function App() {
@@ -235,7 +239,7 @@ export default function App() {
         <Route path="/dashboard/admin" element={<DashboardLayout navItems={adminNav} role="admin" />}>
           <Route index element={<AdminOverview />} />
           <Route path="revenue" element={<AdminRevenueDashboard />} />
-          <Route path="plans" element={<AdminPlansPackages />} />
+          <Route path="pricing" element={<AdminPricingOS />} />
           <Route path="content" element={<ContentManagement />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="providers" element={<AdminProviders />} />
@@ -248,9 +252,11 @@ export default function App() {
           <Route path="lab-reconciliation" element={<LabReconciliation />} />
           <Route path="bookings" element={<AdminBookings />} />
           <Route path="dispatch" element={<AdminDispatch />} />
-          <Route path="pricing" element={<AdminServicePricing />} />
+
+          <Route path="lab-pricing" element={<AdminLabPricing />} />
           <Route path="supply" element={<AdminSupplyExpansion />} />
           <Route path="fraud" element={<AdminFraudDashboard />} />
+          <Route path="errors" element={<ErrorLogs />} />
         </Route>
       </Route>
 

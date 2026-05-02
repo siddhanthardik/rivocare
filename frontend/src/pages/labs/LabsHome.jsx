@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Search, Activity, Clock, ShieldCheck, HeartPulse, FileText, ChevronRight, Stethoscope, Droplet, Microscope } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
+import { LAB_DEPARTMENTS } from '@/constants/departments';
 
 export default function LabsHome() {
   const { user } = useAuth();
@@ -23,10 +24,10 @@ export default function LabsHome() {
   };
 
   const categories = [
-    { name: 'Blood Tests', icon: <Droplet size={24} />, color: 'bg-red-50 text-red-600' },
-    { name: 'Full Body Checkups', icon: <Activity size={24} />, color: 'bg-blue-50 text-blue-600' },
-    { name: 'Diabetes Profile', icon: <HeartPulse size={24} />, color: 'bg-emerald-50 text-emerald-600' },
-    { name: 'Thyroid Tests', icon: <Microscope size={24} />, color: 'bg-purple-50 text-purple-600' },
+    { name: 'Pathology', key: 'pathology', icon: <Droplet size={24} />, color: 'bg-red-50 text-red-600' },
+    { name: 'Radiology', key: 'radiology', icon: <Activity size={24} />, color: 'bg-blue-50 text-blue-600' },
+    { name: 'Cardiology', key: 'cardiology', icon: <HeartPulse size={24} />, color: 'bg-emerald-50 text-emerald-600' },
+    { name: 'Microbiology', key: 'microbiology', icon: <Microscope size={24} />, color: 'bg-purple-50 text-purple-600' },
   ];
 
   const popularPackages = [
@@ -127,7 +128,7 @@ export default function LabsHome() {
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {categories.map((cat, idx) => (
-              <Link to={`/labs/search?category=${encodeURIComponent(cat.name)}`} key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-100 hover:border-blue-500 hover:shadow-xl hover:shadow-blue-900/5 transition-all group flex flex-col items-center text-center">
+              <Link to={`/labs/search?category=${encodeURIComponent(cat.key)}`} key={idx} className="bg-white p-6 rounded-[2rem] border border-slate-100 hover:border-blue-500 hover:shadow-xl hover:shadow-blue-900/5 transition-all group flex flex-col items-center text-center">
                 <div className={`w-16 h-16 rounded-2xl ${cat.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                   {cat.icon}
                 </div>

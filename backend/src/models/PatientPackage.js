@@ -7,9 +7,9 @@ const patientPackageSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    package: {
+    plan: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Package',
+      ref: 'Plan',
       required: true,
     },
     provider: {

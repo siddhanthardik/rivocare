@@ -58,6 +58,27 @@ api.interceptors.response.use(
       }
     }
     
+    // 🛡️ Global Error Logging & Debugging
+    const errorData = {
+      status: err.response?.status,
+      method: err.config?.method?.toUpperCase(),
+      url: err.config?.url,
+      message: err.message,
+      timestamp: new Date().toISOString()
+    };
+    console.error(`[API_ERROR] ${errorData.method} ${errorData.url}`, errorData);
+
+    // 💾 Persist frontend errors to Backend DB
+    if (!errorData.url.includes('/logs/frontend-error') && errorData.status >= 400) {
+      axios.post(`${api.defaults.baseURL}/logs/frontend-error`, {
+        message: `API_${errorData.status}: ${errorData.message}`,
+        route: window.location.pathname,
+        component: 'AXIOS_INTERCEPTOR',
+        stack: `URL: ${errorData.url} | Method: ${errorData.method}`,
+        browser: navigator.userAgent
+      }).catch(() => {}); // Silent fail for logger
+    }
+
     return Promise.reject(err);
   }
 );

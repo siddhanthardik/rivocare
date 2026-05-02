@@ -9,8 +9,8 @@ const providerSchema = new mongoose.Schema(
       unique: true,
     },
     services: {
-      type: [String],
-      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker'],
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: 'Service',
       default: [],
     },
     bio: { type: String, maxlength: 500, default: '' },
@@ -26,7 +26,6 @@ const providerSchema = new mongoose.Schema(
     isAvailable: { type: Boolean, default: false }, // distinct from isOnline (session) — permanent availability flag
     referralCode: { type: String, unique: true, sparse: true }, // provider's own referral code
     referredByCode: { type: String, default: null }, // code they used to sign up
-    pricePerHour: { type: Number, default: 300, min: 0 },
     markup: { type: Number, default: 0, min: 0 },
     rating: { type: Number, default: 0, min: 0, max: 5 },
     totalRatings: { type: Number, default: 0 },

@@ -12,6 +12,10 @@ const LabOrderSchema = new mongoose.Schema({
   },
   
   totalAmount: { type: Number, required: true },
+  platformFee: { type: Number, default: 0 },
+  labPayout: { type: Number, default: 0 },
+  commissionUsed: { type: Number },
+  commissionSource: { type: String, enum: ['override', 'department', 'default'] },
   paymentStatus: { type: String, enum: ['pending', 'payment_link_sent', 'cash_due', 'collected', 'failed', 'refunded', 'waived'], default: 'pending' },
   paymentMethod: { type: String, enum: ['cod', 'upi', 'razorpay'], default: 'cod' },
   paymentDetails: {

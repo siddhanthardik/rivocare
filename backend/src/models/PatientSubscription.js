@@ -9,7 +9,7 @@ const patientSubscriptionSchema = new mongoose.Schema(
     },
     plan: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'SubscriptionPlan',
+      ref: 'Plan',
       required: true,
     },
     provider: {

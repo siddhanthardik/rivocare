@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const subscriptionPlanSchema = new mongoose.Schema(
+const offeringSchema = new mongoose.Schema(
   {
     name: {
       type: String,
@@ -8,22 +8,36 @@ const subscriptionPlanSchema = new mongoose.Schema(
       trim: true,
     },
     service: {
-      type: String,
-      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker', 'procedure', 'package', 'lab'],
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Service',
       required: true,
     },
+    planType: {
+      type: String,
+      enum: ['subscription', 'package'],
+      required: true,
+    },
+    // For subscriptions
     durationDays: {
       type: Number,
-      required: true,
       min: 1,
     },
     sessionsPerWeek: {
       type: Number,
-      required: true,
+    },
+    // For packages
+    totalSessions: {
+      type: Number,
+      min: 1,
+    },
+    validityDays: {
+      type: Number,
+      min: 1,
     },
     price: {
       type: Number,
       required: true,
+      min: 0,
     },
     description: {
       type: String,
@@ -34,7 +48,7 @@ const subscriptionPlanSchema = new mongoose.Schema(
       default: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: 'offerings' }
 );
 
-module.exports = mongoose.model('SubscriptionPlan', subscriptionPlanSchema);
+module.exports = mongoose.model('Offering', offeringSchema);

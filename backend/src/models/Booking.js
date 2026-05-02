@@ -13,9 +13,17 @@ const bookingSchema = new mongoose.Schema(
       required: true,
     },
     service: {
-      type: String,
-      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker', 'procedure', 'package'],
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Service',
       required: true,
+    },
+    offering: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Offering',
+    },
+    test: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'LabTest',
     },
     address: { type: String, required: true, trim: true },
     pincode: {
@@ -38,8 +46,11 @@ const bookingSchema = new mongoose.Schema(
     finalPrice: { type: Number, default: null },
     priceUpdateReason: { type: String, default: null },
     priceUpdated: { type: Boolean, default: false },
-    priceApprovedByPatient: { type: Boolean, default: true },
-    // Admin Override Pricing
+    platformFee: { type: Number, default: 0 },
+    providerEarning: { type: Number, default: 0 },
+    labPayout: { type: Number, default: 0 },
+    commissionUsed: { type: Number },
+    commissionSource: { type: String, enum: ['override', 'department', 'default'] },
     pricingType: { type: String, enum: ['STANDARD', 'OVERRIDE'], default: 'STANDARD' },
     overridePrice: { type: Number, default: null, min: 0 },
     overrideReason: { type: String, default: null },

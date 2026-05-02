@@ -27,7 +27,7 @@ export default function ProviderOnboarding() {
     services: [],
     bio: '',
     experience: 0,
-    pricePerHour: 300,
+    services: [],
     isOnline: true,
     pincodesServed: '',
     registrationNumber: '',
@@ -107,7 +107,7 @@ export default function ProviderOnboarding() {
         services: form.services,
         bio: form.bio,
         experience: Number(form.experience),
-        pricePerHour: Number(form.pricePerHour),
+        services: form.services,
         pincodesServed: pincodesArray,
         isOnline: form.isOnline,
       });
@@ -135,7 +135,7 @@ export default function ProviderOnboarding() {
     }
   };
 
-  const isBasicValid = form.services.length > 0 && form.experience >= 0 && form.pricePerHour > 0;
+  const isBasicValid = form.services.length > 0 && form.experience >= 0;
   const isAvailabilityValid = form.pincodesServed.trim().length > 5;
   const isKycValid = form.registrationNumber && form.accountNumber && form.ifscCode;
 
@@ -166,7 +166,7 @@ export default function ProviderOnboarding() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Input label="Hourly Rate (₹)" type="number" icon={IndianRupee} value={form.pricePerHour} onChange={(e) => setForm({ ...form, pricePerHour: e.target.value })} min={100} />
+        {/* Base pricing is now handled by the centralized ServicePricing model */}
         <Input label="Experience (Years)" type="number" icon={Briefcase} value={form.experience} onChange={(e) => setForm({ ...form, experience: e.target.value })} min={0} />
       </div>
 

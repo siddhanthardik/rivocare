@@ -40,7 +40,11 @@ const labService = {
 
   // Admin
   getAdminPartners: () => api.get('/admin/labs/partners'),
-  updateAdminPartnerStatus: (id, data) => api.put('/admin/labs/partners/${id}/status', data),
+  updateAdminPartnerStatus: (id, data) => api.put(`/admin/labs/partners/${id}/status`, data),
+  getAdminTests: () => api.get('/admin/labs/tests'),
+  updateAdminTestPricing: (id, data) => api.put(`/admin/labs/tests/${id}/pricing`, data),
+  updateAdminDepartmentCommissions: (partnerId, data) => api.put(`/admin/labs/partners/${partnerId}/department-commissions`, data),
+  updateLabCommission: (labId, data) => api.put(`/admin/labs/${labId}/commission`, data),
   getAdminAllOrders: () => api.get('/admin/labs/orders'),
   getAdminAnalytics: () => api.get('/admin/labs/analytics'),
   getAdminFinanceMetrics: () => api.get('/admin/labs/finance/metrics'),

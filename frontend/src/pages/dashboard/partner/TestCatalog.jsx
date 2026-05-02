@@ -9,21 +9,20 @@ import PageLoader from '../../../components/ui/PageLoader';
 import { toast } from 'react-hot-toast';
 import { cn } from '../../../utils';
 import { formatCurrency } from '../../../utils/format';
+import { LAB_DEPARTMENTS } from '@/constants/departments';
 
 /* ─── Constants ───────────────────────────────────────── */
-const DEPARTMENTS = ['Pathology','Radiology','Cardiology','Microbiology','Biochemistry','Haematology','Other'];
-const CATEGORIES  = ['Blood Test','Urine Test','Imaging','Cardiac Test','Package','Hormone','Other'];
 const SAMPLE_TYPES= ['Blood','Urine','Saliva','Stool','Swab','X-Ray','NA','Other'];
 
 const EMPTY_FORM = {
-  testName:'', shortCode:'', department:'Pathology', category:'Blood Test',
+  testName:'', shortCode:'', department: LAB_DEPARTMENTS[0].key,
   sampleType:'Blood', price:'', mrp:'', reportTat:'24 hrs',
   fastingRequired:false, homeCollectionAvailable:true,
   description:'', preparationInstructions:'', isActive:true,
 };
 
-const CSV_HEADERS = 'testName,shortCode,department,category,sampleType,price,mrp,reportTat,fastingRequired,homeCollectionAvailable,description,preparationInstructions,isActive';
-const CSV_SAMPLE  = 'Complete Blood Count,CBC,Pathology,Blood Test,Blood,399,699,24 hrs,Yes,Yes,General blood screening,Fasting for 8 hours recommended,TRUE\nThyroid Profile,T3T4TSH,Pathology,Blood Test,Blood,499,899,24 hrs,No,Yes,Thyroid function test,No special preparation,TRUE';
+const CSV_HEADERS = 'testName,shortCode,department,sampleType,price,mrp,reportTat,fastingRequired,homeCollectionAvailable,description,preparationInstructions,isActive';
+const CSV_SAMPLE  = 'Complete Blood Count,CBC,pathology,Blood,399,699,24 hrs,Yes,Yes,General blood screening,Fasting for 8 hours recommended,TRUE\nThyroid Profile,T3T4TSH,pathology,Blood,499,899,24 hrs,No,Yes,Thyroid function test,No special preparation,TRUE';
 
 function parseBool(v) {
   if (typeof v === 'boolean') return v;
@@ -100,12 +99,7 @@ function TestFormModal({ initial, onSave, onClose }) {
           </Field>
           <Field label="Department">
             <select className={inp} value={form.department} onChange={e => set('department', e.target.value)}>
-              {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
-            </select>
-          </Field>
-          <Field label="Category">
-            <select className={inp} value={form.category} onChange={e => set('category', e.target.value)}>
-              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              {LAB_DEPARTMENTS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
             </select>
           </Field>
           <Field label="Sample Type">
@@ -162,10 +156,10 @@ function BulkImportModal({ onSave, onClose }) {
         const parts = line.split(',').map(p => p.trim());
         return {
           testName: parts[0], shortCode: parts[1], department: parts[2],
-          category: parts[3], sampleType: parts[4], price: Number(parts[5]),
-          mrp: Number(parts[6]), reportTat: parts[7], fastingRequired: parseBool(parts[8]),
-          homeCollectionAvailable: parseBool(parts[9]), description: parts[10],
-          preparationInstructions: parts[11], isActive: parseBool(parts[12] || 'true'),
+          sampleType: parts[3], price: Number(parts[4]),
+          mrp: Number(parts[5]), reportTat: parts[6], fastingRequired: parseBool(parts[7]),
+          homeCollectionAvailable: parseBool(parts[8]), description: parts[9],
+          preparationInstructions: parts[10], isActive: parseBool(parts[11] || 'true'),
         };
       });
       setData(rows);
@@ -217,7 +211,7 @@ function BulkImportModal({ onSave, onClose }) {
                <div key={i} className="px-4 py-2.5 flex items-center justify-between">
                   <div className="min-w-0">
                     <p className="typo-body !text-gray-900 font-bold truncate">{row.testName}</p>
-                    <p className="typo-micro truncate">{row.category} • {formatCurrency(row.price)}</p>
+                    <p className="typo-micro truncate">{LAB_DEPARTMENTS.find(d => d.key === row.department)?.label || row.department} • {formatCurrency(row.price)}</p>
                   </div>
                   <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
                </div>
@@ -266,7 +260,7 @@ export default function TestCatalog() {
     return tests.filter(t => 
       t.testName.toLowerCase().includes(search.toLowerCase()) ||
       t.shortCode?.toLowerCase().includes(search.toLowerCase()) ||
-      t.category.toLowerCase().includes(search.toLowerCase())
+      t.department.toLowerCase().includes(search.toLowerCase())
     );
   }, [tests, search]);
 
@@ -332,9 +326,8 @@ export default function TestCatalog() {
 
       {/* ── Catalog Table ──────────────────────────────────────── */}
       <div className="partner-card">
-         <div className="px-4 py-3 bg-gray-50/50 border-b border-gray-100 grid grid-cols-[1fr_120px_120px_100px_100px_100px] items-center gap-4">
+         <div className="px-4 py-3 bg-gray-50/50 border-b border-gray-100 grid grid-cols-[1fr_150px_100px_100px_100px] items-center gap-4">
             <p className="typo-label">Test Details</p>
-            <p className="typo-label text-center">Category</p>
             <p className="typo-label text-center">Department</p>
             <p className="typo-label text-center">Price</p>
             <p className="typo-label text-center">Status</p>
@@ -352,15 +345,16 @@ export default function TestCatalog() {
                </div>
             ) : (
                visible.map(test => (
-                 <div key={test._id} className="partner-table-row grid grid-cols-[1fr_120px_120px_100px_100px_100px] items-center gap-4">
+                 <div key={test._id} className="partner-table-row grid grid-cols-[1fr_150px_100px_100px_100px] items-center gap-4">
                     <div className="min-w-0">
                        <p className="typo-body !text-gray-900 font-bold truncate leading-tight">{test.testName}</p>
                        <p className="typo-micro mt-0.5">{test.shortCode || 'No Code'} • {test.sampleType}</p>
                     </div>
                     <div className="flex justify-center">
-                       <span className="typo-label !text-[10px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded border border-slate-100">{test.category}</span>
+                       <span className="typo-label !text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded border border-indigo-100 uppercase font-black">
+                         {LAB_DEPARTMENTS.find(d => d.key === test.department)?.label || test.department}
+                       </span>
                     </div>
-                    <p className="typo-body text-center">{test.department}</p>
                     <div className="text-center">
                        <p className="typo-body font-bold text-gray-900">{formatCurrency(test.price)}</p>
                        {test.mrp > test.price && (

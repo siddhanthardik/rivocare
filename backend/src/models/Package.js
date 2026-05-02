@@ -7,9 +7,9 @@ const packageSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    serviceType: {
+    service: {
       type: String,
-      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker'],
+      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker', 'procedure', 'package', 'lab'],
       required: true,
     },
     totalSessions: {

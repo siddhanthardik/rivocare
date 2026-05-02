@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { LAB_DEPARTMENT_KEYS } = require('../constants/departments');
 
 const LabProfileSchema = new mongoose.Schema({
   partner: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true, unique: true },
@@ -33,6 +34,17 @@ const LabProfileSchema = new mongoose.Schema({
   availabilityStatus: { type: String, enum: ['open', 'closed', 'busy'], default: 'open' },
   rating: { type: Number, default: 0 },
   totalReviews: { type: Number, default: 0 },
+  
+  commissions: [{
+    department: { 
+      type: String, 
+      required: true,
+      enum: LAB_DEPARTMENT_KEYS,
+      lowercase: true
+    },
+    commissionType: { type: String, enum: ['percentage', 'flat'], default: 'percentage' },
+    commissionValue: { type: Number, required: true, min: 0 }
+  }],
 }, { timestamps: true });
 
 LabProfileSchema.index({ location: '2dsphere' });

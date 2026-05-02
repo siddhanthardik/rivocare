@@ -26,6 +26,19 @@ const errorHandler = (err, req, res, next) => {
     console.error('❌ Error:', err);
   }
 
+  // 🛡️ Log critical backend errors to DB
+  if (statusCode >= 500) {
+    const ErrorLog = require('../models/ErrorLog');
+    ErrorLog.create({
+      message: err.message,
+      stack: err.stack,
+      route: req.originalUrl,
+      component: 'BACKEND_CONTROLLER',
+      user: req.user?._id,
+      timestamp: new Date()
+    }).catch(e => console.error('Failed to save error log', e));
+  }
+
   res.status(statusCode).json({
     success: false,
     message,

@@ -74,3 +74,49 @@
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { @apply bg-slate-200/50 rounded-full hover:bg-slate-300; }
+
+/* GLOBAL MODAL SYSTEM */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;     /* 🔥 vertical center */
+  justify-content: center; /* 🔥 horizontal center */
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px);
+  padding: 16px; /* mobile safe */
+}
+
+.modal-card {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto; /* 🔥 scroll inside, not outside */
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  animation: modalIn 0.2s ease;
+}
+
+/* sizes */
+.modal-card.sm { max-width: 400px; }
+.modal-card.md { max-width: 600px; }
+.modal-card.lg { max-width: 900px; }
+.modal-card.xl { max-width: 1100px; }
+
+/* animation */
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.no-scroll {
+  overflow: hidden !important;
+}

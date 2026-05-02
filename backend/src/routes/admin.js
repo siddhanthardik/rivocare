@@ -90,6 +90,13 @@ router.post('/assign-provider', assignProvider);
 router.get('/services/pricing', getServicePricing);
 router.put('/services/:id/pricing', updateServicePricing);
 
+// Lab Pricing (Admin)
+const { getAdminTests, updateAdminTestPricing, updateLabDepartmentCommissions, updateLabCommission } = require('../controllers/adminLabController');
+router.get('/labs/tests', getAdminTests);
+router.put('/labs/tests/:id/pricing', updateAdminTestPricing);
+router.put('/labs/:labId/commission', updateLabCommission);
+router.put('/labs/partners/:partnerId/department-commissions', updateLabDepartmentCommissions);
+
 // Admin Price Override
 router.put('/bookings/:id/set-price', setAdminPrice);
 

@@ -2,18 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, CheckCircle2, XCircle, Search, 
   MapPin, Phone, Mail, ExternalLink, 
-  Filter, ShieldCheck, AlertCircle, Building
+  Filter, ShieldCheck, AlertCircle, Building, Settings
 } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
 import { labService } from '@/services';
 import Button from '../../../components/ui/Button';
 import { PageLoader } from '../../../components/ui/Feedback';
 import { toast } from 'react-hot-toast';
+import { LAB_DEPARTMENTS } from '@/constants/departments';
 
 export default function LabManagement() {
   const [partners, setPartners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [settingsTarget, setSettingsTarget] = useState(null);
 
   useEffect(() => {
     fetchPartners();
@@ -157,6 +160,14 @@ export default function LabManagement() {
                 >
                   {partner.status === 'rejected' ? 'Restore' : <><XCircle size={16} /> Reject</>}
                 </Button>
+                {partner.status === 'active' && (
+                  <Button 
+                    onClick={() => setSettingsTarget(partner)}
+                    className="col-span-2 bg-slate-900 hover:bg-slate-800 text-white font-black py-3 rounded-xl flex items-center justify-center gap-2"
+                  >
+                    <Settings size={16} /> Department Commissions
+                  </Button>
+                )}
               </div>
 
             </div>
@@ -183,6 +194,164 @@ export default function LabManagement() {
         ))}
       </div>
 
+      <Modal
+        isOpen={!!settingsTarget}
+        onClose={() => setSettingsTarget(null)}
+        title="Department Commissions"
+        size="lg"
+      >
+        {settingsTarget && (
+          <DepartmentCommissionsForm 
+            partner={settingsTarget} 
+            onClose={() => { setSettingsTarget(null); fetchPartners(); }} 
+          />
+        )}
+      </Modal>
+
     </div>
   );
 }
+
+function DepartmentCommissionsForm({ partner, onClose }) {
+  const existingComms = partner.profile?.commissions || partner.profile?.departmentCommissions || [];
+  
+  const [commissions, setCommissions] = useState(() => {
+    return LAB_DEPARTMENTS.map(dept => {
+      const existing = existingComms.find(c => c.department === dept.key);
+      return {
+        department: dept.key,
+        label: dept.label,
+        commissionType: existing?.commissionType || 'percentage',
+        // Standardize: read 0.2 as 20 if it was stored that way, but new ones will be 0-100
+        commissionValue: existing?.commissionValue !== undefined 
+          ? (existing.commissionValue <= 1 && existing.commissionType === 'percentage' ? Math.round(existing.commissionValue * 100) : existing.commissionValue) 
+          : 20
+      };
+    });
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    const invalid = commissions.some(c => 
+      c.commissionValue === undefined || 
+      c.commissionValue === '' || 
+      (c.commissionType === 'percentage' && (c.commissionValue < 0 || c.commissionValue > 100))
+    );
+
+    if (invalid) {
+      toast.error('Please enter valid commission values (0-100 for percentage)');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        commissions: commissions.map(c => ({
+          department: c.department,
+          label: c.label,
+          commissionType: c.commissionType,
+          commissionValue: c.commissionValue
+        }))
+      };
+
+      const response = await labService.updateLabCommission(partner._id, payload);
+      if (response.success) {
+        toast.success(response.message || 'Configuration saved successfully');
+        onClose();
+      } else {
+        toast.error(response.message || 'Failed to update commissions');
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to update commissions';
+      console.error(`[COMMISSION_UPDATE_ERROR]`, err);
+      toast.error(errorMsg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChange = (index, field, value) => {
+    const newComms = [...commissions];
+    newComms[index][field] = value;
+    setCommissions(newComms);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header Area */}
+      <div>
+        <h2 className="text-2xl font-black text-slate-900 mb-1">
+          {partner.profile?.labName || partner.name || 'Partner'} - Commissions
+        </h2>
+        <p className="text-sm text-slate-500 font-medium">
+          Set dynamic platform fees based on the test department. Applies to all tests unless overridden.
+        </p>
+      </div>
+
+      {/* Grid Area */}
+      <div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {commissions.map((comm, i) => (
+            <div key={comm.department} className="p-5 bg-[#EDF1F7] rounded-2xl border border-slate-200 space-y-4 min-w-0">
+              <label className="text-[10px] font-black text-slate-800 uppercase tracking-widest block truncate">
+                DEPARTMENT {comm.label}
+              </label>
+              
+              <div className="flex items-center gap-2">
+                {/* Type Selector Block */}
+                <div className="relative bg-white border border-slate-300 rounded-xl px-2 py-2 w-16 h-10 flex items-center justify-between shadow-sm shrink-0">
+                  <select 
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    value={comm.commissionType}
+                    onChange={(e) => handleChange(i, 'commissionType', e.target.value)}
+                  >
+                    <option value="percentage">%</option>
+                    <option value="flat">₹</option>
+                  </select>
+                  <span className="text-sm font-bold text-slate-700">{comm.commissionType === 'percentage' ? '%' : '₹'}</span>
+                  <ChevronDown size={12} className="text-slate-400" />
+                </div>
+                
+                {/* Value Input Block */}
+                <div className="flex-1 min-w-0">
+                  <input 
+                    type="number" 
+                    step="1" 
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 h-10 text-sm font-bold text-slate-900 outline-none focus:border-indigo-500 shadow-sm text-center"
+                    placeholder="0"
+                    value={comm.commissionValue}
+                    onChange={(e) => handleChange(i, 'commissionValue', e.target.value === '' ? '' : Number(e.target.value))}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer Area */}
+      <div className="pt-8 flex justify-end gap-3">
+        <button 
+          onClick={onClose}
+          className="px-8 py-3.5 bg-[#E9EDF5] hover:bg-[#DDE3EE] rounded-xl text-sm font-bold text-slate-700 transition-all"
+        >
+          Cancel
+        </button>
+        <button 
+          onClick={handleSave}
+          disabled={saving}
+          className="px-10 py-3.5 bg-[#2D2B7B] hover:bg-[#1E1C55] text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 transition-all disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save Configuration'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const ChevronDown = ({ size = 16, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="m6 9 6 6 6-6"/>
+  </svg>
+);

@@ -3,6 +3,7 @@ import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Search, Filter, Microscope, Clock, ShieldCheck, FileText, ChevronRight, X } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
+import { LAB_DEPARTMENTS } from '@/constants/departments';
 
 export default function TestSearch() {
   const { user } = useAuth();
@@ -18,23 +19,26 @@ export default function TestSearch() {
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'All');
 
-  const categories = ['All', 'Blood Tests', 'Full Body Checkups', 'Diabetes Profile', 'Thyroid Tests', 'Imaging'];
+  const categories = ['All', ...LAB_DEPARTMENTS.map(d => d.label)];
 
   // Dummy data for visual presentation
   const searchResults = [
-    { id: 1, name: 'Complete Blood Count (CBC)', category: 'Blood Tests', parameters: 24, tat: '12 Hours', price: 399, originalPrice: 600, lab: 'Apollo Diagnostics' },
-    { id: 2, name: 'Comprehensive Full Body Checkup', category: 'Full Body Checkups', parameters: 64, tat: '24 Hours', price: 1499, originalPrice: 2999, lab: 'SRL Diagnostics' },
-    { id: 3, name: 'Advanced Diabetes Profile', category: 'Diabetes Profile', parameters: 42, tat: '24 Hours', price: 999, originalPrice: 1999, lab: 'Dr. Lal PathLabs' },
-    { id: 4, name: 'Thyroid Profile Total (T3, T4, TSH)', category: 'Thyroid Tests', parameters: 3, tat: '12 Hours', price: 499, originalPrice: 800, lab: 'Thyrocare' },
-    { id: 5, name: 'Lipid Profile', category: 'Blood Tests', parameters: 8, tat: '12 Hours', price: 599, originalPrice: 900, lab: 'Apollo Diagnostics' },
-    { id: 6, name: 'HbA1c', category: 'Diabetes Profile', parameters: 1, tat: '12 Hours', price: 399, originalPrice: 600, lab: 'SRL Diagnostics' },
+    { id: 1, name: 'Complete Blood Count (CBC)', department: 'pathology', parameters: 24, tat: '12 Hours', price: 399, originalPrice: 600, lab: 'Apollo Diagnostics' },
+    { id: 2, name: 'Comprehensive Full Body Checkup', department: 'pathology', parameters: 64, tat: '24 Hours', price: 1499, originalPrice: 2999, lab: 'SRL Diagnostics' },
+    { id: 3, name: 'Advanced Diabetes Profile', department: 'pathology', parameters: 42, tat: '24 Hours', price: 999, originalPrice: 1999, lab: 'Dr. Lal PathLabs' },
+    { id: 4, name: 'Thyroid Profile Total (T3, T4, TSH)', department: 'pathology', parameters: 3, tat: '12 Hours', price: 499, originalPrice: 800, lab: 'Thyrocare' },
+    { id: 5, name: 'Lipid Profile', department: 'pathology', parameters: 8, tat: '12 Hours', price: 599, originalPrice: 900, lab: 'Apollo Diagnostics' },
+    { id: 6, name: 'HbA1c', department: 'pathology', parameters: 1, tat: '12 Hours', price: 399, originalPrice: 600, lab: 'SRL Diagnostics' },
   ];
 
   const handleSearch = (e) => {
     e.preventDefault();
     const params = {};
     if (query) params.q = query;
-    if (activeCategory !== 'All') params.category = activeCategory;
+    if (activeCategory !== 'All') {
+      const deptKey = LAB_DEPARTMENTS.find(d => d.label === activeCategory)?.key;
+      if (deptKey) params.department = deptKey;
+    }
     setSearchParams(params);
   };
 
@@ -42,7 +46,10 @@ export default function TestSearch() {
     setActiveCategory(cat);
     const params = {};
     if (query) params.q = query;
-    if (cat !== 'All') params.category = cat;
+    if (cat !== 'All') {
+      const deptKey = LAB_DEPARTMENTS.find(d => d.label === cat)?.key;
+      if (deptKey) params.department = deptKey;
+    }
     setSearchParams(params);
   };
 
@@ -171,7 +178,7 @@ export default function TestSearch() {
               <div key={test.id} className="bg-white rounded-[2rem] border border-slate-200 p-6 flex flex-col hover:border-blue-500 hover:shadow-xl hover:shadow-blue-900/5 transition-all group">
                 <div className="flex items-start justify-between mb-4">
                   <span className="bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-md">
-                    {test.category}
+                    {LAB_DEPARTMENTS.find(d => d.key === test.department)?.label || test.department}
                   </span>
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
                     <ShieldCheck size={14} /> NABL

@@ -66,14 +66,16 @@ export default function ProviderDetailsModal({ providerId, isOpen, onClose }) {
               </div>
               <div>
                 <span className="text-slate-500">Hourly Rate:</span>
-                <p className="font-semibold text-slate-800">{formatCurrency(provider.pricePerHour)}/hr</p>
+                <p className="font-semibold text-slate-800">Standard Pricing</p>
               </div>
               <div className="col-span-2">
                 <span className="text-slate-500 block mb-1">Services Offered:</span>
                 <div className="flex flex-wrap gap-2">
-                  {provider.services.map(s => (
-                    <span key={s} className="px-2 py-1 bg-slate-100 rounded text-xs font-semibold capitalize text-slate-700 border border-slate-200">{s}</span>
-                  ))}
+                  {Array.isArray(provider?.services) && provider.services.length > 0 ? provider.services.map(s => (
+                    <span key={s?._id || s} className="px-2 py-1 bg-slate-100 rounded text-xs font-semibold capitalize text-slate-700 border border-slate-200">
+                      {s?.name || s}
+                    </span>
+                  )) : <span className="text-slate-400 italic">None selected</span>}
                 </div>
               </div>
             </div>
@@ -84,19 +86,19 @@ export default function ProviderDetailsModal({ providerId, isOpen, onClose }) {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-slate-500">Full Name:</span>
-                <p className="font-semibold text-slate-800">{user.name}</p>
+                <p className="font-semibold text-slate-800">{user?.name || 'N/A'}</p>
               </div>
               <div>
                 <span className="text-slate-500">Phone:</span>
-                <p className="font-semibold text-slate-800">{user.phone}</p>
+                <p className="font-semibold text-slate-800">{user?.phone || 'N/A'}</p>
               </div>
               <div>
                 <span className="text-slate-500">Email:</span>
-                <p className="font-semibold text-slate-800">{user.email}</p>
+                <p className="font-semibold text-slate-800">{user?.email || 'N/A'}</p>
               </div>
               <div>
                 <span className="text-slate-500">Gender:</span>
-                <p className="font-semibold text-slate-800 capitalize">{user.gender || 'N/A'}</p>
+                <p className="font-semibold text-slate-800 capitalize">{user?.gender || 'N/A'}</p>
               </div>
             </div>
           </div>
@@ -179,7 +181,7 @@ export default function ProviderDetailsModal({ providerId, isOpen, onClose }) {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Provider Profile" size="2xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="Provider Profile" size="xl">
       {data && (
         <div className="flex mb-6 border-b border-slate-200">
           <button 

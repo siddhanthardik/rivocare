@@ -111,7 +111,7 @@ export default function AdminPlansPackages() {
         <div className="bg-white rounded-2xl border p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold">Subscription Plans</h2>
-            <Button onClick={() => setPlanModal({ open: true, data: { name: '', serviceType: 'nurse', durationDays: 30, sessionsPerWeek: 3, price: 0, description: '', isActive: true }})}>
+            <Button onClick={() => setPlanModal({ open: true, data: { name: '', service: 'nurse', durationDays: 30, sessionsPerWeek: 3, price: 0, description: '', isActive: true }})}>
               <Plus size={16} /> Add Plan
             </Button>
           </div>
@@ -129,7 +129,7 @@ export default function AdminPlansPackages() {
               {plans.map(p => (
                 <tr key={p._id} className="border-b last:border-0 hover:bg-slate-50">
                   <td className="p-4 font-semibold">{p.name}</td>
-                  <td className="p-4 capitalize">{p.serviceType}</td>
+                  <td className="p-4 capitalize">{p.service}</td>
                   <td className="p-4">₹{p.price}</td>
                   <td className="p-4"><Badge variant={p.isActive?'success':'slate'}>{p.isActive?'Active':'Disabled'}</Badge></td>
                   <td className="p-4">
@@ -146,7 +146,7 @@ export default function AdminPlansPackages() {
         <div className="bg-white rounded-2xl border p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold">Bulk Packages</h2>
-            <Button onClick={() => setPkgModal({ open: true, data: { name: '', serviceType: 'physiotherapist', totalSessions: 10, price: 0, validityDays: 90, description: '', isActive: true }})}>
+            <Button onClick={() => setPkgModal({ open: true, data: { name: '', service: 'physiotherapist', totalSessions: 10, price: 0, validityDays: 90, description: '', isActive: true }})}>
               <Plus size={16} /> Add Package
             </Button>
           </div>
@@ -186,7 +186,7 @@ export default function AdminPlansPackages() {
                 <div key={s._id} className="flex flex-wrap items-center justify-between bg-slate-50 p-4 border rounded-xl">
                   <div>
                     <p className="font-bold">{s.user?.name} <span className="text-sm font-normal text-slate-500">({s.user?.phone})</span></p>
-                    <p className="text-sm text-blue-600 font-medium">{s.plan?.name} • {s.plan?.serviceType}</p>
+                    <p className="text-sm text-blue-600 font-medium">{s.plan?.name} • {s.plan?.service}</p>
                   </div>
                   <Button size="sm" onClick={() => setAssignModal({ open: true, type: 'SUBSCRIPTION', request: s, data: { providerId: '', notes: '' } })}>
                     <Link size={14}/> Assign Provider
@@ -204,7 +204,7 @@ export default function AdminPlansPackages() {
                 <div key={s._id} className="flex flex-wrap items-center justify-between bg-slate-50 p-4 border rounded-xl">
                   <div>
                     <p className="font-bold">{s.user?.name} <span className="text-sm font-normal text-slate-500">({s.user?.phone})</span></p>
-                    <p className="text-sm text-amber-600 font-medium">{s.package?.name} • {s.package?.serviceType}</p>
+                    <p className="text-sm text-amber-600 font-medium">{s.package?.name} • {s.package?.service}</p>
                   </div>
                   <Button size="sm" onClick={() => setAssignModal({ open: true, type: 'PACKAGE', request: s, data: { providerId: '', notes: '' } })}>
                     <Link size={14}/> Assign Provider
@@ -222,6 +222,19 @@ export default function AdminPlansPackages() {
         {planModal.open && (
          <form onSubmit={handleSavePlan} className="space-y-4 pt-4">
            <Input label="Name" value={planModal.data.name} onChange={e => setPlanModal({ ...planModal, data: { ...planModal.data, name: e.target.value }})} required />
+           <div>
+             <label className="block text-sm font-medium mb-1">Service</label>
+             <select className="w-full p-2 border rounded-lg" value={planModal.data.service} onChange={e => setPlanModal({ ...planModal, data: { ...planModal.data, service: e.target.value }})} required>
+               <option value="" disabled>-- Select Service --</option>
+               <option value="nurse">Nurse</option>
+               <option value="physiotherapist">Physiotherapist</option>
+               <option value="doctor">Doctor</option>
+               <option value="caretaker">Caretaker</option>
+               <option value="procedure">Procedure</option>
+               <option value="package">Package</option>
+               <option value="lab">Lab Test</option>
+             </select>
+           </div>
            <div className="grid grid-cols-2 gap-4">
              <Input label="Days Duration" type="number" value={planModal.data.durationDays} onChange={e => setPlanModal({ ...planModal, data: { ...planModal.data, durationDays: Number(e.target.value) }})} required />
              <Input label="Sessions/Week" type="number" value={planModal.data.sessionsPerWeek} onChange={e => setPlanModal({ ...planModal, data: { ...planModal.data, sessionsPerWeek: Number(e.target.value) }})} required />
@@ -237,6 +250,19 @@ export default function AdminPlansPackages() {
         {pkgModal.open && (
          <form onSubmit={handleSavePackage} className="space-y-4 pt-4">
            <Input label="Name" value={pkgModal.data.name} onChange={e => setPkgModal({ ...pkgModal, data: { ...pkgModal.data, name: e.target.value }})} required />
+           <div>
+             <label className="block text-sm font-medium mb-1">Service</label>
+             <select className="w-full p-2 border rounded-lg" value={pkgModal.data.service} onChange={e => setPkgModal({ ...pkgModal, data: { ...pkgModal.data, service: e.target.value }})} required>
+               <option value="" disabled>-- Select Service --</option>
+               <option value="nurse">Nurse</option>
+               <option value="physiotherapist">Physiotherapist</option>
+               <option value="doctor">Doctor</option>
+               <option value="caretaker">Caretaker</option>
+               <option value="procedure">Procedure</option>
+               <option value="package">Package</option>
+               <option value="lab">Lab Test</option>
+             </select>
+           </div>
            <div className="grid grid-cols-2 gap-4">
              <Input label="Total Sessions" type="number" value={pkgModal.data.totalSessions} onChange={e => setPkgModal({ ...pkgModal, data: { ...pkgModal.data, totalSessions: Number(e.target.value) }})} required />
              <Input label="Validity (Days)" type="number" value={pkgModal.data.validityDays} onChange={e => setPkgModal({ ...pkgModal, data: { ...pkgModal.data, validityDays: Number(e.target.value) }})} required />

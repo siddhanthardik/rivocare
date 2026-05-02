@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Provider = require('../models/Provider');
 const Service = require('../models/Service');
@@ -26,10 +27,10 @@ exports.createBooking = async (req, res, next) => {
   console.log('[BOOKING_AUDIT] Incoming Payload:', JSON.stringify(req.body, null, 2));
   
   try {
-    const { providerId, service, address, pincode, scheduledAt, durationHours, notes } = req.body;
+    const { providerId, service: serviceId, address, pincode, scheduledAt, durationHours, notes, testId, offeringId } = req.body;
 
     // 🛡️ Strict Field Validation
-    if (!providerId || !service || !address || !pincode || !scheduledAt) {
+    if (!providerId || !serviceId || !address || !pincode || !scheduledAt) {
       return res.status(400).json({ 
         success: false, 
         message: 'Missing required booking fields (provider, service, address, pincode, or schedule).' 
@@ -45,29 +46,6 @@ exports.createBooking = async (req, res, next) => {
       });
     }
 
-    // ⏳ Validate Duration Limits
-    if (durationHours && (durationHours < 1 || durationHours > 1000)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid duration. Must be between 1 and 1000 hours.'
-      });
-    }
-
-    // 🕵️ Notes & Metadata Audit
-    if (notes && notes.includes('{"assignment"')) {
-      try {
-        const jsonMatch = notes.match(/\{"assignment".*\}/);
-        if (jsonMatch) {
-          const metadata = JSON.parse(jsonMatch[0]);
-          if (!metadata.assignment || !metadata.assignment.primaryProviderId) {
-            console.warn('[BOOKING_AUDIT] Invalid metadata detected in notes');
-          }
-        }
-      } catch (e) {
-        console.error('[BOOKING_AUDIT] Metadata parsing failed', e);
-      }
-    }
-
     // 📍 Service Area Validation
     const validPincode = await ServiceablePincode.findOne({ pincode, isActive: true });
     if (!validPincode) {
@@ -75,20 +53,28 @@ exports.createBooking = async (req, res, next) => {
     }
 
     const Booking = require('../models/Booking');
+    const Service = require('../models/Service');
     const User = require('../models/User');
     const Wallet = require('../models/Wallet');
     const Transaction = require('../models/Transaction');
+    const Offering = require('../models/Offering');
+    const pricingService = require('../services/pricingService');
+
+    const serviceDoc = await Service.findById(serviceId);
+    if (!serviceDoc) return res.status(404).json({ success: false, message: 'Service not found' });
 
     const provider = await Provider.findById(providerId);
     if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
 
-    if (provider.isBlocked) return res.status(403).json({ success: false, message: 'This provider is currently unavailable for new bookings.' });
-    if (!provider.isOnline) return res.status(400).json({ success: false, message: 'Provider is currently offline' });
-    if (!provider.services.includes(service)) {
+    if (provider.isBlocked) return res.status(403).json({ success: false, message: 'This provider is currently unavailable.' });
+    if (!provider.isOnline) return res.status(400).json({ success: false, message: 'Provider is offline' });
+    
+    // Check if provider offers this service
+    if (!provider.services.some(s => s.toString() === serviceId.toString())) {
       return res.status(400).json({ success: false, message: 'Provider does not offer this service' });
     }
 
-    // Check for provider double-booking
+    // Check for double-booking
     const scheduledDate = new Date(scheduledAt);
     const conflict = await Booking.findOne({
       provider: providerId,
@@ -96,45 +82,48 @@ exports.createBooking = async (req, res, next) => {
       status: { $in: ['pending', 'confirmed', 'in-progress'] },
     });
     if (conflict) {
-      return res.status(409).json({ success: false, message: 'Provider is already booked at this time' });
-    }
-
-    // 💰 Referral Discount for First-time referred patients (₹100 off)
-    let referralDiscount = 0;
-    if (req.user.referredByCode && req.user.role === 'patient') {
-      const pastBookings = await Booking.countDocuments({ patient: req.user._id, status: { $ne: 'cancelled' } });
-      if (pastBookings === 0) {
-        referralDiscount = 100;
-      }
+      return res.status(409).json({ success: false, message: 'Provider is already booked' });
     }
 
     const hours = durationHours || 1;
 
-    // 💰 Secure Server-Side Pricing Calculation
-    const totalAmount = provider.pricePerHour * hours;
-
-    if (!totalAmount) {
-      return res.status(400).json({ success: false, message: "Pricing calculation failed" });
+    // 💰 Centralized Pricing Calculation
+    let pricingData;
+    try {
+      pricingData = await pricingService.calculateBookingPrice({
+        serviceDoc,
+        serviceId,
+        offeringId,
+        testId,
+        providerId,
+        durationHours: hours
+      });
+    } catch (err) {
+      return res.status(400).json({ success: false, message: err.message });
     }
 
-    // Booking expires in 5 minutes (300 seconds) if not accepted
+    const { totalAmount, basePrice, platformFee, providerEarning, labPayout } = pricingData;
+
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     const booking = await Booking.create({
       patient: req.user._id,
       provider: providerId,
-      service,
+      service: serviceId,
       address,
       pincode,
       scheduledAt: scheduledDate,
       durationHours: hours,
       notes,
       totalAmount,
-      basePrice: provider.pricePerHour,
+      basePrice,
       estimatedPrice: totalAmount,
-      referralDiscountApplied: referralDiscount > 0 ? 100 : 0, // Track it
+      platformFee,
+      providerEarning,
+      labPayout,
       expiresAt,
     });
+
     console.log('[BOOKING_AUDIT] Created Booking Document:', JSON.stringify(booking, null, 2));
 
     // Update user profile if address or pincode is missing
@@ -172,29 +161,110 @@ exports.createBooking = async (req, res, next) => {
 // @GET /api/bookings — role-aware
 exports.getBookings = async (req, res, next) => {
   try {
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status, page = 1, limit = 10, q } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
     const filter = {};
 
     if (req.user.role === 'patient') {
-      filter.patient = req.user._id;
+      filter.patient = new mongoose.Types.ObjectId(req.user._id);
     } else if (req.user.role === 'provider') {
       const providerProfile = await Provider.findOne({ user: req.user._id });
       if (!providerProfile) return res.status(404).json({ success: false, message: 'Provider profile not found' });
-      filter.provider = providerProfile._id;
+      filter.provider = new mongoose.Types.ObjectId(providerProfile._id);
     }
-    // admin sees all
 
-    if (status) filter.status = status;
+    if (status && status !== 'all') {
+      filter.status = status;
+    }
 
-    const total = await Booking.countDocuments(filter);
-    let bookings = await Booking.find(filter)
-      .populate('patient', 'name email phone avatar')
-      .populate({ path: 'provider', populate: { path: 'user', select: 'name email phone avatar' } })
-      .sort({ scheduledAt: -1 })
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit));
+    // 🔍 Search Logic (ID, Patient Name, Provider Name)
+    const pipeline = [{ $match: filter }];
 
-    bookings = bookings.map(b => formatBookingResponse(b, req.user.role));
+    // Populate Patient and Provider User for searching
+    pipeline.push(
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'patient',
+          foreignField: '_id',
+          as: 'patientData'
+        }
+      },
+      { $unwind: '$patientData' },
+      {
+        $lookup: {
+          from: 'providers',
+          localField: 'provider',
+          foreignField: '_id',
+          as: 'providerData'
+        }
+      },
+      { $unwind: '$providerData' },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'providerData.user',
+          foreignField: '_id',
+          as: 'providerUserData'
+        }
+      },
+      { $unwind: '$providerUserData' }
+    );
+
+    if (q) {
+      const searchConditions = [
+        { 'patientData.name': { $regex: q, $options: 'i' } },
+        { 'providerUserData.name': { $regex: q, $options: 'i' } }
+      ];
+
+      if (mongoose.Types.ObjectId.isValid(q)) {
+        searchConditions.push({ _id: new mongoose.Types.ObjectId(q) });
+      }
+
+      pipeline.push({ $match: { $or: searchConditions } });
+    }
+
+    // Clone pipeline for count
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const totalResult = await Booking.aggregate(countPipeline);
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
+    // Sorting and Pagination
+    pipeline.push(
+      { $sort: { scheduledAt: -1 } },
+      { $skip: skip },
+      { $limit: Number(limit) }
+    );
+
+    let bookings = await Booking.aggregate(pipeline);
+
+    // Format response (mimic populate structure)
+    bookings = bookings.map(b => {
+      const formatted = {
+        ...b,
+        patient: {
+          _id: b.patientData._id,
+          name: b.patientData.name,
+          email: b.patientData.email,
+          avatar: b.patientData.avatar
+        },
+        provider: {
+          _id: b.providerData._id,
+          user: {
+            _id: b.providerUserData._id,
+            name: b.providerUserData.name,
+            email: b.providerUserData.email,
+            avatar: b.providerUserData.avatar
+          }
+        }
+      };
+      delete formatted.patientData;
+      delete formatted.providerData;
+      delete formatted.providerUserData;
+      return formatBookingResponse(formatted, req.user.role);
+    });
+
+
 
     res.json({
       success: true,
@@ -432,8 +502,8 @@ exports.updateBookingStatus = async (req, res, next) => {
         } catch(e) {}
       }
 
-      // 💰 WALLET CREDIT LOGIC (80% to Provider)
-      // Credit wallet upon completion so history always shows
+      // 💰 WALLET CREDIT LOGIC
+      // Credit wallet upon completion using the stored provider earning amount
       const Wallet = require('../models/Wallet');
       const Transaction = require('../models/Transaction');
       
@@ -442,8 +512,7 @@ exports.updateBookingStatus = async (req, res, next) => {
         wallet = await Wallet.create({ user: provider.user, balance: 0 });
       }
 
-      const commissionRate = 0.8; // 80% to provider, 20% platform fee
-      const providerCut = Math.round(booking.totalAmount * commissionRate);
+      const providerCut = booking.providerEarning || Math.round(booking.totalAmount * 0.8); // Fallback for old bookings
 
       wallet.balance += providerCut;
       await wallet.save();

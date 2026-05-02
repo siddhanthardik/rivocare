@@ -1,37 +1,65 @@
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../../utils';
-import Button from './Button';
 
-export default function Modal({ isOpen, onClose, title, children, size = 'md', footer, hideHeader = false, className }) {
+const Modal = ({ 
+  isOpen, 
+  onClose, 
+  title, 
+  children, 
+  size = 'md', 
+  showClose = true,
+  className,
+  footer
+}) => {
+  // Disable body scroll when modal is open
   useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
-    return () => { document.body.style.overflow = ''; };
+    if (isOpen) {
+      document.body.classList.add('no-scroll');
+    } else {
+      document.body.classList.remove('no-scroll');
+    }
+    return () => document.body.classList.remove('no-scroll');
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const sizes = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl', custom: 'modal-custom' };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={cn('relative bg-white rounded-[2.5rem] shadow-modal w-full animate-slide-up overflow-hidden', sizes[size], className)}>
-        {/* Header */}
-        {!hideHeader && (
-          <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">{title}</h2>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
-              <X size={18} />
-            </button>
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose}>
+      <div 
+        className={cn("modal-card", size, className)} 
+        onClick={(e) => e.stopPropagation()}
+      >
+        {(title || showClose) && (
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white z-20">
+            {title && (
+              <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">
+                {title}
+              </h3>
+            )}
+            {showClose && (
+              <button 
+                onClick={onClose}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-slate-900"
+              >
+                <X size={20} strokeWidth={3} />
+              </button>
+            )}
           </div>
         )}
-        {/* Body */}
-        <div className={cn(hideHeader ? 'p-0' : 'px-6 py-5')}>{children}</div>
-        {/* Footer */}
-        {footer && <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">{footer}</div>}
+        <div className="p-6">
+          {children}
+        </div>
+        {footer && (
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/30 sticky bottom-0 bg-white z-20">
+            {footer}
+          </div>
+        )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
-}
+};
+
+export default Modal;

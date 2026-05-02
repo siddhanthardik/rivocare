@@ -5,18 +5,29 @@ const serviceSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      enum: ['nurse', 'physiotherapist', 'doctor', 'caretaker', 'procedure', 'package'],
       unique: true,
+      trim: true,
+    },
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
     },
     label: { type: String, required: true },
     description: { type: String, required: true },
     icon: { type: String, default: '🏥' },
-    basePrice: { type: Number, required: true, min: 0 },
-    maxMarkupAllowed: { type: Number, default: 500, min: 0 },
-    durationHours: { type: Number, default: 1 },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
+
+serviceSchema.pre('save', function (next) {
+  if (this.isModified('name')) {
+    this.slug = this.name.toLowerCase().replace(/\s+/g, '-');
+  }
+  next();
+});
 
 module.exports = mongoose.model('Service', serviceSchema);
