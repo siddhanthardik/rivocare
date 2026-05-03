@@ -154,6 +154,7 @@ export default function AdminBookings() {
               <table className="w-full text-left text-sm text-slate-600">
                 <thead className="bg-slate-50 text-slate-500 font-medium uppercase text-xs border-b border-slate-100">
                   <tr>
+                    <th className="px-5 py-4">Order ID</th>
                     <th className="px-5 py-4">ID & Date</th>
                     <th className="px-5 py-4">Service</th>
                     <th className="px-5 py-4">Patient & Provider</th>
@@ -175,6 +176,9 @@ export default function AdminBookings() {
                         onClick={() => { setDetailTarget(b); setDetailModal(true); }}
                         className={`hover:bg-slate-50 cursor-pointer transition-colors ${b.pricingType === 'OVERRIDE' ? 'bg-purple-50/30' : ''}`}
                       >
+                        <td className="px-5 py-4">
+                          <span className="font-bold text-slate-900">{b.orderId || "—"}</span>
+                        </td>
                         <td className="px-5 py-4">
                           <p className="font-mono text-xs text-slate-400 mb-1" title={b._id}>...{b._id.slice(-6)}</p>
                           <p className="font-medium text-slate-800 whitespace-nowrap">{formatDateTime(b.scheduledAt)}</p>

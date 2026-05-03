@@ -140,11 +140,20 @@ const processReassignments = async () => {
 
   const bookings = await Booking.find({
     status: 'pending',
-    scheduledAt: { $gte: now, $lte: next24Hours },
   }).populate('patient provider');
 
   for (let booking of bookings) {
     try {
+      // 🧩 STEP 3: TOP-LEVEL AUTO-CANCEL
+      if (booking.expiresAt && now > booking.expiresAt) {
+        console.log(`[CRON] Booking ${booking._id}: Expired — Auto-cancelling.`);
+        booking.status = 'cancelled';
+        booking.cancelReason = 'System: Automatic cancellation after 30 minute provider acceptance window.';
+        await booking.save();
+        continue;
+      }
+
+      if (booking.scheduledAt < now || booking.scheduledAt > next24Hours) continue;
       if (!booking.notes) continue;
 
       const notesParts = booking.notes.split('\n\n');

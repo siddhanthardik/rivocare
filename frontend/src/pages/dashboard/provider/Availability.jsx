@@ -67,7 +67,7 @@ export default function ProviderAvailability() {
     };
 
     loadAvailability();
-  }, []);
+  }, [user?._id]);
 
   const toggleDay = (id) => {
     setConfig(prev => ({
@@ -113,7 +113,14 @@ export default function ProviderAvailability() {
     }
   };
 
-  if (loading) return null;
+  if (loading || !user?._id) {
+    return (
+      <div className="p-10 flex flex-col items-center justify-center space-y-3">
+        <PageLoader label="Loading availability settings..." />
+        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Verifying Identity</p>
+      </div>
+    );
+  }
 
   return (
     <PageWrapper maxWidth="800px">

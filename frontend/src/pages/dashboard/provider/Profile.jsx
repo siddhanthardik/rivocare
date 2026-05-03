@@ -172,7 +172,14 @@ export default function ProviderProfile() {
     );
   };
 
-  if (loading) return <PageLoader />;
+  if (loading || !user?._id) {
+    return (
+      <div className="p-10 flex flex-col items-center justify-center space-y-3">
+        <PageLoader label="Loading profile data..." />
+        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Verifying Identity</p>
+      </div>
+    );
+  }
 
   return (
     <PageWrapper maxWidth="800px">
@@ -198,8 +205,8 @@ export default function ProviderProfile() {
           <div className="flex items-center gap-6 pb-2">
             <ProfilePhotoUploader />
             <div className="flex-1 min-w-0">
-               <h3 className="text-xl font-black text-slate-900">{user.name}</h3>
-               <p className="text-xs font-bold text-slate-400">{user.email}</p>
+               <h3 className="text-xl font-black text-slate-900">{user?.name || '—'}</h3>
+               <p className="text-xs font-bold text-slate-400">{user?.email || '—'}</p>
             </div>
           </div>
 

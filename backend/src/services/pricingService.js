@@ -87,7 +87,8 @@ exports.calculateBookingPrice = async ({ serviceDoc, serviceId, offeringId, test
     return { totalAmount, basePrice, platformFee, providerEarning };
   }
 
-  // 3. ON-DEMAND SERVICES (HOURLY/SESSION)
+  // 3. ON-DEMAND SERVICES (DISABLED — PLAN-ONLY PRICING ENFORCED)
+  /*
   const pricing = await ServicePricing.findOne({ service: serviceId, isActive: true });
   if (!pricing) throw new Error('Pricing configuration missing for this service');
   
@@ -102,4 +103,6 @@ exports.calculateBookingPrice = async ({ serviceDoc, serviceId, offeringId, test
   platformFee = totalAmount - providerEarning;
 
   return { totalAmount, basePrice, platformFee, providerEarning };
+  */
+  throw new Error('On-demand pricing is disabled. Please select a valid Plan.');
 };

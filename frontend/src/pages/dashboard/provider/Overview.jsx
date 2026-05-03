@@ -59,7 +59,14 @@ export default function ProviderOverview() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <PageLoader />;
+  if (loading || !user?._id) {
+    return (
+      <div className="p-10 flex flex-col items-center justify-center space-y-3">
+        <PageLoader label="Loading profile data..." />
+        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Verifying Identity</p>
+      </div>
+    );
+  }
 
   const pendingBookings = data?.bookings.filter(b => b.status === 'pending') || [];
   const todayBookings = data?.bookings.filter(b => {
@@ -104,7 +111,7 @@ export default function ProviderOverview() {
             </span>
           </div>
           <h1 className="typo-title">
-            Hello, {user.name.split(' ')[0]} 👋
+            Hello, {user?.name?.split(' ')[0] || 'Expert'} 👋
           </h1>
           <p className="typo-body">Manage your schedule, requests and earnings.</p>
         </div>

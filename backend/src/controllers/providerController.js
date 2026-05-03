@@ -10,6 +10,8 @@ const { calculateProviderScore, resolvePincode } = require('../services/matching
 exports.getProviders = async (req, res, next) => {
   try {
     const { service, pincode, page = 1, limit = 12 } = req.query;
+    console.log('[MATCH_DEBUG] Request:', { service, pincode });
+
     const filter = { isVerified: true, isBlocked: { $ne: true } }; 
 
     let serviceId = null;
@@ -28,10 +30,21 @@ exports.getProviders = async (req, res, next) => {
       if (serviceId) filter.services = serviceId;
     }
 
-    // 🚀 Broad fetch for scoring (instead of strict pincode filter)
-    const rawProviders = await Provider.find(filter)
+    // 🚀 Broad fetch for scoring
+    let rawProviders = await Provider.find(filter)
       .populate('user', 'name email phone avatar')
       .lean();
+
+    console.log(`[MATCH_DEBUG] Found ${rawProviders.length} providers for service: ${serviceId}`);
+
+    // 🧩 STEP 4: ADD FALLBACK
+    if (rawProviders.length === 0) {
+      console.warn("[MATCH_DEBUG] No exact service match, using fallback (all verified providers)");
+      rawProviders = await Provider.find({ isVerified: true, isBlocked: { $ne: true } })
+        .limit(10)
+        .populate('user', 'name email phone avatar')
+        .lean();
+    }
 
     const targetCoords = resolvePincode(pincode);
     

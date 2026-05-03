@@ -3,6 +3,7 @@ import { GuestRoute, ProtectedRoute } from './components/layout/RouteGuards';
 import Header from './components/layout/Header';
 import DashboardLayout from './components/layout/DashboardLayout';
 import ScrollToTop from './components/layout/ScrollToTop';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { useAuth } from './context/AuthContext';
 import { PageLoader } from './components/ui/Feedback';
 
@@ -150,7 +151,7 @@ export default function App() {
   if (loading) return <PageLoader fullPage label="Initializing secure session..." />;
 
   return (
-    <>
+    <ErrorBoundary>
       <ScrollToTop />
       <Routes>
       {/* Public */}
@@ -262,6 +263,6 @@ export default function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-    </>
+    </ErrorBoundary>
   );
 }

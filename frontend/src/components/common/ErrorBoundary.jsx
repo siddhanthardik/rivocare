@@ -1,93 +1,43 @@
-import React from "react";
+import React from 'react';
 
-export default class ErrorBoundary extends React.Component {
+class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error) {
+    // Update state so the next render will show the fallback UI.
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("🔥 UI Crash:", error, errorInfo);
-    
-    try {
-      const userStr = localStorage.getItem('user');
-      const user = userStr ? JSON.parse(userStr) : null;
-
-      const payload = {
-        message: error.message || 'Unknown Error',
-        stack: error.stack,
-        route: window.location.pathname,
-        component: errorInfo.componentStack,
-        user: user ? { id: user._id || user.id, email: user.email, role: user.role } : null,
-        browser: {
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-          language: navigator.language
-        }
-      };
-
-      fetch('/api/logs/frontend-error', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).catch(e => console.error('Logging failed', e));
-    } catch (e) {
-      console.error('Error in ErrorBoundary logger', e);
-    }
+    // You can also log the error to an error reporting service
+    console.error('[GLOBAL_ERROR_BOUNDARY]', error, errorInfo);
   }
-
-  handleReload = () => {
-    window.location.reload();
-  };
 
   render() {
     if (this.state.hasError) {
+      // You can render any custom fallback UI
       return (
-        <div style={{
-          height: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          background: "#0f172a",
-          color: "white",
-          fontFamily: "'Inter', sans-serif"
-        }}>
-          <div style={{ textAlign: "center", padding: "40px", background: "rgba(255,255,255,0.05)", borderRadius: "30px", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.1)" }}>
-            <h1 style={{ fontSize: 32, marginBottom: 15, fontWeight: 900, tracking: "-0.05em" }}>
-              Something went wrong
-            </h1>
-
-            <p style={{ opacity: 0.6, marginBottom: 30, fontSize: 16, maxWidth: "300px" }}>
-              We’ve encountered a technical hiccup. Our team has been notified.
-            </p>
-
-            <button
-              onClick={this.handleReload}
-              style={{
-                padding: "16px 32px",
-                background: "#2563eb",
-                border: "none",
-                borderRadius: "15px",
-                color: "white",
-                cursor: "pointer",
-                fontSize: "16px",
-                fontWeight: "bold",
-                boxShadow: "0 10px 30px rgba(37,99,235,0.3)",
-                transition: "all 0.2s"
-              }}
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+          <div className="bg-white rounded-3xl shadow-xl p-8 max-w-md w-full text-center space-y-4">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">!</div>
+            <h1 className="text-xl font-black text-slate-900">Something went wrong</h1>
+            <p className="text-sm text-slate-500 font-bold">The application encountered an unexpected error. Please try reloading the page.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-blue-600 text-white rounded-xl font-black shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all"
             >
-              Reload System
+              Reload Application
             </button>
           </div>
         </div>
       );
     }
 
-    return this.props.children;
+    return this.props.children; 
   }
 }
+
+export default ErrorBoundary;

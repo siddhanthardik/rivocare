@@ -27,8 +27,9 @@ const bookingSchema = new mongoose.Schema(
     },
     plan: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Plan',
+      ref: 'SubscriptionPlan',
     },
+    orderId: { type: String, unique: true, sparse: true },
     address: { type: String, required: true, trim: true },
     pincode: {
       type: String,
@@ -47,7 +48,7 @@ const bookingSchema = new mongoose.Schema(
     finalAmount: { type: Number, default: null }, // Added for new pricing logic
     basePrice: { type: Number, min: 0, default: 0 },
     planPrice: { type: Number, min: 0, default: 0 },
-    pricingSource: { type: String, enum: ['plan', 'service'], default: 'service' },
+    pricingSource: { type: String, enum: ['PLAN'], default: 'PLAN' },
     providerMarkup: { type: Number, default: 0, min: 0 },
     estimatedPrice: { type: Number, min: 0, default: 0 },
     finalPrice: { type: Number, default: null },

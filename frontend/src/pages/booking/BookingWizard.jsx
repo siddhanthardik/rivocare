@@ -155,11 +155,13 @@ export default function BookingWizard() {
       await bookingService.create({
         providerId: sel.provider._id,
         service: sel.service._id,
+        planId: sel.plan._id,
+        pricingSource: "PLAN",
         address: address.fullAddress,
         pincode: address.pincode,
         scheduledAt: new Date(yr, mo-1, da, hr, min),
         durationHours: sel.plan.durationHours || 1,
-        notes: JSON.stringify({ planId: sel.plan._id, patient, flowVersion: 'v4_3step' }),
+        notes: JSON.stringify({ patient, flowVersion: 'v5_plan_locked' }),
       });
       setIsSuccess(true);
     } catch (e) {
@@ -345,55 +347,79 @@ export default function BookingWizard() {
         {fetchingProviders ? (
           <div className="h-20 flex items-center justify-center text-slate-300 text-sm animate-pulse">Finding experts…</div>
         ) : providers.length === 0 ? (
-          <div className="text-center py-8 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
-            <p className="text-sm text-slate-400 font-semibold">No experts found.</p>
-            <button onClick={() => setStep(1)} className="mt-2 text-xs font-bold text-blue-600">← Change Schedule</button>
+          <div className="text-center py-10 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-100">
+            <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center mx-auto mb-3">
+              <Zap size={20} className="text-blue-500" />
+            </div>
+            <p className="text-sm font-bold text-slate-800 mb-1">Finding the Best Expert</p>
+            <p className="text-xs text-slate-400 px-6">We’ll assign the best available expert for your selected time. Proceed to confirm.</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {/* Smart match banner */}
-            {providers.every(p => p.tier !== 'EXACT') && providers.some(p => p.tier === 'NEARBY') && (
-              <div className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl">
-                <Zap size={11} className="text-amber-600 flex-shrink-0" />
-                <p className="text-[10px] font-bold text-amber-800">Smart Match — Showing nearby experts for your area</p>
-              </div>
-            )}
-            {providers.map((p, idx) => {
+          <div className="space-y-3">
+            {providers.map((p) => {
               const isSel = sel.provider?._id === p._id;
-              // Badges
-              const badges = [];
-              if (idx === 0) badges.push({ label: 'Best Match', color: 'bg-blue-600' });
-              const sortedByDist = [...providers].sort((a,b)=>a.distance-b.distance);
-              if (p._id === sortedByDist[0]?._id) badges.push({ label: 'Nearest', color: 'bg-emerald-600' });
-              if (p.isOnline) badges.push({ label: 'Available', color: 'bg-green-500' });
-              const tierColor = p.tier==='EXACT' ? 'bg-emerald-500' : p.tier==='NEARBY' ? 'bg-blue-500' : 'bg-slate-400';
-
+              
               return (
-                <button key={p._id} onClick={() => setSel(s=>({...s,provider:p}))}
-                  className={cn('w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all active:scale-[0.98] relative overflow-hidden',
-                    isSel ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-100' : 'border-slate-100 bg-white hover:border-blue-200')}>
-                  {/* Tier ribbon */}
-                  <span className={cn('absolute top-0 right-0 text-[8px] font-black uppercase px-2 py-0.5 text-white rounded-bl-xl', tierColor)}>
-                    {p.tier}
-                  </span>
-                  <Avatar name={p.user?.name} src={p.user?.avatar} size="md" className="flex-shrink-0 ring-2 ring-white shadow" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className={cn('text-sm font-bold truncate', isSel ? 'text-blue-700' : 'text-slate-800')}>{p.user?.name}</p>
-                      {badges.map(b => (
-                        <span key={b.label} className={cn('text-[8px] font-black px-1.5 py-0.5 rounded-full text-white', b.color)}>{b.label}</span>
-                      ))}
+                <div 
+                  key={p._id} 
+                  onClick={() => setSel(s => ({ ...s, provider: p }))}
+                  className={cn(
+                    'bg-white border rounded-2xl p-4 transition-all cursor-pointer relative group',
+                    isSel ? 'border-blue-500 ring-4 ring-blue-50 shadow-md' : 'border-slate-100 hover:border-blue-200 hover:shadow-sm'
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      {/* Avatar */}
+                      <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center font-bold text-blue-600 text-lg shadow-inner overflow-hidden border border-blue-100">
+                        {p.user?.avatar ? (
+                          <img src={p.user.avatar} alt={p.user.name} className="w-full h-full object-cover" />
+                        ) : (
+                          p.user?.name?.charAt(0)
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-base font-black text-slate-900">
+                            {p.user?.name}
+                          </h3>
+                          <span className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center text-[8px] shadow-sm">✔</span>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs">
+                          <div className="flex items-center gap-1 font-bold text-slate-500">
+                             <span className="bg-slate-100 px-2 py-0.5 rounded-lg text-slate-600 uppercase text-[9px] tracking-tight">{p.experience || "5"} yrs exp</span>
+                          </div>
+
+                          <div className="flex items-center gap-1 font-bold text-amber-600">
+                             <span className="bg-amber-50 px-2 py-0.5 rounded-lg text-[9px]">⭐ {p.rating?.toFixed(1) || "4.8"}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1 font-bold text-slate-400">
+                             <span className="text-[9px]">📍 {p.distance ? `${p.distance} km` : "Nearby"}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <span className="text-[10px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{p.experience} yrs</span>
-                      <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">⭐ {p.rating?.toFixed(1)||'N/A'}</span>
-                      {p.distance !== undefined && (
-                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">📍 {fmtDist(p.distance)}</span>
+
+                    {/* Right Action */}
+                    <div className="flex flex-col items-end gap-2">
+                      <span className={cn(
+                        "text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border",
+                        p.isOnline ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-50 text-slate-400 border-slate-100"
+                      )}>
+                        {p.isOnline ? "Available" : "Away"}
+                      </span>
+                      {isSel && (
+                        <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-200">
+                          <CheckCircle size={14} className="text-white" />
+                        </div>
                       )}
                     </div>
                   </div>
-                  <ShieldCheck size={18} className={cn('flex-shrink-0', isSel ? 'text-blue-500' : 'text-slate-200')} />
-                </button>
+                </div>
               );
             })}
           </div>
@@ -409,12 +435,12 @@ export default function BookingWizard() {
             ['Plan', `${sel.plan?.name} — ₹${sel.plan?.price}`],
             ['Patient', patient.useProfile ? user?.name : patient.name],
             ['Date & Time', sel.slot.date && sel.slot.time ? `${sel.slot.date} at ${sel.slot.time}` : '—'],
-            ['Expert', sel.provider?.user?.name],
+            ['Expert', sel.provider?.user?.name || 'Assigned soon'],
             ['Address', address.fullAddress ? address.fullAddress.slice(0,60)+'…' : '—'],
           ].map(([k,v]) => (
-            <div key={k} className="flex justify-between gap-2">
-              <span className="text-slate-400 font-medium">{k}</span>
-              <span className="text-slate-700 font-semibold text-right">{v}</span>
+            <div key={k} className="flex justify-between gap-4 py-1 border-b border-slate-50 last:border-0">
+              <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wider">{k}</span>
+              <span className="text-slate-800 font-black text-right">{v}</span>
             </div>
           ))}
         </section>
@@ -478,12 +504,11 @@ export default function BookingWizard() {
         </div>
 
         {/* Footer */}
-        <div className="px-4 pb-4 pt-2 border-t border-slate-100">
+        <div className="px-6 pb-6 pt-4 border-t border-slate-50 bg-white">
           <button onClick={handleNext} disabled={!isValid()||loading}
-            className={cn('w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]',
-              isValid()&&!loading ? 'bg-blue-600 text-white shadow-lg shadow-blue-200 hover:bg-blue-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed')}>
-            {loading ? 'Confirming…' : step===2 ? 'Confirm Booking' : 'Continue'}
-            {!loading && <ChevronRight size={15} />}
+            className={cn('w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-base transition-all active:scale-[0.98] shadow-xl',
+              isValid()&&!loading ? 'bg-blue-600 text-white shadow-blue-200 hover:bg-blue-700' : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none')}>
+            {loading ? 'Securing your slot…' : step===2 ? 'Confirm Booking →' : 'Continue'}
           </button>
         </div>
       </div>

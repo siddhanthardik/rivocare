@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { Wallet, ArrowDownCircle, Banknote, ArrowUpCircle, Clock, CheckCircle2 } from 'lucide-react';
 import { walletService } from '@/services';
+import { useAuth } from '@/context/AuthContext';
 import { cn, formatDateTime, formatCurrency } from '@/utils';
 import { PageLoader, EmptyState } from '@/components/ui/Feedback';
 import Button from '@/components/ui/Button';
@@ -28,9 +29,12 @@ export default function ProviderEarnings() {
         setWallet(wRes.data.wallet || { balance: 0 });
         setTransactions(tRes.data.transactions || []);
       })
-      .catch((err) => toast.error('Failed to load wallet data'))
+      .catch((err) => {
+        console.error('[EARNINGS_LOAD_FAILED]', err);
+        toast.error('Failed to load wallet data');
+      })
       .finally(() => setLoading(false));
-  }, [refresh]);
+  }, [refresh, user?._id]);
 
   const handleRequestPayout = async () => {
     const amount = Number(payoutAmount);
@@ -51,7 +55,14 @@ export default function ProviderEarnings() {
     }
   };
 
-  if (loading) return <PageLoader />;
+  if (loading || !user?._id) {
+    return (
+      <div className="p-10 flex flex-col items-center justify-center space-y-3">
+        <PageLoader label="Loading financial data..." />
+        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Verifying Identity</p>
+      </div>
+    );
+  }
 
   // Calculate total all-time earnings from credit transactions
   const totalEarnings = (transactions || [])

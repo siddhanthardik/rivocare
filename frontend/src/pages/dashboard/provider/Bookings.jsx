@@ -7,6 +7,9 @@ import { PageLoader } from '../../../components/ui/Feedback';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import CountdownTimer from '../../../components/ui/CountdownTimer';
+import { useAuth } from '../../../context/AuthContext';
+import { useSocket } from '../../../context/SocketContext';
+import { requestNotificationPermission, showNotification, playNotificationSound } from '../../../utils/notifications';
 import { Flame, AlertCircle, CheckCircle, Clock, Search, MapPin, User, Timer, Zap, TrendingUp } from 'lucide-react';
 import { PageWrapper, Card, Row, Section, StatusPill } from '../../../components/ui/Layout';
 import { calculateEndTime, checkAvailabilityConflict, getDistanceKm, getSmartScore } from '../../../utils/providerHelpers';
@@ -62,9 +65,10 @@ function PriceBreakdown({ booking }) {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function ProviderBookings() {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('pending');
   const [refresh, setRefresh] = useState(0);
   const [updatingId, setUpdatingId] = useState(null);
 
@@ -76,8 +80,38 @@ export default function ProviderBookings() {
   const [priceForm, setPriceForm] = useState({ newFinalPrice: '', reason: '' });
   const [savingPrice, setSavingPrice] = useState(false);
 
+  const { socket, isConnected } = useSocket();
+
   useEffect(() => {
-    const interval = setInterval(() => setRefresh(r => r + 1), 15000);
+    // Request browser notification permission on mount
+    requestNotificationPermission();
+
+    if (!socket || !user?._id) return;
+
+    const handleNewBooking = (data) => {
+      console.log('🔥 SOCKET EVENT RECEIVED:', data);
+      
+      showNotification("New Booking Request!", {
+        body: data.message || "You have a new care request. Action required within 30 minutes.",
+      });
+
+      playNotificationSound();
+      setRefresh(r => r + 1);
+      toast.success('New booking request received!', { 
+        icon: '⚡',
+        duration: 5000 
+      });
+    };
+
+    socket.on('new-booking', handleNewBooking);
+
+    return () => {
+      socket.off('new-booking', handleNewBooking);
+    };
+  }, [socket, user?._id]);
+
+  useEffect(() => {
+    const interval = setInterval(() => setRefresh(r => r + 1), 10000); // 10s auto-refresh (Harden Fallback)
     return () => clearInterval(interval);
   }, []);
 
@@ -86,11 +120,34 @@ export default function ProviderBookings() {
   }, [filter]);
 
   useEffect(() => {
-    bookingService.getAll({ limit: 50, ...(filter !== 'all' && { status: filter }) })
-      .then((res) => setBookings(res.data?.bookings || res.bookings || []))
-      .catch(() => toast.error('Failed to load bookings'))
-      .finally(() => setLoading(false));
-  }, [refresh, filter]);
+    if (!user?._id) return;
+    
+    const fetchBookings = async () => {
+      try {
+        const res = await bookingService.getAll({ 
+          limit: 50, 
+          ...(filter !== 'all' && { status: filter }) 
+        });
+        setBookings(res.data?.bookings || res.bookings || []);
+      } catch (err) {
+        console.error('[BOOKINGS_FETCH_FAILED]', err);
+        toast.error('Failed to load bookings. Please check your connection.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBookings();
+  }, [refresh, filter, user?._id]);
+
+  if (!user?._id) {
+    return (
+      <div className="p-10 flex flex-col items-center justify-center space-y-3">
+        <PageLoader label="Loading your secure dashboard..." />
+        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Verifying Identity</p>
+      </div>
+    );
+  }
 
   const handleStatusUpdate = async (id, status) => {
     setUpdatingId(id);
@@ -189,14 +246,14 @@ export default function ProviderBookings() {
         </Card>
       ) : (
         <div className="flex flex-col gap-5">
-          {paginatedBookings.length === 0 ? (
+          {paginatedBookings?.length === 0 ? (
             <p className="text-center text-slate-400 py-6 font-black text-sm uppercase tracking-widest">
               No bookings on this page
             </p>
           ) : (
             (paginatedBookings || []).map((booking) => (
               <BookingCard
-                key={booking._id}
+                key={booking?._id}
                 booking={booking}
                 onStatusUpdate={handleStatusUpdate}
                 updatingId={updatingId}

@@ -8,6 +8,10 @@ const Notification = require('../models/Notification');
 const socketHelper = require('../socket');
 const ServiceablePincode = require('../models/ServiceablePincode');
 
+const generateOrderId = () => {
+  return "ORD-" + Date.now().toString(36).toUpperCase();
+};
+
 // Safegaurd: Ensure SubscriptionPlan exists
 try {
   require.resolve('../models/SubscriptionPlan');
@@ -66,12 +70,25 @@ exports.createBooking = async (req, res, next) => {
     const Transaction = require('../models/Transaction');
     const Offering = require('../models/Offering');
     const pricingService = require('../services/pricingService');
-    const SubscriptionPlan = require('../models/SubscriptionPlan');
 
-    let plan = null;
-    if (planId) {
-      plan = await SubscriptionPlan.findById(planId);
-      if (!plan) throw new Error("Invalid plan selected");
+    // 🧩 STEP 11: HARD FAIL SAFETY (Plan Required)
+    if (!planId) {
+      return res.status(400).json({
+        success: false,
+        error: "Plan is required for booking"
+      });
+    }
+
+    console.log('[BOOKING_DEBUG] Incoming planId:', planId);
+    
+    if (!planId) {
+      return res.status(400).json({ success: false, error: "Plan ID is required" });
+    }
+
+    const plan = await Offering.findById(planId);
+    if (!plan) {
+      console.error('[BOOKING_ERROR] Plan not found for ID:', planId);
+      return res.status(404).json({ success: false, message: 'Selected plan no longer exists' });
     }
 
     const serviceDoc = await Service.findById(serviceId);
@@ -99,63 +116,43 @@ exports.createBooking = async (req, res, next) => {
       return res.status(409).json({ success: false, message: 'Provider is already booked' });
     }
 
-    const hours = durationHours || 1;
+    // 🧩 STEP 2: REMOVE SERVICE PRICING COMPLETELY
+    const finalPrice = plan.price;
+    const orderId = generateOrderId();
 
-    // 💰 Centralized Pricing Calculation
-    let pricingData;
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+    // 🧩 STEP 1: GUARANTEE BOOKING SUCCESS
+    let booking;
     try {
-      pricingData = await pricingService.calculateBookingPrice({
-        serviceDoc,
-        serviceId,
-        offeringId,
-        testId,
-        providerId,
-        durationHours: hours
+      booking = await Booking.create({
+        orderId,
+        patient: req.user._id,
+        provider: providerId,
+        service: serviceId,
+        plan: plan._id,
+        address,
+        pincode,
+        scheduledAt: scheduledDate,
+        durationHours: durationHours || 1,
+        notes,
+        totalAmount: finalPrice,
+        finalAmount: finalPrice,
+        finalPrice,
+        planPrice: finalPrice,
+        pricingSource: "PLAN",
+        estimatedPrice: finalPrice,
+        platformFee: Math.round(finalPrice * 0.2),
+        providerEarning: Math.round(finalPrice * 0.8),
+        paymentStatus: "PENDING",
+        status: "pending",
+        expiresAt,
       });
+      console.log('✅ Booking created, triggering notifications:', booking._id);
     } catch (err) {
-      return res.status(400).json({ success: false, message: err.message });
+      console.error('❌ BOOKING CREATION FAILED:', err);
+      return res.status(500).json({ success: false, message: 'Booking failed to save' });
     }
-
-    const { totalAmount, basePrice: calcBasePrice, platformFee, providerEarning, labPayout } = pricingData;
-
-    const pricingSource = plan ? "PLAN" : "SERVICE";
-    const basePrice = calcBasePrice || 0;
-    const planPrice = plan?.price || 0;
-    const finalAmount = plan ? planPrice : basePrice * hours;
-    const finalPrice = finalAmount; // Step 2 & 8 requirement
-    const planId_val = plan ? plan._id : null; // Step 2 requirement
-
-    if (!finalAmount || finalAmount <= 0) {
-      return res.status(400).json({ success: false, message: 'Invalid booking price' });
-    }
-
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    const booking = await Booking.create({
-      patient: req.user._id,
-      provider: providerId,
-      service: serviceId,
-      plan: plan ? plan._id : undefined,
-      address,
-      pincode,
-      scheduledAt: scheduledDate,
-      durationHours: hours,
-      notes,
-      totalAmount,
-      finalAmount,
-      finalPrice,
-      basePrice,
-      planPrice,
-      pricingSource,
-      plan: planId_val,
-      estimatedPrice: totalAmount,
-      platformFee,
-      providerEarning,
-      labPayout,
-      expiresAt,
-    });
-
-    console.log('[BOOKING_AUDIT] Created Booking Document:', JSON.stringify(booking, null, 2));
 
     // Update user profile if address or pincode is missing
     let userModified = false;
@@ -177,22 +174,58 @@ exports.createBooking = async (req, res, next) => {
       type: 'BOOKING',
       linkId: booking._id
     });
+    // 🔔 REAL-TIME NOTIFICATIONS (Harden Emit)
     try {
-      socketHelper.getIO().to(provider.user.toString()).emit('notification', notification);
+      const io = socketHelper.getIO();
+      if (!io) {
+        console.error('❌ Socket IO not initialized');
+      } else {
+        const providerUserId = provider.user.toString();
+        console.log('📡 Emitting new-booking to provider user room:', providerUserId);
+        
+        io.to(providerUserId).emit('new-booking', {
+          bookingId: booking._id,
+          message: `New booking request for ${serviceDoc.name}`,
+          service: serviceDoc.name,
+          scheduledAt: scheduledDate
+        });
+
+        // Add persistent notification log
+        const Notification = require('../models/Notification');
+        await Notification.create({
+          user: provider.user,
+          title: 'New Booking Request',
+          message: `You have a new request for ${serviceDoc.name}.`,
+          type: 'BOOKING_REQUEST',
+          linkId: booking._id,
+          status: 'SENT'
+        });
+      }
     } catch (e) {
-      // socket not ready
+      console.error('❌ Socket Notification Failed:', e.message);
     }
 
-    await booking.populate([
-      { path: 'service', select: 'name' },
-      { path: 'plan', select: 'name price' }
-    ]);
- 
+    // 📧 EMAIL NOTIFICATION (Fallback Wrap)
+    try {
+      const providerUser = await User.findById(provider.user);
+      if (providerUser && providerUser.email) {
+        await sendEmail({
+          email: providerUser.email,
+          subject: '⚡ New Booking Request — Action Required',
+          message: `Hello ${providerUser.name},\n\nYou have received a new booking request for ${serviceDoc.name}.\n\nPlease log in to your RIVO dashboard within 30 minutes to accept.\n\nThank you,\nRIVO Team`
+        });
+        console.log('📧 Email alert sent to:', providerUser.email);
+      }
+    } catch (e) {
+      console.error('❌ Email Alert Failed:', e.message);
+    }
+
     res.status(201).json({ 
       success: true, 
       message: 'Booking created successfully', 
       data: { 
         bookingId: booking._id,
+        orderId: booking.orderId,
         service: booking.service,
         plan: booking.plan,
         finalPrice: booking.finalPrice,
@@ -400,7 +433,7 @@ exports.updateBookingStatus = async (req, res, next) => {
 
     const validTransitions = {
       patient: { pending: ['cancelled'], confirmed: ['cancelled'], 'in-progress': ['cancelled'] },
-      provider: { pending: ['confirmed', 'cancelled'], confirmed: ['in-progress'], 'in-progress': ['completed'] },
+      provider: { pending: ['confirmed', 'cancelled', 'rejected'], confirmed: ['in-progress'], 'in-progress': ['completed'] },
       admin: { pending: ['confirmed', 'cancelled'], confirmed: ['cancelled'], 'in-progress': ['completed', 'cancelled'] },
     };
 
@@ -414,10 +447,16 @@ exports.updateBookingStatus = async (req, res, next) => {
 
     // ⏳ EXPIRY STRICT ENFORCEMENT
     if (status === 'confirmed' || status === 'in-progress') {
-      if (booking.expiresAt && new Date() > booking.expiresAt && booking.status === 'pending') {
+      // 🧩 STEP 5: FIX PROVIDER ACCEPT API VALIDATION
+      if (booking.status !== 'pending') {
+        return res.status(400).json({ success: false, message: 'Booking no longer available' });
+      }
+
+      if (booking.expiresAt && new Date() > booking.expiresAt) {
         booking.status = 'cancelled';
-        booking.cancelReason = 'System: Provider failed to accept request within 5 minute expiration window.';
+        booking.cancelReason = 'System: Provider failed to accept request within 30 minute expiration window.';
         await booking.save();
+        console.log('[BOOKING_AUDIT] Auto-cancelled (Expired):', booking._id);
         return res.status(400).json({ success: false, message: 'This booking request has expired and was automatically cancelled.' });
       }
     }
@@ -445,7 +484,14 @@ exports.updateBookingStatus = async (req, res, next) => {
       booking.startedAt = new Date();
     }
 
-    booking.status = status;
+    if (status === 'rejected') {
+      booking.status = 'cancelled';
+      booking.cancelReason = 'Provider rejected the request.';
+    } else {
+      booking.status = status;
+    }
+
+    console.log('[BOOKING_AUDIT] Status Updated:', booking._id, 'From:', previousStatus, 'To:', booking.status);
 
     // 🔔 Notify Patient on Confirm
     if (status === 'confirmed') {
