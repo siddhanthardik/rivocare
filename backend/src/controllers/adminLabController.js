@@ -2,6 +2,7 @@ const Partner = require('../models/Partner');
 const LabProfile = require('../models/LabProfile');
 const LabOrder = require('../models/LabOrder');
 const { LAB_DEPARTMENT_KEYS } = require('../constants/departments');
+const { BOOKING_STATUS, PAYMENT_STATUS, normalizeBookingStatus, normalizePaymentStatus } = require('../constants/bookingStatus');
 
 // @desc    Get all lab partners
 exports.getPartners = async (req, res, next) => {
@@ -82,7 +83,7 @@ exports.getWarRoomStats = async (req, res, next) => {
         { $match: { createdAt: { $gte: today } } },
         { $group: { _id: null, total: { $sum: '$totalAmount' } } }
       ]),
-      LabOrder.countDocuments({ status: { $in: ['delayed', 'rejected'] } }),
+      LabOrder.countDocuments({ status: { $in: ['delayed', 'rejected', 'REJECTED', 'CANCELLED'] } }),
       LabOrder.find().populate('partner', 'name').sort('-createdAt').limit(100)
     ]);
 
@@ -91,12 +92,12 @@ exports.getWarRoomStats = async (req, res, next) => {
 
     // Funnel Aggregation
     const funnel = {
-      new: allOrders.filter(o => o.status === 'new').length,
-      accepted: allOrders.filter(o => o.status === 'accepted').length,
-      assigned: allOrders.filter(o => o.status === 'technician_assigned').length,
-      collected: allOrders.filter(o => o.status === 'sample_collected').length,
-      processing: allOrders.filter(o => o.status === 'processing').length,
-      completed: allOrders.filter(o => o.status === 'completed').length
+      new: allOrders.filter(o => normalizeBookingStatus(o.status) === 'NEW').length,
+      accepted: allOrders.filter(o => normalizeBookingStatus(o.status) === BOOKING_STATUS.CONFIRMED).length,
+      assigned: allOrders.filter(o => normalizeBookingStatus(o.status) === 'TECHNICIAN_ASSIGNED').length,
+      collected: allOrders.filter(o => normalizeBookingStatus(o.status) === 'SAMPLE_COLLECTED').length,
+      processing: allOrders.filter(o => normalizeBookingStatus(o.status) === 'PROCESSING').length,
+      completed: allOrders.filter(o => normalizeBookingStatus(o.status) === BOOKING_STATUS.COMPLETED).length
     };
 
     res.status(200).json({
@@ -124,8 +125,8 @@ exports.getPartnersPerformance = async (req, res, next) => {
     const partners = await Partner.find({ status: 'active' });
     const performance = await Promise.all(partners.map(async (p) => {
       const orders = await LabOrder.find({ partner: p._id });
-      const completed = orders.filter(o => o.status === 'completed').length;
-      const rejected = orders.filter(o => o.status === 'rejected').length;
+      const completed = orders.filter(o => normalizeBookingStatus(o.status) === BOOKING_STATUS.COMPLETED).length;
+      const rejected = orders.filter(o => normalizeBookingStatus(o.status) === BOOKING_STATUS.CANCELLED).length;
       
       return {
         _id: p._id,
@@ -152,9 +153,9 @@ exports.manageOrder = async (req, res, next) => {
     let updateData = {};
 
     if (action === 'reassign') {
-      updateData = { partner: newPartnerId, status: 'new' };
+      updateData = { partner: newPartnerId, status: 'NEW' };
     } else if (action === 'refund') {
-      updateData = { status: 'cancelled', paymentStatus: 'refunded' };
+      updateData = { status: BOOKING_STATUS.CANCELLED, paymentStatus: PAYMENT_STATUS.REFUNDED };
     } else if (action === 'escalate') {
       updateData = { isEscalated: true };
     }
@@ -174,7 +175,7 @@ exports.getAnalytics = async (req, res, next) => {
     const stats = {
       totalRevenue: orders.reduce((sum, o) => sum + o.totalAmount, 0),
       totalOrders: orders.length,
-      completedOrders: orders.filter(o => o.status === 'completed').length,
+      completedOrders: orders.filter(o => normalizeBookingStatus(o.status) === BOOKING_STATUS.COMPLETED).length,
       popularTests: {},
       revenueByMonth: {},
       revenueByCity: {},
@@ -226,12 +227,14 @@ exports.getFinanceMetrics = async (req, res, next) => {
     today.setHours(0, 0, 0, 0);
 
     orders.forEach(o => {
-      if (o.status === 'completed' || o.status === 'report_uploaded') {
-        if (o.paymentStatus === 'collected' || o.paymentStatus === 'paid') {
+      const nbs = normalizeBookingStatus(o.status);
+      const nps = normalizePaymentStatus(o.paymentStatus);
+      if (nbs === BOOKING_STATUS.COMPLETED || nbs === 'REPORT_UPLOADED') {
+        if (nps === PAYMENT_STATUS.COLLECTED || nps === PAYMENT_STATUS.PAID) {
           totalGmv += o.totalAmount;
           platformRevenue += (o.platformFee || (o.totalAmount * 0.2));
         }
-        if (o.paymentMethod === 'cod' && o.paymentStatus !== 'collected') {
+        if (o.paymentMethod === 'cod' && nps !== PAYMENT_STATUS.COLLECTED) {
           codPending += o.totalAmount;
         }
         if (o.reportLocked) {
@@ -275,35 +278,59 @@ exports.processSettlement = async (req, res, next) => {
     const PartnerSettlement = require('../models/PartnerSettlement');
     const PartnerTransaction = require('../models/PartnerTransaction');
 
-    const wallet = await PartnerWallet.findOne({ partner: partnerId });
-    if (!wallet || wallet.balance < amount) {
-      return res.status(400).json({ success: false, message: 'Insufficient balance' });
+    const mongoose = require('mongoose');
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+
+      // Atomically deduct from wallet only if sufficient balance
+      const updatedWallet = await PartnerWallet.findOneAndUpdate(
+        { partner: partnerId, balance: { $gte: amount } },
+        { $inc: { balance: -amount } },
+        { new: true, session }
+      );
+
+      if (!updatedWallet) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ success: false, message: 'Insufficient balance' });
+      }
+
+      // Create Settlement Record inside transaction
+      const settlement = await PartnerSettlement.create([
+        {
+          partner: partnerId,
+          wallet: updatedWallet._id,
+          totalAmount: amount,
+          netPayout: amount,
+          status: 'completed',
+          payoutReference,
+          payoutMethod
+        }
+      ], { session });
+
+      // Create Transaction Record
+      await PartnerTransaction.create([
+        {
+          partner: partnerId,
+          wallet: updatedWallet._id,
+          type: 'debit',
+          amount: amount,
+          netAmount: amount,
+          description: `Bank Payout (Ref: ${payoutReference})`
+        }
+      ], { session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      res.status(200).json({ success: true, message: 'Payout processed successfully', data: settlement[0] });
+      return;
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
     }
-
-    // Deduct from wallet
-    wallet.balance -= amount;
-    await wallet.save();
-
-    // Create Settlement Record
-    const settlement = await PartnerSettlement.create({
-      partner: partnerId,
-      wallet: wallet._id,
-      totalAmount: amount,
-      netPayout: amount,
-      status: 'completed',
-      payoutReference,
-      payoutMethod
-    });
-
-    // Create Transaction Record
-    await PartnerTransaction.create({
-      partner: partnerId,
-      wallet: wallet._id,
-      type: 'debit',
-      amount: amount,
-      netAmount: amount,
-      description: `Bank Payout (Ref: ${payoutReference})`
-    });
 
     res.status(200).json({ success: true, message: 'Payout processed successfully', data: settlement });
   } catch (err) {
@@ -335,7 +362,7 @@ exports.manageFinanceStatus = async (req, res, next) => {
       order.paymentCollectedBy = req.user._id.toString();
       order.releaseReason = reason || `Admin Action: Marked as ${newStatus}`;
       
-      if (order.status === 'completed' || order.status === 'report_uploaded') {
+      if (normalizeBookingStatus(order.status) === BOOKING_STATUS.COMPLETED || normalizeBookingStatus(order.status) === 'REPORT_UPLOADED') {
         const PartnerTransaction = require('../models/PartnerTransaction');
         const PartnerWallet = require('../models/PartnerWallet');
         

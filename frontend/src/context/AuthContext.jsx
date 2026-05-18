@@ -26,6 +26,9 @@ const fetchCurrentUser = async () => {
     }
     // Default: standard user (patient / provider / admin)
     const res = await authService.getMe();
+    if (res.data?.providerProfile) {
+      return { ...res.data.user, providerProfile: res.data.providerProfile };
+    }
     return res.data?.user || null;
   } catch (err) {
     console.error('Session restoration failed:', err);
@@ -50,6 +53,12 @@ export function AuthProvider({ children }) {
       });
   }, []);
 
+  useEffect(() => {
+    if (!state.user) {
+      console.warn('⚠️ Auth not ready yet');
+    }
+  }, [state.user]);
+
   const login = async (credentials) => {
     try {
       const res = await authService.login(credentials);
@@ -57,8 +66,11 @@ export function AuthProvider({ children }) {
       localStorage.setItem('refreshToken', res.data.refreshToken);
       // Standard users never have the partner hint
       localStorage.removeItem('roleHint');
-      dispatch({ type: 'SET_USER', payload: res.data.user });
-      return { requireOTP: false, user: res.data.user };
+      const user = res.data.providerProfile 
+        ? { ...res.data.user, providerProfile: res.data.providerProfile }
+        : res.data.user;
+      dispatch({ type: 'SET_USER', payload: user });
+      return { requireOTP: false, user };
     } catch (error) {
       throw error;
     }
@@ -130,4 +142,3 @@ export const useAuth = () => {
   // Fail-safe: Always return a valid object even if context is missing (though should not happen)
   return ctx || { user: null, loading: false };
 };
-

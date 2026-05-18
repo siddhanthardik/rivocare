@@ -42,7 +42,7 @@ export default function Header() {
         </div>
         <div className="flex flex-wrap items-center gap-6">
           <Link 
-            to={user ? (user.role === 'patient' ? '/dashboard/patient/refer' : (user.role === 'provider' ? '/dashboard/provider/referrals' : (user.role === 'partner' ? '/dashboard/partner/lab/wallet' : '/refer'))) : '/refer'} 
+            to={user ? (user?.role === 'patient' ? '/dashboard/patient/refer' : (user?.role === 'provider' ? '/dashboard/provider/referrals' : (user?.role === 'partner' ? '/dashboard/partner/lab/wallet' : '/refer'))) : '/refer'} 
             className="flex items-center gap-1.5 hover:text-blue-300 transition"
           >
             <GiftIcon /> Refer & Earn
@@ -104,13 +104,13 @@ export default function Header() {
             </div>
           ) : (
             <div className="flex items-center gap-2 sm:gap-4">
-              {user.role !== 'partner' && <NotificationBell />}
-              <Link to={DASHBOARD_PATHS[user.role]} className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 px-3 py-2 rounded-lg transition-colors hover:bg-blue-50">
+              {user?.role !== 'partner' && <NotificationBell />}
+              <Link to={DASHBOARD_PATHS[user?.role] || '/'} className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 px-3 py-2 rounded-lg transition-colors hover:bg-blue-50">
                 <LayoutDashboard size={16} />
                 Dashboard
               </Link>
               <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-                <Avatar name={user.name} size="sm" />
+                <Avatar name={user?.name} size="sm" />
               </div>
               {/* Mobile Menu Toggle for logged-in user */}
               <button 
@@ -162,7 +162,7 @@ export default function Header() {
               </div>
             ) : (
               <div className="p-2 space-y-2">
-                <Link to={DASHBOARD_PATHS[user.role]} onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-center w-full py-3 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700">
+                <Link to={DASHBOARD_PATHS[user?.role] || '/'} onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-center w-full py-3 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700">
                   Go to Dashboard
                 </Link>
                 <button onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} className="flex items-center justify-center gap-2 w-full py-3 rounded-lg font-semibold text-red-600 bg-red-50 hover:bg-red-100">

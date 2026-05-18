@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { bookingService } from '../../../services';
 import { formatDateTime, SERVICE_CONFIG, cn } from '../../../utils';
+import { BOOKING_STATUS, normalizeBookingStatus } from '../../../constants/bookingStatus';
 import { PageWrapper, Card, Row, Section, StatusPill } from '../../../components/ui/Layout';
 import Button from '../../../components/ui/Button';
 import { CheckCircle, XCircle, MapPin, Clock, AlertTriangle } from 'lucide-react';
@@ -55,7 +56,7 @@ export default function ProviderAssignments() {
     parsedBookings.forEach(b => {
       // We only show pending if the current provider is the primary AND confirmation is pending
       const isPending = b.assignment.status === 'provisional' && b.assignment.confirmation?.status === 'pending';
-      const isConfirmed = b.status === 'confirmed' || b.assignment.status === 'confirmed';
+      const isConfirmed = normalizeBookingStatus(b.status) === BOOKING_STATUS.CONFIRMED || b.assignment.status === BOOKING_STATUS.CONFIRMED;
 
       if (isPending) {
         pending.push(b);

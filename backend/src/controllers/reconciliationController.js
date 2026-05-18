@@ -229,48 +229,90 @@ exports.settleReconciliation = async (req, res, next) => {
     }
 
     /* ── Get or create wallet ──────────────────────────────────────── */
-    const wallet = await PartnerWallet.findOneAndUpdate(
-      { partner: partnerId },
-      { $setOnInsert: { balance: 0, totalEarned: 0, pendingPayouts: 0 } },
-      { new: true, upsert: true }
-    );
+    // Atomically deduct and create settlement + transaction inside a transaction
+    const mongoose = require('mongoose');
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
 
-    if (wallet.balance < settleAmount - 0.01) {
-      return res.status(400).json({
-        success: false,
-        message: `Insufficient wallet balance. Available: ₹${wallet.balance.toFixed(2)}`,
+      const wallet = await PartnerWallet.findOneAndUpdate(
+        { partner: partnerId, balance: { $gte: settleAmount } },
+        { $inc: { balance: -settleAmount } },
+        { new: true, upsert: true, session }
+      );
+
+      if (!wallet) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ success: false, message: `Insufficient wallet balance.` });
+      }
+
+      const settlement = await PartnerSettlement.create([
+        {
+          partner: partnerId,
+          wallet:  wallet._id,
+          totalAmount: settleAmount,
+          platformFees: parseFloat((settleAmount * (PLATFORM_MARGIN / (1 - PLATFORM_MARGIN))).toFixed(2)),
+          netPayout: settleAmount,
+          status: 'completed',
+          payoutReference: payoutReference || 'MANUAL',
+          payoutMethod:    payoutMethod || 'bank_transfer',
+          periodStart: dayStart,
+          periodEnd:   dayEnd,
+          notes,
+        }
+      ], { session });
+
+      await PartnerTransaction.create([
+        {
+          partner: partnerId,
+          wallet:  wallet._id,
+          type:    'debit',
+          amount:  settleAmount,
+          netAmount: settleAmount,
+          status:  'completed',
+          description: `Daily Settlement ${date}${payoutReference ? ` (Ref: ${payoutReference})` : ''}`,
+        }
+      ], { session });
+
+      await session.commitTransaction();
+      session.endSession();
+
+      const newSettled = alreadySettled + settleAmount;
+      const newDiff    = parseFloat((totalCollected - newSettled).toFixed(2));
+      let recStatus = Math.abs(newDiff) < 0.01 ? 'settled' : newDiff > 0 ? 'pending' : 'mismatch';
+
+      await LabReconciliation.findOneAndUpdate(
+        { partner: partnerId, date },
+        {
+          $set: {
+            ordersCount:    agg[0]?.count || 0,
+            totalAmount:    totalCollected,
+            platformFee:    parseFloat((totalCollected * PLATFORM_MARGIN).toFixed(2)),
+            labEarning,
+            collectedAmount: totalCollected,
+            settledAmount:  newSettled,
+            difference:     newDiff,
+            status:         recStatus,
+            settledBy:      req.user._id,
+            settledAt:      new Date(),
+            notes,
+          },
+        },
+        { upsert: true, new: true }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: `Settlement of ₹${settleAmount.toFixed(2)} processed successfully`,
+        data: settlement[0],
       });
+      return;
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
     }
-
-    /* ── Deduct balance ─────────────────────────────────────────────── */
-    wallet.balance -= settleAmount;
-    await wallet.save();
-
-    /* ── Create settlement record ───────────────────────────────────── */
-    const settlement = await PartnerSettlement.create({
-      partner: partnerId,
-      wallet:  wallet._id,
-      totalAmount: settleAmount,
-      platformFees: parseFloat((settleAmount * (PLATFORM_MARGIN / (1 - PLATFORM_MARGIN))).toFixed(2)),
-      netPayout: settleAmount,
-      status: 'completed',
-      payoutReference: payoutReference || 'MANUAL',
-      payoutMethod:    payoutMethod || 'bank_transfer',
-      periodStart: dayStart,
-      periodEnd:   dayEnd,
-      notes,
-    });
-
-    /* ── Create transaction record ──────────────────────────────────── */
-    await PartnerTransaction.create({
-      partner: partnerId,
-      wallet:  wallet._id,
-      type:    'debit',
-      amount:  settleAmount,
-      netAmount: settleAmount,
-      status:  'completed',
-      description: `Daily Settlement ${date}${payoutReference ? ` (Ref: ${payoutReference})` : ''}`,
-    });
 
     /* ── Upsert LabReconciliation snapshot ──────────────────────────── */
     const newSettled = alreadySettled + settleAmount;

@@ -1,23 +1,30 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { 
-  Users, Gift, Copy, Share2, Mail, MessageSquare, 
-  ChevronRight, CheckCircle2, Star, ShieldCheck, 
-  Clock, TrendingUp, Heart
+  Users, Gift, Copy, Share2, Mail, 
+  CheckCircle2, Star, ShieldCheck, 
+  Clock, TrendingUp, Heart, Wallet
 } from 'lucide-react';
-import { authService } from '../../../services';
+import { authService, walletService } from '../../../services';
 import { PageLoader } from '../../../components/ui/Feedback';
-import { formatDate } from '../../../utils/format';
+import { formatCurrency, formatDate } from '../../../utils/format';
 import Button from '../../../components/ui/Button';
 import { cn } from '../../../utils';
 
 export default function PatientReferral() {
   const [data, setData] = useState(null);
+  const [walletBalance, setWalletBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    authService.getReferrals()
-      .then(res => setData(res.data))
+    Promise.all([
+      authService.getReferrals(),
+      walletService.getInfo(),
+    ])
+      .then(([referralRes, walletRes]) => {
+        setData(referralRes.data);
+        setWalletBalance(walletRes.data?.wallet?.balance || 0);
+      })
       .catch((err) => {
         toast.error('Failed to load referral data');
         console.error(err);
@@ -74,6 +81,21 @@ export default function PatientReferral() {
         >
           Copy Referral Link <Copy size={18} />
         </Button>
+      </div>
+
+      <div className="bg-white rounded-[2rem] border border-emerald-100 shadow-sm p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <Wallet size={22} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Wallet Balance</p>
+            <p className="text-3xl font-black text-emerald-600">{formatCurrency(walletBalance)}</p>
+          </div>
+        </div>
+        <p className="text-sm font-bold text-slate-500 max-w-xl">
+          Wallet balance can be used at the time of booking.
+        </p>
       </div>
 
       {/* Stats Row */}

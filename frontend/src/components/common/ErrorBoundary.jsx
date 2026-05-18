@@ -18,6 +18,10 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      if (this.state.error?.message?.includes('user is not defined')) {
+        return <div className="p-6">Session loading...</div>;
+      }
+
       // You can render any custom fallback UI
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">

@@ -69,4 +69,4 @@ const protectPartner = async (req, res, next) => {
   }
 };
 
-module.exports = { protect, requireRole, protectPartner };
+module.exports = { protect, requireAuth: protect, requireRole, protectPartner };

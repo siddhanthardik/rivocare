@@ -2,19 +2,18 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Calendar, Clock, Activity, ShieldCheck, 
-  Star, ChevronRight, MoreHorizontal,
+  ChevronRight, MoreHorizontal,
   MapPin, CheckCircle2, Plus
 } from 'lucide-react';
-import { useAuth } from '../../../context/AuthContext';
 import { bookingService } from '../../../services';
 import { formatDate, formatDateTime, SERVICE_CONFIG, cn } from '../../../utils';
+import { BOOKING_STATUS, normalizeBookingStatus } from '../../../constants/bookingStatus';
 import { safe } from '../../../utils/safeGet';
 import { PageLoader } from '../../../components/ui/Feedback';
 import Button from '../../../components/ui/Button';
 import { PageWrapper, Card, Row, Section, KPIChip, StatusPill } from '../../../components/ui/Layout';
 
 export default function PatientOverview() {
-  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -32,12 +31,15 @@ export default function PatientOverview() {
 
   if (loading) return <PageLoader />;
 
-  const upcomingBookings = data?.bookings.filter(b => b.status === 'pending' || b.status === 'confirmed') || [];
+  const upcomingBookings = data?.bookings.filter(b => {
+    const s = normalizeBookingStatus(b.status);
+    return s === BOOKING_STATUS.REQUESTED || s === BOOKING_STATUS.CONFIRMED;
+  }) || [];
 
   return (
-    <PageWrapper>
+    <PageWrapper maxWidth="1200px">
       {/* ── KPI Strip ──────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <KPIChip 
           icon={Activity} 
           label="Consultations" 
@@ -51,20 +53,6 @@ export default function PatientOverview() {
           value={upcomingBookings.length} 
           color="text-purple-600"
           bg="bg-purple-50/30"
-        />
-        <KPIChip 
-          icon={ShieldCheck} 
-          label="Member Since" 
-          value={user?.createdAt ? new Date(user.createdAt).getFullYear() : '2024'} 
-          color="text-emerald-600"
-          bg="bg-emerald-50/30"
-        />
-        <KPIChip 
-          icon={Star} 
-          label="Tier Status" 
-          value="Gold" 
-          color="text-amber-600"
-          bg="bg-amber-50/30"
         />
       </div>
 

@@ -1,14 +1,19 @@
 const Wallet = require('../models/Wallet');
 const Transaction = require('../models/Transaction');
+const Provider = require('../models/Provider');
+const User = require('../models/User');
+const sendEmail = require('../utils/sendEmail');
+const { MIN_PAYOUT_THRESHOLD, updateProviderEarnings } = require('../services/providerEarningsService');
+const billingLogger = require('../utils/billingLogger');
 
 // @GET /api/wallet
-// Get the logged-in user's wallet balance
 exports.getWalletInfo = async (req, res, next) => {
   try {
     let wallet = await Wallet.findOne({ user: req.user._id });
     if (!wallet) {
       wallet = await Wallet.create({ user: req.user._id, balance: 0 });
     }
+
     res.json({ success: true, data: { wallet } });
   } catch (err) {
     next(err);
@@ -16,17 +21,15 @@ exports.getWalletInfo = async (req, res, next) => {
 };
 
 // @GET /api/wallet/transactions
-// Get the logged-in user's transaction history
 exports.getTransactions = async (req, res, next) => {
   try {
     const wallet = await Wallet.findOne({ user: req.user._id });
     if (!wallet) {
-      return res.json({ success: true, data: { transactions: [] } });
+      return res.json({ success: true, data: { transactions: [], total: 0, page: 1, totalPages: 0 } });
     }
 
     const { page = 1, limit = 10 } = req.query;
     const filter = { wallet: wallet._id };
-
     const total = await Transaction.countDocuments(filter);
     const transactions = await Transaction.find(filter)
       .sort({ createdAt: -1 })
@@ -39,7 +42,7 @@ exports.getTransactions = async (req, res, next) => {
         transactions,
         total,
         page: Number(page),
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / Number(limit)),
       },
     });
   } catch (err) {
@@ -47,70 +50,99 @@ exports.getTransactions = async (req, res, next) => {
   }
 };
 
-const sendEmail = require('../utils/sendEmail');
-const User = require('../models/User'); // Required to fetch provider details for the email
-
 // @POST /api/wallet/payout
-// Request a manual payout (Provider Action)
 exports.requestPayout = async (req, res, next) => {
   try {
     const { amount } = req.body;
 
-    // 🔒 ROLE CHECK: Only providers can withdraw
     if (req.user.role !== 'provider') {
-      return res.status(403).json({ success: false, message: 'Only providers can request payouts. Patient referral credits can only be used for service bookings.' });
+      return res.status(403).json({
+        success: false,
+        message: 'Only providers can request payouts. Patient referral credits can only be used for service bookings.',
+      });
     }
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Valid amount required' });
     }
 
-    // 🔒 MINIMUM THRESHOLD: ₹1,000 to prevent frequent small requests
-    const MIN_PAYOUT = 1000;
-    if (amount < MIN_PAYOUT) {
-      return res.status(400).json({ success: false, message: `Minimum payout amount is ₹${MIN_PAYOUT}` });
+    if (amount < MIN_PAYOUT_THRESHOLD) {
+      return res.status(400).json({
+        success: false,
+        message: `Minimum payout amount is ₹${MIN_PAYOUT_THRESHOLD}`,
+      });
     }
 
-    const wallet = await Wallet.findOne({ user: req.user._id });
-    if (!wallet || wallet.balance < amount) {
+    const providerProfile = await Provider.findOne({ user: req.user._id });
+    if (!providerProfile || providerProfile.completedBookings === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'You must complete at least one booking to request a payout.',
+      });
+    }
+    // Atomically reserve funds by decrementing wallet if sufficient balance
+    const wallet = await Wallet.findOneAndUpdate(
+      { user: req.user._id, balance: { $gte: amount } },
+      { $inc: { balance: -amount } },
+      { new: true }
+    );
+
+    if (!wallet) {
       return res.status(400).json({ success: false, message: 'Insufficient wallet balance' });
     }
 
-    // 🔒 SERVICE COMPLETION CHECK: Must have completed at least 1 booking to withdraw
-    const Provider = require('../models/Provider');
-    const providerProfile = await Provider.findOne({ user: req.user._id });
-    if (!providerProfile || providerProfile.completedBookings === 0) {
-      return res.status(400).json({ success: false, message: 'You must complete at least one booking to request a payout.' });
-    }
+    // Create a PayoutRequest and a PENDING Transaction to record reserved funds
+    const PayoutRequest = require('../models/PayoutRequest');
+    const payoutRequest = await PayoutRequest.create({
+      provider: providerProfile._id,
+      wallet: wallet._id,
+      amount,
+      requestedBy: req.user._id,
+    });
 
-    // Since this is a manual flow for now, we just deduct the balance and log a debit
-    // In a real system, this would trigger a Payout logic via Razorpayx/Stripe Connect
-    wallet.balance -= amount;
-    await wallet.save();
+    try {
+      billingLogger.logPayoutRequested({
+        providerId: providerProfile._id && providerProfile._id.toString(),
+        userId: req.user._id && req.user._id.toString(),
+        amount,
+        status: 'PENDING',
+        requestId: req.requestId,
+        ip: req.ip,
+        endpoint: req.originalUrl,
+        metadata: { payoutRequestId: payoutRequest._id && payoutRequest._id.toString() }
+      });
+    } catch (e) {}
 
     const transaction = await Transaction.create({
       wallet: wallet._id,
       type: 'DEBIT',
       amount,
-      description: 'Payout Request Processed (Manual via Admin)',
+      description: 'Payout Request (Reserved)',
+      referenceType: 'PayoutRequest',
+      referenceId: payoutRequest._id,
+      status: 'PENDING',
     });
 
-    // 📧 Send email notification to admin and support
+    // Link transaction to payout
+    payoutRequest.transaction = transaction._id;
+    await payoutRequest.save();
+
+    await updateProviderEarnings(providerProfile._id);
     const providerUser = await User.findById(req.user._id);
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@rivocare.in';
     const supportEmail = process.env.SUPPORT_EMAIL || 'support@rivocare.in';
-    
     const emailMessage = `
-A new payout request has been submitted.
+  A new payout request has been submitted.
 
-Details:
-- Provider Name: ${providerUser ? providerUser.name : 'Unknown User'}
-- Provider Email: ${providerUser ? providerUser.email : 'Unknown Email'}
-- Amount Requested: ₹${amount}
-- Available Balance Remaining: ₹${wallet.balance}
-- Transaction ID: ${transaction._id}
+  Details:
+  - Provider Name: ${providerUser ? providerUser.name : 'Unknown User'}
+  - Provider Email: ${providerUser ? providerUser.email : 'Unknown Email'}
+  - Amount Requested: ₹${amount}
+  - Available Balance Remaining: ₹${wallet.balance}
+  - PayoutRequest ID: ${payoutRequest._id}
+  - Transaction ID: ${transaction._id}
 
-Please process this payout manually to the provider's registered bank account.
+  Please process this payout manually to the provider's registered bank account.
     `;
 
     try {
@@ -121,13 +153,12 @@ Please process this payout manually to the provider's registered bank account.
       });
     } catch (emailErr) {
       console.error('Failed to send payout email notification:', emailErr);
-      // We don't fail the request if the email fails
     }
 
     res.json({
       success: true,
-      message: 'Payout requested and balance deducted successfully.',
-      data: { wallet, transaction },
+      message: 'Payout requested and balance reserved successfully.',
+      data: { wallet, payoutRequest, transaction },
     });
   } catch (err) {
     next(err);

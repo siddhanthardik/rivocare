@@ -3,7 +3,7 @@ import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Search, Filter, Microscope, Clock, ShieldCheck, FileText, ChevronRight, X } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
-import { LAB_DEPARTMENTS } from '@/constants/departments';
+import { useDepartments } from '../../hooks/useDepartments';
 
 export default function TestSearch() {
   const { user } = useAuth();
@@ -16,10 +16,11 @@ export default function TestSearch() {
     }
   }, [user, navigate]);
 
+  const { departments } = useDepartments();
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [activeCategory, setActiveCategory] = useState(searchParams.get('category') || 'All');
 
-  const categories = ['All', ...LAB_DEPARTMENTS.map(d => d.label)];
+  const categories = ['All', ...departments.map(d => d.label)];
 
   // Dummy data for visual presentation
   const searchResults = [
@@ -36,7 +37,7 @@ export default function TestSearch() {
     const params = {};
     if (query) params.q = query;
     if (activeCategory !== 'All') {
-      const deptKey = LAB_DEPARTMENTS.find(d => d.label === activeCategory)?.key;
+      const deptKey = departments.find(d => d.label === activeCategory)?.key;
       if (deptKey) params.department = deptKey;
     }
     setSearchParams(params);
@@ -47,7 +48,7 @@ export default function TestSearch() {
     const params = {};
     if (query) params.q = query;
     if (cat !== 'All') {
-      const deptKey = LAB_DEPARTMENTS.find(d => d.label === cat)?.key;
+      const deptKey = departments.find(d => d.label === cat)?.key;
       if (deptKey) params.department = deptKey;
     }
     setSearchParams(params);
@@ -178,7 +179,7 @@ export default function TestSearch() {
               <div key={test.id} className="bg-white rounded-[2rem] border border-slate-200 p-6 flex flex-col hover:border-blue-500 hover:shadow-xl hover:shadow-blue-900/5 transition-all group">
                 <div className="flex items-start justify-between mb-4">
                   <span className="bg-slate-100 text-slate-600 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-md">
-                    {LAB_DEPARTMENTS.find(d => d.key === test.department)?.label || test.department}
+                    {departments.find(d => d.key === test.department)?.label || test.department}
                   </span>
                   <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
                     <ShieldCheck size={14} /> NABL

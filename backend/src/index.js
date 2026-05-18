@@ -1,4 +1,26 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+
+// ── TEMPORARY DEBUG CRASH HANDLERS ────────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error(' [CRITICAL_CRASH] uncaughtException:', {
+    message: err.message,
+    stack: err.stack,
+    file: err.fileName,
+    line: err.lineNumber
+  });
+  // Keep process alive for 1s to ensure logs are flushed
+  setTimeout(() => process.exit(1), 1000);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error(' [CRITICAL_CRASH] unhandledRejection:', {
+    reason: reason instanceof Error ? reason.message : reason,
+    stack: reason instanceof Error ? reason.stack : 'N/A'
+  });
+  setTimeout(() => process.exit(1), 1000);
+});
+// ─────────────────────────────────────────────────────────────
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -17,13 +39,22 @@ const providerRoutes = require('./routes/providers');
 const adminRoutes = require('./routes/admin');
 const reviewRoutes = require('./routes/reviewRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const payoutRoutes = require('./routes/payoutRoutes');
+const webhookRoutes = require('./routes/webhookRoutes');
+const apiWebhookRoutes = require('./routes/apiWebhookRoutes');
+const invoiceApiRoutes = require('./routes/invoiceRoutes');
 const walletRoutes = require('./routes/walletRoutes');
 const notificationRoutes = require('./routes/notifications');
 const subscriptionRoutes = require('./routes/subscriptions');
 const labRoutes = require('./routes/labs.js');
+const memberRoutes = require('./routes/members.js');
+const addressRoutes = require('./routes/addresses.js');
+const invoiceRoutes = require('./routes/invoices.js');
+const reportRoutes = require('./routes/reports.js');
 const partnerLabRoutes = require('./routes/partnerLabs.js');
 const adminLabRoutes = require('./routes/adminLabs.js');
 const reconciliationRoutes = require('./routes/reconciliation.js');
+const adminReconciliationRoutes = require('./routes/adminReconciliation');
 const pricingRoutes = require('./routes/pricingRoutes');
 const logRoutes = require('./routes/logs');
 
@@ -35,6 +66,7 @@ connectDB();
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
+const requestId = require('./middleware/requestId');
 
 // ── Middleware ──────────────────────────────────────────────
 const allowedOrigins = [
@@ -93,9 +125,11 @@ app.use('/api/auth/reset-password', authLimiter);
 app.use('/api/auth/profile', profileUpdateLimiter);
 app.use('/api/auth/avatar', profileUpdateLimiter);
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb', verify: (req, res, buf, encoding) => { req.rawBody = buf.toString(encoding || 'utf8'); } }));
 app.use(express.urlencoded({ extended: true }));
 app.use(mongoSanitize()); // Prevent NoSQL injections globally
+// Attach a unique request id for observability
+app.use(requestId);
 
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
@@ -121,14 +155,25 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/provider', providerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/webhooks', webhookRoutes);
+app.use('/api/webhooks', apiWebhookRoutes);
+app.use('/api/invoices', invoiceApiRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/admin/payouts', payoutRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/labs', labRoutes);
+app.use('/api/lab', labRoutes);
+app.use('/api/members', memberRoutes);
+app.use('/api/addresses', addressRoutes);
+app.use('/api/invoices', invoiceRoutes);
+app.use('/api/reports', reportRoutes);
 app.use('/api/partner/lab', partnerLabRoutes);
 app.use('/api/admin/labs', adminLabRoutes);
 app.use('/api/admin/labs/reconciliation', reconciliationRoutes);
+app.use('/api/admin/reconciliation', adminReconciliationRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/logs', logRoutes);
 
@@ -161,10 +206,17 @@ const server = app.listen(PORT, () => {
 socketHelper.init(server, allowedOrigins);
 
 // ── Initialize Cron Jobs ────────────────────────────────────
-const { startCron } = require('../cron/reassignment');
-startCron();
+if (process.env.TESTING_MODE === 'true') {
+  console.log('[CRON] TESTING_MODE enabled — skipping scheduled crons');
+} else {
+  const { startCron } = require('../cron/reassignment');
+  startCron();
 
-const { startAutoCompletionCron } = require('../cron/autoComplete');
-startAutoCompletionCron();
+  const { startAutoCompletionCron } = require('../cron/autoComplete');
+  startAutoCompletionCron();
+
+  const { startOperationalMonitoring } = require('../cron/operationalMonitoring');
+  startOperationalMonitoring();
+}
 
 module.exports = app;

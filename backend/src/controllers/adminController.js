@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Provider = require('../models/Provider');
 const Booking = require('../models/Booking');
+const Payment = require('../models/Payment');
 const FraudFlag = require('../models/FraudFlag');
 const ServiceablePincode = require('../models/ServiceablePincode');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
@@ -9,6 +10,8 @@ const PatientSubscription = require('../models/PatientSubscription');
 const PatientPackage = require('../models/PatientPackage');
 const ServiceAssignment = require('../models/ServiceAssignment');
 const Service = require('../models/Service');
+const { BOOKING_STATUS, PAYMENT_STATUS, normalizeBookingStatus, normalizePaymentStatus } = require('../constants/bookingStatus');
+const reconciliationService = require('../services/reconciliationService');
 
 // @GET /api/admin/stats
 exports.getStats = async (req, res, next) => {
@@ -18,13 +21,13 @@ exports.getStats = async (req, res, next) => {
       Provider.countDocuments(),
       Booking.countDocuments(),
       Booking.aggregate([
-        { $match: { status: 'completed' } },
+        { $match: { status: { $in: [BOOKING_STATUS.COMPLETED, 'completed', 'COMPLETED'] } } },
         { $group: { _id: null, total: { $sum: '$totalAmount' } } },
       ]),
     ]);
 
     const onlineProviders = await Provider.countDocuments({ isOnline: true });
-    const pendingBookings = await Booking.countDocuments({ status: 'pending' });
+    const pendingBookings = await Booking.countDocuments({ status: { $in: [BOOKING_STATUS.REQUESTED, 'pending', 'PENDING', 'REQUESTED'] } });
     const totalRevenue = revenueAgg[0]?.total || 0;
 
     // Last 7 days bookings
@@ -41,6 +44,10 @@ exports.getStats = async (req, res, next) => {
         pendingBookings,
         totalRevenue,
         recentBookings,
+        cancelledBookings: await Booking.countDocuments({ status: { $in: [BOOKING_STATUS.CANCELLED, 'cancelled', 'CANCELLED'] } }),
+        grossRevenue: totalRevenue,
+        platformRevenue: Math.round(totalRevenue * 0.2),
+        desyncIssues: await reconciliationService.runReconciliationCheck()
       },
     });
   } catch (err) {
@@ -86,16 +93,78 @@ exports.updateUser = async (req, res, next) => {
 // @PUT /api/admin/providers/:id/verify
 exports.verifyProvider = async (req, res, next) => {
   try {
-    const provider = await Provider.findByIdAndUpdate(
-      req.params.id,
-      { isVerified: req.body.isVerified },
-      { new: true }
-    ).populate('user', 'name email');
+    const { action, rejectionNotes, kycStatus, docIndex, docStatus } = req.body;
+    // action: 'ACTIVATE' | 'REJECT' | 'VERIFY_KYC' | 'REJECT_KYC' | 'VERIFY_DOC' | 'REJECT_DOC'
+
+    const provider = await Provider.findById(req.params.id).populate('user', 'name email');
     if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
-    res.json({ success: true, data: { provider } });
-  } catch (err) {
-    next(err);
-  }
+
+    const emailService = require('../services/emailService');
+
+    if (action === 'ACTIVATE') {
+      provider.isVerified = true;
+      provider.onboardingStatus = 'ACTIVE';
+      provider.isAvailable = true;
+      if (rejectionNotes) provider.rejectionNotes = rejectionNotes;
+      await provider.save();
+      try { emailService.sendVerificationApproved(provider.user.email, provider.user.name); } catch(e) {}
+    } else if (action === 'REJECT') {
+      provider.isVerified = false;
+      provider.onboardingStatus = 'REJECTED';
+      provider.rejectionNotes = rejectionNotes || 'Documents could not be verified.';
+      await provider.save();
+      try { emailService.sendVerificationRejected(provider.user.email, provider.user.name, provider.rejectionNotes); } catch(e) {}
+    } else if (action === 'SUSPEND') {
+      provider.isVerified = false;
+      provider.onboardingStatus = 'SUSPENDED';
+      provider.isOnline = false;
+      provider.isAvailable = false;
+      await provider.save();
+    } else if (action === 'VERIFY_KYC') {
+      provider.kycDetails.status = 'VERIFIED';
+      await provider.save();
+    } else if (action === 'REJECT_KYC') {
+      provider.kycDetails.status = 'REJECTED';
+      await provider.save();
+    } else if (action === 'VERIFY_DOC' && docIndex !== undefined) {
+      if (provider.professionalDocs[docIndex]) {
+        provider.professionalDocs[docIndex].status = 'VERIFIED';
+        await provider.save();
+      }
+    } else if (action === 'REJECT_DOC' && docIndex !== undefined) {
+      if (provider.professionalDocs[docIndex]) {
+        provider.professionalDocs[docIndex].status = 'REJECTED';
+        await provider.save();
+      }
+    } else if (action === 'VERIFY_POLICE') {
+      provider.policeVerificationStatus = 'VERIFIED';
+      await provider.save();
+    } else {
+      // Legacy: toggle isVerified
+      provider.isVerified = req.body.isVerified;
+      await provider.save();
+    }
+
+    res.json({ success: true, message: 'Provider updated', data: { provider } });
+  } catch (err) { next(err); }
+};
+
+// @GET /api/admin/providers/onboarding — list providers pending verification
+exports.getOnboardingProviders = async (req, res, next) => {
+  try {
+    const { status = 'PENDING_VERIFICATION', page = 1, limit = 20 } = req.query;
+    const validStatuses = ['INCOMPLETE', 'DRAFT', 'PENDING_VERIFICATION', 'ACTIVE', 'REJECTED', 'SUSPENDED'];
+    const filter = validStatuses.includes(status) ? { onboardingStatus: status } : { onboardingStatus: 'PENDING_VERIFICATION' };
+
+    const total = await Provider.countDocuments(filter);
+    const providers = await Provider.find(filter)
+      .populate('user', 'name email phone avatar')
+      .sort({ updatedAt: -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit));
+
+    res.json({ success: true, data: { providers, total, page: Number(page), totalPages: Math.ceil(total / limit) } });
+  } catch (err) { next(err); }
 };
 
 // @GET /api/admin/providers
@@ -171,11 +240,15 @@ exports.getDashboardSummary = async (req, res, next) => {
       User.countDocuments({ role: 'patient' }),
       Provider.countDocuments({ isVerified: true }),
       Booking.countDocuments(),
-      Booking.countDocuments({ status: 'completed' }),
-      Booking.countDocuments({ status: 'pending' }),
-      Booking.countDocuments({ status: 'cancelled' }),
+      Booking.countDocuments({ status: { $in: [BOOKING_STATUS.COMPLETED, 'completed', 'COMPLETED'] } }),
+      Booking.countDocuments({ status: { $in: [BOOKING_STATUS.REQUESTED, 'pending', 'PENDING', 'REQUESTED'] } }),
+      Booking.countDocuments({ status: { $in: [BOOKING_STATUS.CANCELLED, 'cancelled', 'CANCELLED'] } }),
       Booking.aggregate([
-        { $match: { status: 'completed', paymentStatus: 'PAID' } },
+        { $match: { 
+            status: { $in: [BOOKING_STATUS.COMPLETED, 'completed', 'COMPLETED'] }, 
+            paymentStatus: { $in: [PAYMENT_STATUS.PAID, 'PAID', 'paid', 'success', 'SUCCESS'] } 
+          } 
+        },
         { $group: { _id: null, total: { $sum: '$totalAmount' } } },
       ]),
     ]);
@@ -195,6 +268,7 @@ exports.getDashboardSummary = async (req, res, next) => {
         cancelledBookings,
         totalProviders,
         totalUsers,
+        desyncIssues: await reconciliationService.runReconciliationCheck()
       },
     });
   } catch (err) {
@@ -213,8 +287,8 @@ exports.getDashboardRevenue = async (req, res, next) => {
     const dailyRevenue = await Booking.aggregate([
       {
         $match: {
-          status: 'completed',
-          paymentStatus: 'PAID',
+          status: { $in: [BOOKING_STATUS.COMPLETED, 'completed', 'COMPLETED'] },
+          paymentStatus: { $in: [PAYMENT_STATUS.PAID, 'PAID', 'paid', 'success', 'SUCCESS'] },
           createdAt: { $gte: startDate },
         },
       },
@@ -238,8 +312,8 @@ exports.getDashboardRevenue = async (req, res, next) => {
     const monthlyRevenue = await Booking.aggregate([
       {
         $match: {
-          status: 'completed',
-          paymentStatus: 'PAID',
+          status: { $in: [BOOKING_STATUS.COMPLETED, 'completed', 'COMPLETED'] },
+          paymentStatus: { $in: [PAYMENT_STATUS.PAID, 'PAID', 'paid', 'success', 'SUCCESS'] },
           createdAt: { $gte: sixMonthsAgo },
         },
       },
@@ -295,7 +369,11 @@ exports.getTopProviders = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 10;
 
     const topProviders = await Booking.aggregate([
-      { $match: { status: 'completed', paymentStatus: 'PAID' } },
+      { $match: { 
+          status: { $in: [BOOKING_STATUS.COMPLETED, 'completed', 'COMPLETED'] }, 
+          paymentStatus: { $in: [PAYMENT_STATUS.PAID, 'PAID', 'paid', 'success', 'SUCCESS'] } 
+        } 
+      },
       {
         $group: {
           _id: '$provider',
@@ -358,7 +436,7 @@ exports.getDashboardBookings = async (req, res, next) => {
     ]);
 
     const serviceBreakdown = await Booking.aggregate([
-      { $match: { status: 'completed' } },
+      { $match: { status: { $in: [BOOKING_STATUS.COMPLETED, 'completed', 'COMPLETED'] } } },
       {
         $group: {
           _id: '$service',
@@ -708,12 +786,12 @@ exports.setAdminPrice = async (req, res, next) => {
     if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
 
     // Cannot override after payment
-    if (booking.paymentStatus === 'PAID') {
+    if (normalizePaymentStatus(booking.paymentStatus) === PAYMENT_STATUS.PAID) {
       return res.status(400).json({ success: false, message: 'Cannot override price after payment has been made' });
     }
 
     // Cannot override cancelled booking
-    if (booking.status === 'cancelled') {
+    if (normalizeBookingStatus(booking.status) === BOOKING_STATUS.CANCELLED) {
       return res.status(400).json({ success: false, message: 'Cannot override price on a cancelled booking' });
     }
 
@@ -792,6 +870,7 @@ exports.setAdminPrice = async (req, res, next) => {
 // ---------------------- CMS: Pages & Blogs ----------------------
 const Page = require('../models/Page');
 const Blog = require('../models/Blog');
+const emailService = require('../services/emailService');
 
 // @POST /api/admin/content/pages
 exports.createPage = async (req, res, next) => {
@@ -927,5 +1006,429 @@ exports.uploadBlogHero = async (req, res, next) => {
     blog.heroImage = { url, publicId };
     await blog.save();
     res.json({ success: true, message: 'Hero image uploaded', data: { blog } });
+  } catch (err) { next(err); }
+};
+
+// @GET /api/admin/reconciliation/report
+exports.getReconciliationReport = async (req, res, next) => {
+  try {
+    const report = await reconciliationService.runReconciliationCheck();
+    res.json({ success: true, data: report });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @POST /api/admin/reconciliation/fix/:bookingId
+exports.fixReconciliationIssue = async (req, res, next) => {
+  try {
+    const { bookingId } = req.params;
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+    const payment = await Payment.findOne({ booking: bookingId, status: 'SUCCESS' });
+    if (payment && normalizePaymentStatus(booking.paymentStatus) !== PAYMENT_STATUS.PAID) {
+      booking.paymentStatus = PAYMENT_STATUS.PAID;
+      await booking.save();
+      return res.json({ success: true, message: 'Booking status synchronized with payment.' });
+    }
+
+    res.status(400).json({ success: false, message: 'No automated fix available for this issue.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+//  OPERATIONAL ADMIN ENDPOINTS
+// ─────────────────────────────────────────────────────────────
+
+// @GET /api/admin/bookings/unpaid-completed
+// Lists completed bookings where payment has not been received
+exports.getUnpaidCompletedBookings = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const filter = {
+      status: { $in: [BOOKING_STATUS.COMPLETED, 'completed', 'COMPLETED'] },
+      paymentStatus: { $nin: [PAYMENT_STATUS.PAID, 'paid', 'PAID', PAYMENT_STATUS.COLLECTED, 'COLLECTED', 'collected'] },
+    };
+    const total = await Booking.countDocuments(filter);
+    const bookings = await Booking.find(filter)
+      .populate('patient', 'name email phone')
+      .populate({ path: 'provider', populate: { path: 'user', select: 'name email phone' } })
+      .populate('service', 'name slug')
+      .sort({ completedAt: -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit))
+      .lean();
+
+    const now = new Date();
+    const enriched = bookings.map(b => ({
+      ...b,
+      ageHours: b.completedAt ? Math.round((now - new Date(b.completedAt)) / 3600000) : null,
+      paymentStatusNormalized: normalizePaymentStatus(b.paymentStatus),
+    }));
+
+    res.json({ success: true, data: { bookings: enriched, total, page: Number(page), totalPages: Math.ceil(total / limit) } });
+  } catch (err) { next(err); }
+};
+
+// @GET /api/admin/disputes
+// Lists bookings where a cash dispute has been raised by the patient
+exports.getDisputes = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20, resolved } = req.query;
+    const filter = { disputeRaised: true };
+    // If resolved=true query param, show only confirmed (patient accepted after initial dispute)
+    // Currently we have no resolution tracking so we just surface all disputed
+    const total = await Booking.countDocuments(filter);
+    const bookings = await Booking.find(filter)
+      .populate('patient', 'name email phone')
+      .populate({ path: 'provider', populate: { path: 'user', select: 'name email phone' } })
+      .populate('service', 'name slug')
+      .sort({ updatedAt: -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit))
+      .lean();
+
+    res.json({ success: true, data: { bookings, total, page: Number(page), totalPages: Math.ceil(total / limit) } });
+  } catch (err) { next(err); }
+};
+
+// @GET /api/admin/bookings/stuck
+// Lists bookings stuck in operational states past expected thresholds
+exports.getStuckBookings = async (req, res, next) => {
+  try {
+    const now = new Date();
+
+    // REQUESTED bookings past their expiry window
+    const expiredRequested = await Booking.find({
+      status: { $in: [BOOKING_STATUS.REQUESTED, 'REQUESTED', 'pending', 'PENDING'] },
+      expiresAt: { $lt: now },
+    }).populate('patient', 'name phone').populate({ path: 'provider', populate: { path: 'user', select: 'name phone' } }).lean();
+
+    // CONFIRMED bookings with PENDING payment older than 24h
+    const staleCutoff24h = new Date(now - 24 * 60 * 60 * 1000);
+    const unpaidConfirmed = await Booking.find({
+      status: { $in: [BOOKING_STATUS.CONFIRMED, 'CONFIRMED', 'confirmed', 'accepted', 'ACCEPTED'] },
+      paymentStatus: { $nin: [PAYMENT_STATUS.PAID, 'PAID', 'paid', PAYMENT_STATUS.COLLECTED, 'COLLECTED'] },
+      updatedAt: { $lt: staleCutoff24h },
+    }).populate('patient', 'name phone').populate({ path: 'provider', populate: { path: 'user', select: 'name phone' } }).lean();
+
+    // IN_PROGRESS bookings running for more than 12h
+    const staleCutoff12h = new Date(now - 12 * 60 * 60 * 1000);
+    const longRunning = await Booking.find({
+      status: { $in: [BOOKING_STATUS.IN_PROGRESS, 'IN_PROGRESS', 'in-progress', 'in_progress', 'started', 'STARTED'] },
+      startedAt: { $lt: staleCutoff12h },
+    }).populate('patient', 'name phone').populate({ path: 'provider', populate: { path: 'user', select: 'name phone' } }).lean();
+
+    // COMPLETED but unpaid for more than 48h
+    const staleCutoff48h = new Date(now - 48 * 60 * 60 * 1000);
+    const unpaidCompleted = await Booking.find({
+      status: { $in: [BOOKING_STATUS.COMPLETED, 'COMPLETED', 'completed'] },
+      paymentStatus: { $nin: [PAYMENT_STATUS.PAID, 'PAID', 'paid', PAYMENT_STATUS.COLLECTED, 'COLLECTED', 'collected'] },
+      completedAt: { $lt: staleCutoff48h },
+    }).populate('patient', 'name phone').populate({ path: 'provider', populate: { path: 'user', select: 'name phone' } }).lean();
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          expiredRequested: expiredRequested.length,
+          unpaidConfirmed: unpaidConfirmed.length,
+          longRunningInProgress: longRunning.length,
+          unpaidCompleted: unpaidCompleted.length,
+          totalAlerts: expiredRequested.length + unpaidConfirmed.length + longRunning.length + unpaidCompleted.length,
+        },
+        expiredRequested,
+        unpaidConfirmed,
+        longRunning,
+        unpaidCompleted,
+      },
+    });
+  } catch (err) { next(err); }
+};
+
+// ─────────────────────────────────────────────────────────────
+//  DISPUTE RESOLUTION — Phase 2
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/admin/disputes/:id/resolve
+ *
+ * Resolution types:
+ *   APPROVE_PROVIDER  — credit provider full amount, mark PAID
+ *   REJECT_PROVIDER   — no payout, mark closed (stays DISPUTED)
+ *   PARTIAL_SETTLEMENT — credit approvedAmount, mark resolved
+ *
+ * Idempotency: checks for existing CREDIT transaction before any payout.
+ * Audit trail: writes complete resolution record to booking.disputeResolution.
+ */
+exports.resolveDispute = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { resolutionType, adminNotes, approvedAmount } = req.body;
+
+    const VALID_TYPES = ['APPROVE_PROVIDER', 'REJECT_PROVIDER', 'PARTIAL_SETTLEMENT'];
+    if (!resolutionType || !VALID_TYPES.includes(resolutionType)) {
+      return res.status(400).json({
+        success: false,
+        message: `resolutionType must be one of: ${VALID_TYPES.join(', ')}`,
+      });
+    }
+
+    if (resolutionType === 'PARTIAL_SETTLEMENT') {
+      const amt = Number(approvedAmount);
+      if (!amt || amt <= 0) {
+        return res.status(400).json({ success: false, message: 'approvedAmount is required and must be > 0 for PARTIAL_SETTLEMENT' });
+      }
+    }
+
+    const Wallet = require('../models/Wallet');
+    const Transaction = require('../models/Transaction');
+    const Notification = require('../models/Notification');
+
+    const booking = await Booking.findById(id)
+      .populate('patient', 'name phone _id')
+      .populate({ path: 'provider', populate: { path: 'user', select: 'name phone _id' } });
+
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+    // Idempotency: already resolved → return current state
+    if (booking.disputeResolution?.disputeResolved === true) {
+      return res.status(200).json({
+        success: true,
+        message: 'Dispute already resolved. No changes made.',
+        data: booking,
+      });
+    }
+
+    if (!booking.disputeRaised) {
+      return res.status(400).json({ success: false, message: 'No dispute has been raised on this booking.' });
+    }
+
+    const mongoose = require('mongoose');
+    const session = await mongoose.startSession();
+
+    try {
+      session.startTransaction();
+
+      // ── Build the audit trail record ──────────────────────────────────────
+      const resolution = {
+        resolvedBy: req.user._id,
+        resolvedAt: new Date(),
+        resolutionType,
+        adminNotes: adminNotes || '',
+        originalCollectedAmount: booking.collectedAmount || booking.totalAmount || 0,
+        approvedAmount: resolutionType === 'PARTIAL_SETTLEMENT' ? Number(approvedAmount) : undefined,
+        disputeResolved: true,
+      };
+
+      // ── APPROVE_PROVIDER ──────────────────────────────────────────────────
+      if (resolutionType === 'APPROVE_PROVIDER') {
+        // Check idempotency before any credit
+        const existingTx = await Transaction.findOne({
+          referenceId: booking._id,
+          referenceType: 'Booking',
+          type: 'CREDIT',
+        }).session(session);
+
+        if (!existingTx) {
+          const provider = booking.provider;
+          const providerUserId = provider?.user?._id || provider?.user;
+
+          if (providerUserId) {
+            const platformFee = booking.platformFee || Math.round((booking.totalAmount || 0) * 0.2);
+            const netAmount = (booking.collectedAmount || booking.totalAmount || 0) - platformFee;
+
+            const providerWallet = await Wallet.findOneAndUpdate(
+              { user: providerUserId },
+              { $inc: { balance: netAmount } },
+              { new: true, upsert: true, session }
+            );
+
+            await Transaction.create([{
+              wallet: providerWallet._id,
+              type: 'CREDIT',
+              amount: netAmount,
+              description: `Dispute Approved — Provider credited (Booking: ${booking._id})`,
+              referenceType: 'Booking',
+              referenceId: booking._id,
+            }], { session });
+
+            console.info(`[resolveDispute] APPROVE_PROVIDER: credited ₹${netAmount} for booking ${booking._id}`);
+          }
+        } else {
+          console.warn(`[resolveDispute] APPROVE_PROVIDER: duplicate credit prevented for booking ${booking._id}`);
+        }
+
+        booking.status = BOOKING_STATUS.PAID;
+        booking.paymentStatus = PAYMENT_STATUS.PAID;
+        booking.patientConfirmed = true;
+        booking.patientConfirmedAt = booking.patientConfirmedAt || new Date();
+
+      // ── REJECT_PROVIDER ───────────────────────────────────────────────────
+      } else if (resolutionType === 'REJECT_PROVIDER') {
+        // No wallet credit. Booking stays COLLECTED/DISPUTED, just mark resolved.
+        booking.paymentStatus = 'DISPUTED'; // stays disputed, no payout
+        console.info(`[resolveDispute] REJECT_PROVIDER: no credit for booking ${booking._id}`);
+
+      // ── PARTIAL_SETTLEMENT ────────────────────────────────────────────────
+      } else if (resolutionType === 'PARTIAL_SETTLEMENT') {
+        const settlementAmount = Number(approvedAmount);
+
+        // Idempotency check
+        const existingTx = await Transaction.findOne({
+          referenceId: booking._id,
+          referenceType: 'Booking',
+          type: 'CREDIT',
+        }).session(session);
+
+        if (!existingTx) {
+          const provider = booking.provider;
+          const providerUserId = provider?.user?._id || provider?.user;
+
+          if (providerUserId) {
+            const providerWallet = await Wallet.findOneAndUpdate(
+              { user: providerUserId },
+              { $inc: { balance: settlementAmount } },
+              { new: true, upsert: true, session }
+            );
+
+            await Transaction.create([{
+              wallet: providerWallet._id,
+              type: 'CREDIT',
+              amount: settlementAmount,
+              description: `Partial Settlement — Dispute resolved (Booking: ${booking._id})`,
+              referenceType: 'Booking',
+              referenceId: booking._id,
+            }], { session });
+
+            console.info(`[resolveDispute] PARTIAL_SETTLEMENT: credited ₹${settlementAmount} for booking ${booking._id}`);
+          }
+        } else {
+          console.warn(`[resolveDispute] PARTIAL_SETTLEMENT: duplicate credit prevented for booking ${booking._id}`);
+        }
+
+        // Mark booking resolved — partial means we settle at approved amount
+        booking.status = BOOKING_STATUS.PAID;
+        booking.paymentStatus = PAYMENT_STATUS.PAID;
+      }
+
+      // ── Write audit trail ────────────────────────────────────────────────
+      booking.disputeResolution = resolution;
+      await booking.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+    } catch (txErr) {
+      await session.abortTransaction();
+      session.endSession();
+      throw txErr;
+    }
+
+    // ── Notify patient and provider (best-effort, outside transaction) ──────
+    try {
+      const patientMsg = {
+        APPROVE_PROVIDER: 'Your payment dispute has been reviewed. Admin confirmed the provider\'s collection was valid.',
+        REJECT_PROVIDER: 'Your payment dispute has been reviewed. Admin has noted the discrepancy. No provider payment was made.',
+        PARTIAL_SETTLEMENT: `Your payment dispute has been reviewed. Admin approved a partial settlement of ₹${approvedAmount}.`,
+      }[resolutionType];
+
+      const providerMsg = {
+        APPROVE_PROVIDER: `Your disputed payment for booking #${booking._id.toString().slice(-6).toUpperCase()} has been approved. Your wallet has been credited.`,
+        REJECT_PROVIDER: `Your disputed payment for booking #${booking._id.toString().slice(-6).toUpperCase()} was rejected by admin. No credit was issued.`,
+        PARTIAL_SETTLEMENT: `Partial settlement approved for booking #${booking._id.toString().slice(-6).toUpperCase()}. ₹${approvedAmount} credited to your wallet.`,
+      }[resolutionType];
+
+      const providerUserId = booking.provider?.user?._id || booking.provider?.user;
+
+      await Promise.allSettled([
+        Notification.create({
+          user: booking.patient._id || booking.patient,
+          title: 'Payment dispute resolved',
+          message: patientMsg,
+          type: 'PAYMENT',
+          linkId: booking._id,
+        }),
+        providerUserId && Notification.create({
+          user: providerUserId,
+          title: 'Dispute resolution',
+          message: providerMsg,
+          type: 'PAYMENT',
+          linkId: booking._id,
+        }),
+      ].filter(Boolean));
+      
+      // 📧 Send Dispute Resolved Emails
+      try {
+        const patientUser = booking.patient;
+        if (patientUser && patientUser.email) {
+          emailService.sendDisputeResolved(
+            patientUser.email,
+            patientUser.name,
+            booking._id,
+            resolutionType,
+            resolutionType === 'PARTIAL_SETTLEMENT' ? approvedAmount : null
+          );
+        }
+      } catch (e) { console.error('Failed to send dispute resolved email', e); }
+
+    } catch (e) {
+      console.warn('[resolveDispute] notification failed', e?.message);
+    }
+
+    const updated = await Booking.findById(id)
+      .populate('patient', 'name phone')
+      .populate({ path: 'provider', populate: { path: 'user', select: 'name phone' } })
+      .populate('disputeResolution.resolvedBy', 'name')
+      .lean();
+
+    res.json({
+      success: true,
+      message: `Dispute resolved: ${resolutionType}`,
+      data: updated,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @GET /api/admin/disputes/resolved
+// Lists disputes that have been resolved by admin
+exports.getResolvedDisputes = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const filter = {
+      disputeRaised: true,
+      'disputeResolution.disputeResolved': true,
+    };
+
+    const total = await Booking.countDocuments(filter);
+    const bookings = await Booking.find(filter)
+      .populate('patient', 'name phone email')
+      .populate({ path: 'provider', populate: { path: 'user', select: 'name phone' } })
+      .populate('disputeResolution.resolvedBy', 'name')
+      .sort({ 'disputeResolution.resolvedAt': -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit))
+      .lean();
+
+    res.json({
+      success: true,
+      data: { bookings, total, page: Number(page), totalPages: Math.ceil(total / Number(limit)) },
+    });
+  } catch (err) { next(err); }
+};
+
+// @POST /api/admin/test-email
+// Admin endpoint to test email delivery
+exports.testEmail = async (req, res, next) => {
+  try {
+    const { to } = req.body;
+    if (!to) return res.status(400).json({ success: false, message: 'Recipient email required' });
+    
+    await emailService.sendWelcome(to, 'Admin Test User');
+    res.json({ success: true, message: 'Test email dispatched' });
   } catch (err) { next(err); }
 };

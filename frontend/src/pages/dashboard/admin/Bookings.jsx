@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { bookingService, adminService } from '../../../services';
 import { formatDateTime, formatCurrency, SERVICE_CONFIG } from '../../../utils';
+import { normalizePaymentStatus, PAYMENT_STATUS } from '../../../constants/paymentStatus';
+import { BOOKING_STATUS, normalizeBookingStatus } from '../../../constants/bookingStatus';
 import { PageLoader, EmptyState } from '../../../components/ui/Feedback';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
-import { ShieldAlert, IndianRupee, AlertCircle, CheckCircle, Crown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShieldAlert, IndianRupee, AlertCircle, CheckCircle, Crown, Search, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 
 // ── Price source badge ────────────────────────────────────────
 function PriceSourceBadge({ booking }) {
@@ -62,12 +64,18 @@ export default function AdminBookings() {
 
   useEffect(() => {
     setLoading(true);
-    bookingService.getAll({ 
+    const params = { 
       page, 
       limit: 10, 
-      status: filter !== 'all' ? filter : undefined,
       q: debouncedSearch || undefined
-    })
+    };
+    // 'disputed' is a special client-side filter — pass disputeRaised flag to API
+    if (filter === 'disputed') {
+      params.disputeRaised = 'true';
+    } else if (filter !== 'all') {
+      params.status = filter;
+    }
+    bookingService.getAll(params)
       .then((res) => {
         setBookings(res.data.bookings || []);
         setTotalPages(res.data.totalPages || 1);
@@ -107,7 +115,7 @@ export default function AdminBookings() {
 
   // Which bookings can be overridden (not paid, not cancelled)
   const canOverride = (b) =>
-    b.paymentStatus !== 'PAID' && !['cancelled'].includes(b.status);
+    normalizePaymentStatus(b.paymentStatus) !== PAYMENT_STATUS.PAID && normalizeBookingStatus(b.status) !== BOOKING_STATUS.CANCELLED;
 
   if (loading && bookings.length === 0) return <PageLoader />;
 
@@ -130,13 +138,13 @@ export default function AdminBookings() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           </div>
           <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-full">
-            {['all', 'pending', 'confirmed', 'in-progress', 'completed', 'cancelled'].map((f) => (
+            {['all', 'pending', 'confirmed', 'in-progress', 'completed', 'collected', 'cancelled', 'disputed'].map((f) => (
               <button
                 key={f}
                 onClick={() => { setFilter(f); setPage(1); }}
                 className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-md capitalize transition-colors ${
                   filter === f ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                } ${f === 'disputed' ? 'text-red-600' : ''}`}
               >
                 {f}
               </button>
@@ -205,9 +213,14 @@ export default function AdminBookings() {
 
                         <td className="px-5 py-4">
                           <Badge status={b.status} />
-                          {b.paymentStatus === 'PAID' && (
+                          {normalizePaymentStatus(b.paymentStatus) === PAYMENT_STATUS.PAID && (
                             <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-1">
                               <CheckCircle size={11} /> Paid
+                            </p>
+                          )}
+                          {b.disputeRaised && (
+                            <p className="text-xs text-red-600 font-bold flex items-center gap-1 mt-1 bg-red-50 rounded px-1.5 py-0.5 border border-red-200">
+                              <AlertTriangle size={11} /> Dispute Raised
                             </p>
                           )}
                         </td>
@@ -252,10 +265,10 @@ export default function AdminBookings() {
                               Set Price
                             </Button>
                           )}
-                          {b.paymentStatus === 'PAID' && (
+                          {normalizePaymentStatus(b.paymentStatus) === PAYMENT_STATUS.PAID && (
                             <span className="text-xs text-slate-400 italic">Paid — locked</span>
                           )}
-                          {b.status === 'cancelled' && (
+                          {normalizeBookingStatus(b.status) === BOOKING_STATUS.CANCELLED && (
                             <span className="text-xs text-slate-400 italic">Cancelled</span>
                           )}
                         </td>

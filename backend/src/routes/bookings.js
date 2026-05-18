@@ -7,24 +7,24 @@ const {
   deleteBooking,
   verifyCompletion,
   checkPincode,
-  updateBookingPrice,
-  approveBookingPrice,
-  rejectBookingPrice,
 } = require('../controllers/bookingController');
 const { protect, requireRole } = require('../middleware/auth');
-
-// Public route for wizard validation
-router.get('/check-pincode/:pincode', checkPincode);
+const validateRequest = require('../middleware/validateRequest');
+const { bookingLimiter } = require('../middleware/rateLimit');
+const { bookingValidator } = require('../validators/bookingValidator');
 
 router.use(protect);
 
-router.route('/').get(getBookings).post(requireRole('patient'), createBooking);
+router.get('/check-pincode/:pincode', checkPincode);
+router.route('/')
+  .get(getBookings)
+  .post(requireRole('patient'), bookingLimiter, bookingValidator, validateRequest, createBooking);
 router.route('/:id').get(getBookingById).delete(requireRole('admin'), deleteBooking);
 router.put('/:id/status', updateBookingStatus);
 router.put('/:id/verify-completion', requireRole('patient'), verifyCompletion);
-router.put('/:id/update-price', requireRole('provider'), updateBookingPrice);
-router.put('/:id/approve-price', requireRole('patient'), approveBookingPrice);
-router.put('/:id/reject-price', requireRole('patient'), rejectBookingPrice);
+// Provider collects cash for booking and marks payment
+const { collectCash, markPaid } = require('../controllers/bookingController');
+router.post('/:id/collect-cash', requireRole('provider'), collectCash);
+router.put('/:id/mark-paid', markPaid);
 
 module.exports = router;
-

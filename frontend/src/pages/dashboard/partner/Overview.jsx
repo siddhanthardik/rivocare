@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShoppingBag, Clock, CheckCircle2,
-  FlaskConical, Activity, CreditCard, RefreshCw
+  FlaskConical, Activity, CreditCard, RefreshCw,
+  ShieldCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { labService } from '@/services';
@@ -54,147 +55,188 @@ export default function PartnerOverview() {
       label: 'Available Balance',
       value: formatCurrency(fin?.availableBalance),
       icon: CreditCard,
-      color: 'text-indigo-600',
-      bg: 'bg-indigo-50',
-      border: 'border-indigo-100',
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
     },
     {
       label: "Today's Earnings",
       value: formatCurrency(fin?.todayEarnings),
       icon: Activity,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
-      border: 'border-green-100',
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
     },
     {
       label: 'This Month',
       value: formatCurrency(fin?.monthlyEarnings),
-      icon: Activity,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50',
-      border: 'border-blue-100',
+      icon: ShoppingBag,
+      color: 'text-indigo-600',
+      bg: 'bg-indigo-50',
     },
     {
       label: 'Pending Payout',
       value: formatCurrency(fin?.pendingSettlement),
       icon: Clock,
-      color: 'text-amber-500',
+      color: 'text-amber-600',
       bg: 'bg-amber-50',
-      border: 'border-amber-100',
     },
   ];
 
   const orderStats = [
-    { label: 'Orders Today', value: data?.todayOrders ?? 0, icon: ShoppingBag, color: 'text-gray-500' },
-    { label: 'Pending Action', value: data?.pendingAction ?? 0, icon: Clock, color: 'text-amber-500' },
-    { label: 'Completed Today', value: data?.collectedToday ?? 0, icon: CheckCircle2, color: 'text-green-600' },
+    { label: 'Orders Today', value: data?.todayOrders ?? 0, icon: ShoppingBag, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Pending Action', value: data?.pendingAction ?? 0, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Completed Today', value: data?.collectedToday ?? 0, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   ];
 
   const recentOrders = data?.recentOrders ?? [];
 
   return (
-    <div className="page-container">
-
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="page-header">
-        <div className="page-header-info">
-          <div className="flex items-center gap-2 mb-0.5">
-            <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
-            <span className="typo-label !text-gray-400">Command Center</span>
+    <div className="min-h-screen bg-[#FBFBFE] pb-10 animate-fade-in">
+      
+      {/* ── COMPACT HEADER ── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-pulse" />
+            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Live Dashboard</span>
           </div>
-          <h1 className="typo-title">Overview</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Overview</h1>
         </div>
-        <button
-          onClick={() => fetchData(true)}
-          disabled={refreshing}
-          className="p-2 rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
-        >
-          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-        </button>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition-all shadow-sm"
+            title="Refresh Data"
+          >
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+          <Link 
+            to="/dashboard/partner/lab/orders"
+            className="px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg shadow-slate-900/10 hover:bg-slate-800 transition-all flex items-center gap-2"
+          >
+            Manage Orders
+          </Link>
+        </div>
       </div>
 
-      {/* ── Financial Strip ─────────────────────────────────────── */}
-      <div className="kpi-strip">
+      {/* ── COMPACT FINANCIAL STRIP ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {financialKpis.map((k) => (
-          <div key={k.label} className={cn('bg-white rounded-xl border py-3 px-4 flex items-center gap-3', k.border)}>
-            <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', k.bg, k.color)}>
-              {k.icon && <k.icon size={16} />}
+          <div key={k.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl ${k.bg} ${k.color} flex items-center justify-center shrink-0`}>
+              <k.icon size={20} />
             </div>
-            <div className="min-w-0 space-y-0.5">
-              <p className="typo-label truncate">{k.label}</p>
-              <p className="typo-kpi leading-tight">{k.value}</p>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{k.label}</p>
+              <h3 className="text-lg font-black text-slate-900 truncate">{k.value}</h3>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── Main Content ───────────────────────────────────────── */}
-      <div className="section-block">
+      {/* ── MAIN CONTENT GRID ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Compact Order Summary */}
-        <div className="grid grid-cols-3 gap-3">
-          {orderStats.map(stat => (
-            <div key={stat.label} className="compact-card py-3 px-4 flex flex-col items-center text-center">
-              <stat.icon size={15} className={cn('mb-1.5', stat.color)} />
-              <p className="typo-value leading-tight">{stat.value}</p>
-              <p className="typo-label mt-0.5">{stat.label}</p>
+        {/* Left Column: Activity & Orders */}
+        <div className="lg:col-span-8 space-y-6">
+          
+          {/* Recent Activity Table */}
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity size={16} className="text-indigo-600" />
+                <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">Live Activity</h2>
+              </div>
+              <Link to="/dashboard/partner/lab/orders" className="text-[10px] font-bold text-indigo-600 hover:underline">
+                VIEW ALL
+              </Link>
             </div>
-          ))}
-        </div>
 
-        {/* Recent Orders */}
-        <div className="compact-card">
-          <div className="card-header">
-            <div className="flex items-center gap-2">
-              <Activity size={14} className="text-indigo-500" />
-              <h2 className="typo-value !text-gray-900 !text-[14px]">Live Activity</h2>
+            <div className="p-1">
+              {recentOrders.length === 0 ? (
+                <div className="py-12 flex flex-col items-center text-center">
+                  <FlaskConical size={32} className="text-slate-200 mb-3" />
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No active orders</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-50">
+                  {recentOrders.slice(0, 5).map((order) => {
+                    const s = STATUS_MAP[order.status] || { label: order.status, color: 'bg-slate-50 text-slate-400 border-slate-100' };
+                    return (
+                      <div key={order._id} className="px-5 py-3 flex items-center justify-between hover:bg-slate-50 transition-all rounded-xl mx-1 my-0.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 font-bold flex items-center justify-center text-xs border border-indigo-100/50">
+                            {order.patient?.name?.charAt(0) ?? '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-900 truncate leading-none mb-1">{order.patient?.name}</p>
+                            <p className="text-[10px] font-medium text-slate-400 truncate max-w-[150px]">
+                              {order.tests?.map(t => t.name).join(', ')}
+                            </p>
+                          </div>
+                        </div>
+                        <span className={cn('px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border', s.color)}>
+                          {s.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <Link to="/dashboard/partner/lab/orders" className="typo-label !text-indigo-600 hover:!text-indigo-800 transition-colors">
-              View All
-            </Link>
           </div>
 
-          {recentOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 px-6 text-center">
-              <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center mb-2">
-                <FlaskConical size={18} className="text-gray-300" />
-              </div>
-              <p className="typo-body !text-gray-400 font-medium">No active orders today</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-50">
-              {recentOrders.slice(0, 8).map((order) => {
-                const s = STATUS_MAP[order.status] || { label: order.status, color: 'bg-gray-100 text-gray-500 border-gray-200' };
-                return (
-                  <div key={order._id} className="table-row flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gray-50 text-gray-400 border border-gray-100 flex items-center justify-center text-[11px] font-semibold shrink-0">
-                        {order.patient?.name?.charAt(0) ?? '?'}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="typo-body !text-gray-900 font-medium truncate leading-tight">{order.patient?.name}</p>
-                        <p className="typo-micro truncate mt-0.5">
-                          {order.tests?.map(t => t.name).join(', ')}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={cn('typo-label !text-[10px] !font-semibold px-2.5 py-0.5 rounded border shrink-0', s.color)}>
-                      {s.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+
         </div>
 
-        {/* Footer Notice */}
-        <p className="typo-micro text-center pt-2">
-          Available balance updates only when payment status is <strong>Collected</strong> by the finance team. 
-          All values are computed strictly from real ledger entries.
-        </p>
+        {/* Right Column: Stats & Performance */}
+        <div className="lg:col-span-4 space-y-6">
+          
+          {/* Order Stats Vertical Stack */}
+          <div className="grid grid-cols-1 gap-3">
+            {orderStats.map(stat => (
+              <div key={stat.label} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center shrink-0`}>
+                  <stat.icon size={18} />
+                </div>
+                <div>
+                  <p className="text-lg font-black text-slate-900 leading-none mb-1">{stat.value}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Compact Quality Score */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition-colors">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-indigo-50 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-125 transition-transform" />
+            
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Quality Score</h3>
+            
+            <div className="flex items-baseline gap-2 mb-4">
+              <span className="text-4xl font-black text-slate-900 tracking-tighter">98.2</span>
+              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">EXCELLENT</span>
+            </div>
+
+            <div className="space-y-2">
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-600 w-[98%]" />
+              </div>
+              <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Compliance Rate: 98.2%</p>
+            </div>
+          </div>
+
+        </div>
 
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+      `}} />
     </div>
   );
 }
+
+

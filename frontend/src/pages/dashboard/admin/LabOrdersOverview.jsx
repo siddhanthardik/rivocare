@@ -7,6 +7,7 @@ import {
   MoreVertical, ShieldAlert, Zap, DollarSign, ChevronRight
 } from 'lucide-react';
 import { labService } from '@/services';
+import { normalizePaymentStatus, PAYMENT_STATUS } from '../../../constants/paymentStatus';
 import Button from '../../../components/ui/Button';
 import { PageLoader } from '../../../components/ui/Feedback';
 import { toast } from 'react-hot-toast';
@@ -185,7 +186,7 @@ export default function LabOrdersOverview() {
                   <td className="px-10 py-6">
                     <div className="font-black text-slate-900 text-sm">₹{order.totalAmount}</div>
                     <div className="flex items-center gap-2 mt-1">
-                       <span className={`text-[9px] font-black uppercase ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-orange-600'}`}>
+                        <span className={`text-[9px] font-black uppercase ${normalizePaymentStatus(order.paymentStatus) === PAYMENT_STATUS.PAID ? 'text-emerald-600' : 'text-orange-600'}`}>
                           {order.paymentStatus}
                        </span>
                        <span className="text-slate-300">|</span>

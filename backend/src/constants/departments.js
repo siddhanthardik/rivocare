@@ -1,10 +1,12 @@
 const LAB_DEPARTMENTS = [
   { key: 'pathology', label: 'Pathology' },
-  { key: 'radiology', label: 'Radiology' },
-  { key: 'cardiology', label: 'Cardiology' },
-  { key: 'wellness', label: 'Wellness' },
+  { key: 'microbiology', label: 'Microbiology' },
+  { key: 'serology', label: 'Serology' },
+  { key: 'immunology', label: 'Immunology' },
+  { key: 'biochemistry', label: 'Biochemistry' },
+  { key: 'haematology', label: 'Haematology' },
   { key: 'genetics', label: 'Genetics' },
-  { key: 'microbiology', label: 'Microbiology' }
+  { key: 'wellness', label: 'Wellness' }
 ];
 
 const LAB_DEPARTMENT_KEYS = LAB_DEPARTMENTS.map(d => d.key);
@@ -17,14 +19,6 @@ const LAB_DEPARTMENT_KEYS = LAB_DEPARTMENTS.map(d => d.key);
 const autoAssignDepartment = (input = '') => {
   const str = input.toLowerCase();
   
-  if (str.includes('radiology') || str.includes('imaging') || str.includes('x-ray') || str.includes('mri') || str.includes('ct scan') || str.includes('ultrasound')) {
-    return 'radiology';
-  }
-  
-  if (str.includes('cardiology') || str.includes('heart') || str.includes('ecg') || str.includes('echo')) {
-    return 'cardiology';
-  }
-  
   if (str.includes('genetics') || str.includes('dna') || str.includes('genome')) {
     return 'genetics';
   }
@@ -35,6 +29,22 @@ const autoAssignDepartment = (input = '') => {
 
   if (str.includes('microbiology') || str.includes('culture') || str.includes('fungal')) {
     return 'microbiology';
+  }
+
+  if (str.includes('serology') || str.includes('antibody') || str.includes('viral')) {
+    return 'serology';
+  }
+
+  if (str.includes('immunology') || str.includes('immune')) {
+    return 'immunology';
+  }
+
+  if (str.includes('biochemistry') || str.includes('sugar') || str.includes('cholesterol') || str.includes('liver') || str.includes('kidney')) {
+    return 'biochemistry';
+  }
+
+  if (str.includes('haematology') || str.includes('blood') || str.includes('cbc') || str.includes('hemoglobin')) {
+    return 'haematology';
   }
 
   // Default fallback

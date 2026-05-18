@@ -1,16 +1,33 @@
 const mongoose = require('mongoose');
 const Provider = require('../models/Provider');
 const Service = require('../models/Service');
+const Booking = require('../models/Booking');
 const ServiceAssignment = require('../models/ServiceAssignment');
 const PatientSubscription = require('../models/PatientSubscription');
 const PatientPackage = require('../models/PatientPackage');
 const { calculateProviderScore, resolvePincode } = require('../services/matchingEngine');
+const { getProviderEarningsSnapshot } = require('../services/providerEarningsService');
+const { BOOKING_STATUS, normalizeBookingStatus } = require('../constants/bookingStatus');
+const emailService = require('../services/emailService');
+
+// ── Onboarding progress calculator ────────────────────────────────────────────
+const calcOnboardingProgress = (p, user) => {
+  let pct = 0;
+  if (user && user.name && p.bio && p.profession) pct += 20;  // profile
+  if (p.kycDetails && p.kycDetails.aadhaarUrl && p.kycDetails.panUrl && p.kycDetails.bankAccount) pct += 20; // kyc uploaded
+  if (p.professionalDocs && p.professionalDocs.length > 0) pct += 30; // docs
+  if (p.declaration && p.declaration.accepted) pct += 10;   // declaration
+  if (p.onboardingStatus === 'ACTIVE') pct += 20;            // admin approved
+  return Math.min(pct, 100);
+};
+
+exports.calcOnboardingProgress = calcOnboardingProgress;
 
 // @GET /api/providers?service=nurse&pincode=400001
 exports.getProviders = async (req, res, next) => {
   try {
     const { service, pincode, page = 1, limit = 12 } = req.query;
-    console.log('[MATCH_DEBUG] Request:', { service, pincode });
+    // Scoring and matching
 
     const filter = { isVerified: true, isBlocked: { $ne: true } }; 
 
@@ -35,7 +52,7 @@ exports.getProviders = async (req, res, next) => {
       .populate('user', 'name email phone avatar')
       .lean();
 
-    console.log(`[MATCH_DEBUG] Found ${rawProviders.length} providers for service: ${serviceId}`);
+    // Perform scoring
 
     // 🧩 STEP 4: ADD FALLBACK
     if (rawProviders.length === 0) {
@@ -114,6 +131,51 @@ exports.getMyProfile = async (req, res, next) => {
   }
 };
 
+exports.getDashboard = async (req, res, next) => {
+  try {
+    const provider = await Provider.findOne({ user: req.user._id })
+      .populate('user', 'name email phone avatar');
+    if (!provider) return res.status(404).json({ success: false, message: 'Provider profile not found' });
+
+    const bookings = await Booking.find({ provider: provider._id })
+      .populate('patient', 'name avatar')
+      .populate('service', 'name slug')
+      .sort({ scheduledAt: 1 });
+
+    const completedBookings = bookings.filter((booking) => normalizeBookingStatus(booking.status) === BOOKING_STATUS.COMPLETED);
+    const cancelledBookings = bookings.filter((booking) => normalizeBookingStatus(booking.status) === BOOKING_STATUS.CANCELLED);
+    const today = new Date();
+    const todayVisits = bookings.filter((booking) => {
+      if (!booking.scheduledAt) return false;
+      const scheduledAt = new Date(booking.scheduledAt);
+      return (
+        normalizeBookingStatus(booking.status) !== BOOKING_STATUS.CANCELLED &&
+        scheduledAt.getDate() === today.getDate() &&
+        scheduledAt.getMonth() === today.getMonth() &&
+        scheduledAt.getFullYear() === today.getFullYear()
+      );
+    });
+
+    const earningsSnapshot = await getProviderEarningsSnapshot(provider._id);
+    const completionBase = completedBookings.length + cancelledBookings.length;
+    const completionRate = completionBase > 0 ? Math.round((completedBookings.length / completionBase) * 100) : 0;
+
+    res.json({
+      success: true,
+      data: {
+        provider,
+        rating: Number(provider.rating.toFixed(1)),
+        totalBookings: bookings.length,
+        earnings: earningsSnapshot?.netEarnings || 0,
+        completionRate,
+        todayVisits,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // @PUT /api/providers/availability — toggle online/offline
 exports.toggleAvailability = async (req, res, next) => {
   try {
@@ -154,7 +216,15 @@ exports.updateProviderProfile = async (req, res, next) => {
 
     const provider = await Provider.findOneAndUpdate(
       { user: req.user._id },
-      { bio, experience, pincodesServed: normalizedPincodes, services: serviceIds, markup, notes },
+      {
+        bio,
+        experience,
+        pincodesServed: normalizedPincodes,
+        services: serviceIds,
+        markup,
+        notes,
+        isProfileComplete: true,
+      },
       { new: true, runValidators: true }
     ).populate('user', 'name email phone avatar');
 
@@ -242,43 +312,169 @@ exports.updateAssignmentStatus = async (req, res, next) => {
     res.json({ success: true, message: `Assignment ${status.toLowerCase()}`, data: { assignment } });
   } catch (err) { next(err); }
 };
-// @GET /api/provider/me/availability — get structured availability config
-exports.getAvailability = async (req, res, next) => {
+
+// ─────────────────────────────────────────────────────────────
+//  ONBOARDING ENDPOINTS
+// ─────────────────────────────────────────────────────────────
+
+// @PUT /api/providers/onboarding/profile — Step 1: save basic profile data
+exports.saveOnboardingProfile = async (req, res, next) => {
   try {
-    const provider = await Provider.findOne({ user: req.user._id });
-    if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
+    const { bio, experience, profession, languages, gender, pincodesServed, services, city, notes } = req.body;
+    const User = require('../models/User');
 
-    let availability = {
-      isAvailable: true,
-      workingDays: [],
-      startTime: '09:00',
-      endTime: '19:00',
-      shiftType: 'custom',
-      blockedSlots: []
-    };
+    // Update User name/phone/city if provided
+    if (req.body.name || req.body.phone || city) {
+      await User.findByIdAndUpdate(req.user._id, {
+        ...(req.body.name && { name: req.body.name }),
+        ...(req.body.phone && { phone: req.body.phone }),
+        ...(city && { city }),
+      });
+    }
 
-    try {
-      const notes = JSON.parse(provider.notes || '{}');
-      if (notes.availability) availability = { ...availability, ...notes.availability };
-    } catch (e) { /* notes not JSON, use defaults */ }
+    let serviceIds = [];
+    if (services && Array.isArray(services) && services.length) {
+      const sDocs = await Service.find({
+        $or: [
+          { _id: { $in: services.filter(s => mongoose.Types.ObjectId.isValid(s)) } },
+          { slug: { $in: services.map(s => String(s).toLowerCase()) } },
+          { name: { $in: services.map(s => new RegExp(`^${s}$`, 'i')) } },
+        ],
+      });
+      serviceIds = sDocs.map(s => s._id);
+    }
 
-    res.json({ success: true, data: { availability } });
+    const provider = await Provider.findOneAndUpdate(
+      { user: req.user._id },
+      {
+        bio: bio || '',
+        experience: Number(experience) || 0,
+        profession: profession || '',
+        languages: Array.isArray(languages) ? languages : [],
+        gender: gender || 'Prefer not to say',
+        pincodesServed: Array.isArray(pincodesServed) ? pincodesServed.map(String) : [],
+        notes: notes || '',
+        ...(serviceIds.length && { services: serviceIds }),
+        isProfileComplete: true,
+        // Advance status from INCOMPLETE/DRAFT if this is first save
+        $set: {},
+      },
+      { new: true, runValidators: true, upsert: false }
+    ).populate('user', 'name email phone avatar');
+
+    if (!provider) return res.status(404).json({ success: false, message: 'Provider profile not found' });
+
+    // Move status forward from INCOMPLETE/DRAFT
+    if (['INCOMPLETE', 'DRAFT'].includes(provider.onboardingStatus)) {
+      provider.onboardingStatus = 'DRAFT';
+      await provider.save();
+    }
+
+    const progress = calcOnboardingProgress(provider, provider.user);
+    res.json({ success: true, data: { provider, progress } });
   } catch (err) { next(err); }
 };
 
-// @PUT /api/provider/me/availability — save availability config into notes
-exports.updateAvailability = async (req, res, next) => {
+// @POST /api/providers/onboarding/kyc — Step 2: upload KYC documents
+exports.submitOnboardingKYC = async (req, res, next) => {
   try {
+    const { bankAccount, ifsc } = req.body;
+
     const provider = await Provider.findOne({ user: req.user._id });
-    if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
+    if (!provider) return res.status(404).json({ success: false, message: 'Provider profile not found' });
 
-    let existingNotes = {};
-    try { existingNotes = JSON.parse(provider.notes || '{}'); } catch (e) {}
+    const kycUpdate = {
+      bankAccount: bankAccount || provider.kycDetails?.bankAccount,
+      ifsc: ifsc || provider.kycDetails?.ifsc,
+      status: 'PENDING',
+    };
 
-    const updatedNotes = JSON.stringify({ ...existingNotes, availability: req.body });
-    provider.notes = updatedNotes;
+    if (req.files?.aadhaar?.[0]) kycUpdate.aadhaarUrl = req.files.aadhaar[0].path;
+    if (req.files?.pan?.[0])    kycUpdate.panUrl = req.files.pan[0].path;
+    if (req.files?.cheque?.[0]) kycUpdate.chequeUrl = req.files.cheque[0].path;
+
+    provider.kycDetails = { ...provider.kycDetails?.toObject?.() || {}, ...kycUpdate };
     await provider.save();
 
-    res.json({ success: true, message: 'Availability saved', data: { availability: req.body } });
+    await provider.populate('user', 'name email');
+    const progress = calcOnboardingProgress(provider, provider.user);
+    res.json({ success: true, message: 'KYC documents saved', data: { provider, progress } });
+  } catch (err) { next(err); }
+};
+
+// @POST /api/providers/onboarding/documents — Step 3: upload professional docs
+exports.submitOnboardingDocs = async (req, res, next) => {
+  try {
+    const { documentType } = req.body;
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+
+    const provider = await Provider.findOne({ user: req.user._id });
+    if (!provider) return res.status(404).json({ success: false, message: 'Provider profile not found' });
+
+    provider.professionalDocs.push({
+      documentType: documentType || 'OTHER',
+      fileUrl: req.file.path,
+      uploadedAt: new Date(),
+      status: 'PENDING',
+    });
+    await provider.save();
+
+    // Optional: upload police verification
+    if (documentType === 'POLICE_VERIFICATION') {
+      provider.policeVerificationUrl = req.file.path;
+      provider.policeVerificationStatus = 'PENDING';
+      await provider.save();
+    }
+
+    await provider.populate('user', 'name email');
+    const progress = calcOnboardingProgress(provider, provider.user);
+    res.json({ success: true, message: 'Document uploaded', data: { provider, progress } });
+  } catch (err) { next(err); }
+};
+
+// @POST /api/providers/onboarding/submit — Step 4+: accept declaration and submit for review
+exports.submitDeclaration = async (req, res, next) => {
+  try {
+    const provider = await Provider.findOne({ user: req.user._id }).populate('user', 'name email');
+    if (!provider) return res.status(404).json({ success: false, message: 'Provider profile not found' });
+
+    if (!provider.isProfileComplete) {
+      return res.status(400).json({ success: false, message: 'Please complete your basic profile first' });
+    }
+
+    provider.declaration = { accepted: true, acceptedAt: new Date() };
+    provider.onboardingStatus = 'PENDING_VERIFICATION';
+    await provider.save();
+
+    // Email provider and admins
+    try {
+      emailService.sendOnboardingSubmitted(provider.user.email, provider.user.name);
+      const User = require('../models/User');
+      const admins = await User.find({ role: 'admin' }).select('email name');
+      admins.forEach(a => emailService.sendAdminOnboardingAlert(a.email, provider.user.name));
+    } catch (e) { console.error('Onboarding email failed', e); }
+
+    const progress = calcOnboardingProgress(provider, provider.user);
+    res.json({ success: true, message: 'Submitted for verification. You will be notified within 24 hours.', data: { provider, progress } });
+  } catch (err) { next(err); }
+};
+
+// @GET /api/providers/onboarding/status — get current onboarding state + progress
+exports.getOnboardingStatus = async (req, res, next) => {
+  try {
+    const provider = await Provider.findOne({ user: req.user._id }).populate('user', 'name email phone avatar');
+    if (!provider) return res.status(404).json({ success: false, message: 'Provider profile not found' });
+
+    const progress = calcOnboardingProgress(provider, provider.user);
+
+    // Determine next step
+    let nextStep = null;
+    if (!provider.isProfileComplete) nextStep = 'profile';
+    else if (!provider.kycDetails?.aadhaarUrl) nextStep = 'kyc';
+    else if (!provider.professionalDocs?.length) nextStep = 'documents';
+    else if (!provider.declaration?.accepted) nextStep = 'declaration';
+    else if (provider.onboardingStatus !== 'ACTIVE') nextStep = 'pending_review';
+
+    res.json({ success: true, data: { provider, progress, nextStep } });
   } catch (err) { next(err); }
 };

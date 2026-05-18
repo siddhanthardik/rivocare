@@ -6,10 +6,11 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { Pencil, Search, FlaskConical } from 'lucide-react';
 import { cn } from '@/utils';
-import { LAB_DEPARTMENTS } from '@/constants/departments';
+import { useDepartments } from '@/hooks/useDepartments';
 
 export default function LabPricing() {
   const [tests, setTests] = useState([]);
+  const { departments } = useDepartments();
   const [loading, setLoading] = useState(true);
   const [editTarget, setEditTarget] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -99,7 +100,7 @@ export default function LabPricing() {
                            </div>
                            <div>
                              <p className="font-black text-slate-900">{t.name}</p>
-                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{LAB_DEPARTMENTS.find(d => d.key === t.department)?.label || t.department} • {t.partner?.name || 'Unknown Partner'}</p>
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{departments.find(d => d.key === t.department)?.label || t.department} • {t.partner?.name || 'Unknown Partner'}</p>
                            </div>
                          </div>
                       </td>

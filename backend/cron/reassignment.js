@@ -138,9 +138,21 @@ const processReassignments = async () => {
   const now = new Date();
   const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-  const bookings = await Booking.find({
-    status: 'pending',
-  }).populate('patient provider');
+  let bookings = [];
+  const pendingQuery = { status: 'pending' };
+  try {
+    bookings = await Booking.find(pendingQuery).populate('patient provider');
+  } catch (err) {
+    console.warn('[CRON] Booking.find failed, falling back to raw collection read:', err.message || err);
+    const mongoose = require('mongoose');
+    const raw = await mongoose.connection.db.collection('bookings').find(pendingQuery).toArray();
+    // convert raw docs into minimal objects to process safely (without relying on schema casting)
+    bookings = raw.map(d => ({
+      ...d,
+      patient: d.patient,
+      provider: d.provider,
+    }));
+  }
 
   for (let booking of bookings) {
     try {

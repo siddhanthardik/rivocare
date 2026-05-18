@@ -4,6 +4,7 @@ import Header from './components/layout/Header';
 import DashboardLayout from './components/layout/DashboardLayout';
 import ScrollToTop from './components/layout/ScrollToTop';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import SafeAuthWrapper from './components/system/SafeAuthWrapper';
 import { useAuth } from './context/AuthContext';
 import { PageLoader } from './components/ui/Feedback';
 
@@ -47,8 +48,8 @@ import ProviderEarnings from './pages/dashboard/provider/Earnings';
 import ProviderProfile from './pages/dashboard/provider/Profile';
 import ProviderReferrals from './pages/dashboard/provider/Referrals';
 import ProviderKYC from './pages/dashboard/provider/ProviderKYC';
-import ProviderOnboarding from './pages/dashboard/provider/ProviderOnboarding';
 import ProviderAssignments from './pages/dashboard/provider/Assignments';
+import ProviderOnboarding from './pages/dashboard/provider/Onboarding';
 
 // Admin Dashboard
 import AdminOverview from './pages/dashboard/admin/Overview';
@@ -59,12 +60,14 @@ import AdminKYC from './pages/dashboard/admin/AdminKYC';
 import AdminRevenueDashboard from './pages/dashboard/admin/RevenueDashboard';
 import AdminFraudDashboard from './pages/dashboard/admin/FraudDashboard';
 import AdminServiceAreas from './pages/dashboard/admin/ServiceAreas';
+import ProviderVerification from './pages/dashboard/admin/ProviderVerification';
 import AdminPricingOS from './pages/dashboard/admin/PricingOS';
 
 import AdminLabPricing from './pages/dashboard/admin/LabPricing';
 import AdminSupplyExpansion from './pages/dashboard/admin/SupplyExpansion';
 import ContentManagement from './components/admin/ContentManagement';
 import AdminDispatch from './pages/dashboard/admin/Dispatch';
+import Reconciliation from './pages/dashboard/admin/Reconciliation';
 
 // --- Rivo Labs Imports ---
 // Public
@@ -90,10 +93,13 @@ import LabAnalytics from './pages/dashboard/admin/LabAnalytics';
 import FinanceOS from './pages/dashboard/admin/FinanceOS';
 import LabReconciliation from './pages/dashboard/admin/LabReconciliation';
 import ErrorLogs from './pages/dashboard/admin/ErrorLogs';
+import StuckBookings from './pages/dashboard/admin/StuckBookings';
+import Disputes from './pages/dashboard/admin/Disputes';
+import LabWarRoom from './pages/dashboard/admin/LabWarRoom';
 // -----------------------
 
 // Nav items
-import { LayoutDashboard, Calendar, User, ToggleLeft, TrendingUp, Users, ShieldCheck, BookOpen, UserCheck, BarChart2, ShieldAlert, MapPin, DollarSign, Activity, FileText, FlaskConical, Wallet, AlertOctagon } from 'lucide-react';
+import { LayoutDashboard, Calendar, User, ToggleLeft, TrendingUp, Users, ShieldCheck, BookOpen, UserCheck, BarChart2, ShieldAlert, MapPin, DollarSign, Activity, FileText, FlaskConical, Wallet, AlertOctagon, AlertTriangle, Zap } from 'lucide-react';
 
 const patientNav = [
   { path: '/dashboard/patient', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -112,9 +118,8 @@ const providerNav = [
   { path: '/dashboard/provider/availability', label: 'Availability', icon: ToggleLeft },
   { path: '/dashboard/provider/earnings', label: 'Earnings', icon: TrendingUp },
   { path: '/dashboard/provider/referrals', label: 'Refer & Earn', icon: Users },
-  { path: '/dashboard/provider/kyc', label: 'KYC & Verification', icon: ShieldCheck },
+  { path: '/dashboard/provider/onboarding', label: 'Onboarding', icon: ShieldCheck },
   { path: '/dashboard/provider/profile', label: 'Profile', icon: User },
-  { path: '/dashboard/provider/onboarding', label: 'Onboarding', icon: UserCheck },
 ];
 const partnerNav = [
   { path: '/dashboard/partner/lab', label: 'Overview', icon: LayoutDashboard, end: true },
@@ -124,25 +129,71 @@ const partnerNav = [
   { path: '/dashboard/partner/lab/wallet', label: 'Wallet & Payouts', icon: Wallet },
 ];
 const adminNav = [
-  { path: '/dashboard/admin', label: 'Overview', icon: LayoutDashboard, end: true },
-  { path: '/dashboard/admin/revenue', label: 'Revenue', icon: BarChart2 },
-  { path: '/dashboard/admin/pricing', label: 'Pricing OS', icon: DollarSign },
-  { path: '/dashboard/admin/content', label: 'Content Management', icon: BookOpen },
-  { path: '/dashboard/admin/lab-pricing', label: 'Lab Pricing', icon: FlaskConical },
-  { path: '/dashboard/admin/supply', label: 'Supply Expansion', icon: Users },
-  { path: '/dashboard/admin/users', label: 'Users', icon: Users },
-  { path: '/dashboard/admin/providers', label: 'Providers', icon: ShieldCheck },
-  { path: '/dashboard/admin/kyc', label: 'KYC Approvals', icon: UserCheck },
-  { path: '/dashboard/admin/service-areas', label: 'Service Areas', icon: MapPin },
-  { path: '/dashboard/admin/labs', label: 'Lab Partners', icon: FlaskConical },
-  { path: '/dashboard/admin/lab-orders', label: 'Lab Orders', icon: Activity },
-  { path: '/dashboard/admin/lab-finance', label: 'Finance OS', icon: DollarSign },
-  { path: '/dashboard/admin/lab-analytics', label: 'Lab Analytics', icon: BarChart2 },
-  { path: '/dashboard/admin/lab-reconciliation', label: 'Reconciliation', icon: ShieldCheck },
-  { path: '/dashboard/admin/bookings', label: 'Bookings', icon: Calendar },
-  { path: '/dashboard/admin/dispatch', label: 'Control Tower', icon: Activity },
-  { path: '/dashboard/admin/fraud', label: 'Fraud Analytics', icon: ShieldAlert },
-  { path: '/dashboard/admin/errors', label: 'System Errors', icon: AlertOctagon },
+  {
+    group: 'Overview',
+    items: [
+      { path: '/dashboard/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+      { path: '/dashboard/admin/revenue', label: 'Analytics', icon: BarChart2 },
+      { path: '/dashboard/admin/stuck', label: 'Operational Alerts', icon: AlertTriangle, badge: '!', badgeColor: 'bg-amber-100 text-amber-700 border-amber-200' },
+    ]
+  },
+  {
+    group: 'Bookings & Operations',
+    items: [
+      { path: '/dashboard/admin/bookings', label: 'All Bookings', icon: Calendar },
+      { path: '/dashboard/admin/dispatch', label: 'Control Tower', icon: Activity },
+      { path: '/dashboard/admin/disputes', label: 'COD Disputes', icon: Zap, badge: 'Action', badgeColor: 'bg-red-100 text-red-700 border-red-200' },
+      { path: '/dashboard/admin/stuck', label: 'Stuck Bookings', icon: AlertOctagon },
+    ]
+  },
+  {
+    group: 'Payments & Finance',
+    items: [
+      { path: '/dashboard/admin/pricing', label: 'Pricing OS', icon: DollarSign },
+      { path: '/dashboard/admin/reconciliation', label: 'Reconciliation', icon: FileText },
+      { path: '/dashboard/admin/lab-reconciliation', label: 'Lab Recon', icon: ShieldCheck },
+      { path: '/dashboard/admin/lab-finance', label: 'Finance OS', icon: DollarSign },
+      { path: '/dashboard/admin/fraud', label: 'Fraud Analytics', icon: ShieldAlert },
+    ]
+  },
+  {
+    group: 'Providers',
+    items: [
+      { path: '/dashboard/admin/providers', label: 'All Providers', icon: ShieldCheck },
+      { path: '/dashboard/admin/providers/verification', label: 'Verify Providers', icon: UserCheck, badge: 'New' },
+      { path: '/dashboard/admin/kyc', label: 'KYC Review', icon: ShieldCheck },
+      { path: '/dashboard/admin/supply', label: 'Supply Expansion', icon: Users },
+    ]
+  },
+  {
+    group: 'Patients',
+    items: [
+      { path: '/dashboard/admin/users', label: 'All Patients', icon: Users },
+    ]
+  },
+  {
+    group: 'Lab Operations',
+    items: [
+      { path: '/dashboard/admin/lab-orders', label: 'Lab Orders', icon: Activity },
+      { path: '/dashboard/admin/lab-war-room', label: 'Lab War Room', icon: Zap, badge: 'Live' },
+      { path: '/dashboard/admin/labs', label: 'Lab Partners', icon: FlaskConical },
+      { path: '/dashboard/admin/lab-analytics', label: 'Lab Analytics', icon: BarChart2 },
+      { path: '/dashboard/admin/lab-pricing', label: 'Lab Pricing', icon: FlaskConical },
+    ]
+  },
+  {
+    group: 'Content & CMS',
+    items: [
+      { path: '/dashboard/admin/content', label: 'Services & Content', icon: BookOpen },
+      { path: '/dashboard/admin/service-areas', label: 'Service Areas', icon: MapPin },
+    ]
+  },
+  {
+    group: 'System',
+    items: [
+      { path: '/dashboard/admin/errors', label: 'Error Logs', icon: AlertOctagon },
+    ]
+  }
 ];
 
 export default function App() {
@@ -211,7 +262,14 @@ export default function App() {
 
       {/* Provider */}
       <Route element={<ProtectedRoute role="provider" />}>
-        <Route path="/dashboard/provider" element={<DashboardLayout navItems={providerNav} role="provider" />}>
+        <Route
+          path="/dashboard/provider"
+          element={
+            <SafeAuthWrapper>
+              <DashboardLayout navItems={providerNav} role="provider" />
+            </SafeAuthWrapper>
+          }
+        >
           <Route index element={<ProviderOverview />} />
           <Route path="bookings" element={<ProviderBookings />} />
           <Route path="assignments" element={<ProviderAssignments />} />
@@ -244,6 +302,7 @@ export default function App() {
           <Route path="content" element={<ContentManagement />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="providers" element={<AdminProviders />} />
+          <Route path="providers/verification" element={<ProviderVerification />} />
           <Route path="kyc" element={<AdminKYC />} />
           <Route path="service-areas" element={<AdminServiceAreas />} />
           <Route path="labs" element={<LabManagement />} />
@@ -251,10 +310,13 @@ export default function App() {
           <Route path="lab-finance" element={<FinanceOS />} />
           <Route path="lab-analytics" element={<LabAnalytics />} />
           <Route path="lab-reconciliation" element={<LabReconciliation />} />
+          <Route path="reconciliation" element={<Reconciliation />} />
           <Route path="bookings" element={<AdminBookings />} />
-          <Route path="dispatch" element={<AdminDispatch />} />
-
-          <Route path="lab-pricing" element={<AdminLabPricing />} />
+          <Route path='dispatch' element={<AdminDispatch />} />
+          <Route path='stuck' element={<StuckBookings />} />
+          <Route path='disputes' element={<Disputes />} />
+          <Route path='lab-war-room' element={<LabWarRoom />} />
+          <Route path='lab-pricing' element={<AdminLabPricing />} />
           <Route path="supply" element={<AdminSupplyExpansion />} />
           <Route path="fraud" element={<AdminFraudDashboard />} />
           <Route path="errors" element={<ErrorLogs />} />

@@ -12,6 +12,11 @@ const walletSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // amount reserved for pending payouts/holds. Keep optional for backward compatibility.
+    reservedBalance: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

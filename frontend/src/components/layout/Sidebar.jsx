@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { X, CheckCircle2, Stethoscope, User, ShieldCheck } from 'lucide-react';
+import { X, CheckCircle2, Stethoscope, User, ShieldCheck, Lock, Search, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils';
 import { useAuth } from '../../context/AuthContext';
 import Avatar from '../ui/Avatar';
@@ -70,6 +71,94 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
     ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
     : 'bg-blue-100 text-blue-600 border-blue-200';
 
+  const isUnverifiedProvider = role === 'provider' && user?.providerProfile?.onboardingStatus !== 'ACTIVE';
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState(() => {
+    try {
+      const saved = localStorage.getItem('admin_sidebar_expanded');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) { return {}; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('admin_sidebar_expanded', JSON.stringify(expandedGroups));
+  }, [expandedGroups]);
+
+  const toggleGroup = (groupName) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupName]: !prev[groupName]
+    }));
+  };
+
+  const filteredNavItems = searchQuery.trim() === '' 
+    ? navItems 
+    : navItems.flatMap(item => {
+        if (item.group) {
+          const matchingItems = item.items.filter(sub => 
+            sub.label.toLowerCase().includes(searchQuery.toLowerCase())
+          );
+          return matchingItems.length > 0 ? [{ ...item, items: matchingItems }] : [];
+        }
+        return item.label.toLowerCase().includes(searchQuery.toLowerCase()) ? [item] : [];
+      });
+
+  const renderNavItem = (item, isSubItem = false) => {
+    const isLocked = isUnverifiedProvider && 
+      item.path !== '/dashboard/provider' && 
+      item.path !== '/dashboard/provider/onboarding' &&
+      item.path !== '/dashboard/provider/profile';
+
+    return (
+      <NavLink
+        key={item.path}
+        to={isLocked ? '#' : item.path}
+        end={item.end}
+        onClick={(e) => {
+          if (isLocked) {
+            e.preventDefault();
+            return;
+          }
+          onClose();
+        }}
+        className={({ isActive }) => cn(
+          'flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-150 group',
+          isSubItem ? 'text-[10px] font-bold ml-4' : 'text-[11px] font-black uppercase tracking-widest',
+          isActive && !isLocked
+            ? activeClass + ' shadow-sm'
+            : isLocked
+            ? 'text-slate-300 cursor-not-allowed grayscale'
+            : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900'
+        )}
+      >
+        {({ isActive }) => (
+          <>
+            {item.icon && (
+              <item.icon
+                size={isSubItem ? 14 : 16}
+                className={cn(
+                  'transition-colors shrink-0',
+                  isActive && !isLocked ? activeIconClass : 'text-slate-400'
+                )}
+              />
+            )}
+            <span className="flex-1 truncate">{item.label}</span>
+            {isLocked && <Lock size={12} className="text-slate-300 ml-auto" />}
+            {item.badge && !isLocked && (
+              <span className={cn(
+                'min-w-[18px] h-[18px] text-[9px] font-black rounded-lg flex items-center justify-center border px-1',
+                item.badgeColor || (isActive ? activeBadgeClass : 'bg-slate-100 text-slate-600 border-slate-200')
+              )}>
+                {item.badge}
+              </span>
+            )}
+          </>
+        )}
+      </NavLink>
+    );
+  };
+
   return (
     <>
       {/* Mobile overlay */}
@@ -113,7 +202,7 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
                 <p className="text-sm font-black text-slate-900 truncate leading-tight">{user?.name?.split(' ')[0]}</p>
-                {role === 'provider' && <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />}
+                {role === 'provider' && user?.providerProfile?.onboardingStatus === 'ACTIVE' && <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />}
               </div>
               <span className={cn(
                 'inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border mt-1',
@@ -126,47 +215,53 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
           </div>
         </div>
 
+        {/* ── Nav Search ───────────────────────────────────────── */}
+        {role === 'admin' && (
+          <div className="px-4 py-2 shrink-0">
+            <div className="relative group">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-purple-500 transition-colors" />
+              <input
+                type="text"
+                placeholder="Search navigation..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 text-[11px] font-bold placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500/30 transition-all outline-none"
+              />
+            </div>
+          </div>
+        )}
+
         {/* ── Nav Items ─────────────────────────────────────────── */}
-        {/*
-          flex-1 + overflow-y-auto lets the nav list scroll independently
-          while the support block stays pinned to the bottom of the sidebar.
-        */}
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5 custom-scrollbar">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.end}
-              onClick={onClose}
-              className={({ isActive }) => cn(
-                'flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-150 group',
-                isActive
-                  ? activeClass + ' shadow-sm'
-                  : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900'
-              )}
-            >
-              {({ isActive }) => (
-                <>
-                  <item.icon
-                    size={16}
-                    className={cn(
-                      'transition-colors shrink-0',
-                      isActive ? activeIconClass : 'text-slate-400 group-hover:text-slate-600'
-                    )}
-                  />
-                  <span className="flex-1 truncate">{item.label}</span>
-                  {item.badge && (
-                    <span className={cn(
-                      'min-w-[18px] h-[18px] text-[9px] font-black rounded-lg flex items-center justify-center border px-1',
-                      isActive ? activeBadgeClass : 'bg-slate-100 text-slate-600 border-slate-200'
-                    )}>
-                      {item.badge}
-                    </span>
+          {filteredNavItems.map((item, idx) => {
+            if (item.group) {
+              const isExpanded = expandedGroups[item.group] !== false; // Default expanded
+              return (
+                <div key={item.group} className="mb-4">
+                  <button
+                    onClick={() => toggleGroup(item.group)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600 transition-colors"
+                  >
+                    {item.group}
+                    <div className="flex items-center gap-2">
+                      {item.groupBadge && (
+                        <span className="bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 rounded text-[8px] font-black leading-none">
+                          {item.groupBadge}
+                        </span>
+                      )}
+                      <ChevronDown size={12} className={cn('transition-transform duration-200', isExpanded ? 'rotate-180' : 'rotate-0')} />
+                    </div>
+                  </button>
+                  {isExpanded && (
+                    <div className="mt-1 space-y-0.5">
+                      {item.items.map(subItem => renderNavItem(subItem, true))}
+                    </div>
                   )}
-                </>
-              )}
-            </NavLink>
-          ))}
+                </div>
+              );
+            }
+            return renderNavItem(item);
+          })}
         </nav>
 
         {/* ── Support + Logout (pinned to bottom) ───────────────── */}

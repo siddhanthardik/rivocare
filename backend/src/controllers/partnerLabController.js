@@ -1,10 +1,15 @@
+const mongoose = require('mongoose');
 const Partner = require('../models/Partner');
 const LabProfile = require('../models/LabProfile');
 const LabTest = require('../models/LabTest');
 const { autoAssignDepartment } = require('../constants/departments');
 const PartnerStaff = require('../models/PartnerStaff');
 const PartnerWallet = require('../models/PartnerWallet');
+const LabOrder = require('../models/LabOrder');
+const LabReview = require('../models/LabReview');
+const PartnerTransaction = require('../models/PartnerTransaction');
 const jwt = require('jsonwebtoken');
+const { BOOKING_STATUS, PAYMENT_STATUS, normalizeBookingStatus, normalizePaymentStatus, LAB_ORDER_STATUS } = require('../constants/bookingStatus');
 
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
@@ -85,7 +90,7 @@ exports.loginPartner = async (req, res, next) => {
 // @desc    Get current logged-in partner (for AuthContext hydration)
 exports.getMe = async (req, res, next) => {
   try {
-    const partner = await Partner.findById(req.partner.id);
+    const partner = await Partner.findById(req.partner._id);
     if (!partner) return res.status(404).json({ success: false, message: 'Partner not found' });
     res.status(200).json({
       success: true,
@@ -109,7 +114,7 @@ exports.getMe = async (req, res, next) => {
 // @desc    Get Partner Profile
 exports.getProfile = async (req, res, next) => {
   try {
-    const profile = await LabProfile.findOne({ partner: req.partner.id });
+    const profile = await LabProfile.findOne({ partner: req.partner._id });
     res.status(200).json({ success: true, data: { partner: req.partner, profile } });
   } catch (err) {
     next(err);
@@ -120,7 +125,7 @@ exports.getProfile = async (req, res, next) => {
 exports.updateProfile = async (req, res, next) => {
   try {
     const profile = await LabProfile.findOneAndUpdate(
-      { partner: req.partner.id },
+      { partner: req.partner._id },
       { ...req.body },
       { new: true, runValidators: true, upsert: true }
     );
@@ -130,9 +135,8 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
-const PartnerTransaction = require('../models/PartnerTransaction');
-
-const LabReview = require('../models/LabReview');
+// Removed local require, now at top
+// Removed local require, now at top
 
 // @desc    Get Dashboard Stats
 exports.getDashboardStats = async (req, res, next) => {
@@ -140,7 +144,7 @@ exports.getDashboardStats = async (req, res, next) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const partner = await Partner.findById(req.partner.id);
+    const partner = await Partner.findById(req.partner._id);
     const [
       totalOrders,
       todayOrders,
@@ -150,13 +154,13 @@ exports.getDashboardStats = async (req, res, next) => {
       wallet,
       reviews
     ] = await Promise.all([
-      LabOrder.countDocuments({ partner: req.partner.id }),
-      LabOrder.countDocuments({ partner: req.partner.id, createdAt: { $gte: today } }),
-      LabOrder.countDocuments({ partner: req.partner.id, status: 'new' }),
-      LabOrder.countDocuments({ partner: req.partner.id, status: 'sample_collected', updatedAt: { $gte: today } }),
-      LabOrder.countDocuments({ partner: req.partner.id, status: 'processing' }),
-      PartnerWallet.findOne({ partner: req.partner.id }),
-      LabReview.find({ partner: req.partner.id }).sort('-createdAt').limit(5).populate('patient', 'name')
+      LabOrder.countDocuments({ partner: req.partner._id }),
+      LabOrder.countDocuments({ partner: req.partner._id, createdAt: { $gte: today } }),
+      LabOrder.countDocuments({ partner: req.partner._id, status: { $in: ['new', 'NEW', 'REQUESTED'] } }),
+      LabOrder.countDocuments({ partner: req.partner._id, status: { $in: ['sample_collected', 'SAMPLE_COLLECTED'] }, updatedAt: { $gte: today } }),
+      LabOrder.countDocuments({ partner: req.partner._id, status: { $in: ['processing', 'PROCESSING'] } }),
+      PartnerWallet.findOne({ partner: req.partner._id }),
+      LabReview.find({ partner: req.partner._id }).sort('-createdAt').limit(5).populate('patient', 'name')
     ]);
 
     // Monthly Earnings
@@ -193,7 +197,7 @@ exports.getFinancialSummary = async (req, res, next) => {
     today.setHours(0, 0, 0, 0);
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    const txns = await PartnerTransaction.find({ partner: req.partner.id, status: 'completed' });
+    const txns = await PartnerTransaction.find({ partner: req.partner._id, status: 'completed' });
 
     let availableBalance = 0;
     let todayEarnings = 0;
@@ -232,7 +236,7 @@ exports.getFinancialSummary = async (req, res, next) => {
 exports.getOrders = async (req, res, next) => {
   try {
     const { status, timeframe } = req.query;
-    let query = { partner: req.partner.id };
+    let query = { partner: req.partner._id };
     
     if (status && status !== 'all') query.status = status;
     if (timeframe === 'today') {
@@ -266,17 +270,25 @@ exports.getOrders = async (req, res, next) => {
 // @desc    Update Order Status (with Penalties & Auto-SLA)
 exports.updateOrderStatus = async (req, res, next) => {
   try {
-    const { status, reportUrl, staffId, rejectionReason } = req.body;
-    const updateData = { status };
+    const { status, reportUrl, staffId, rejectionReason, paymentStatus } = req.body;
+    const updateData = {};
+    if (status) updateData.status = status;
+    if (paymentStatus) updateData.paymentStatus = paymentStatus;
     
-    const currentOrder = await LabOrder.findById(req.params.id);
-    if (!currentOrder) return res.status(404).json({ success: false, message: 'Order not found' });
+    // Security: Ensure order belongs to partner
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid order ID format' });
+    }
+
+    const currentOrder = await LabOrder.findOne({ _id: req.params.id, partner: req.partner._id });
+    if (!currentOrder) return res.status(404).json({ success: false, message: 'Order not found or access denied' });
 
     // SLA Auto-Adjustment
-    if (status === 'accepted') {
+    const nbs = normalizeBookingStatus(status);
+    if (nbs === BOOKING_STATUS.CONFIRMED || nbs === 'ACCEPTED') {
        // Set next SLA for collection (e.g., scheduledTime start)
        updateData.slaDeadline = new Date(currentOrder.scheduledDate);
-    } else if (status === 'sample_collected') {
+    } else if (nbs === 'SAMPLE_COLLECTED') {
        // Set SLA for report upload (e.g., +12 hours)
        updateData.slaDeadline = new Date(Date.now() + 12 * 60 * 60 * 1000);
     }
@@ -288,38 +300,37 @@ exports.updateOrderStatus = async (req, res, next) => {
     }
     if (staffId) updateData.assignedStaff = staffId;
     
-    if (status === 'rejected') {
+    if (nbs === BOOKING_STATUS.CANCELLED || nbs === 'REJECTED') {
        updateData.rejectionReason = rejectionReason;
        // Penalty logic
        if (!['out_of_service_area', 'staff_unavailable'].includes(rejectionReason)) {
           const penalty = 50; // ₹50 penalty for "soft" rejections
-          await Partner.findByIdAndUpdate(req.partner.id, { $inc: { penaltyBalance: penalty, performanceScore: -2 } });
-          await PartnerWallet.findOneAndUpdate({ partner: req.partner.id }, { $inc: { balance: -penalty } });
+          await Partner.findByIdAndUpdate(req.partner._id, { $inc: { penaltyBalance: penalty, performanceScore: -2 } });
+          await PartnerWallet.findOneAndUpdate({ partner: req.partner._id }, { $inc: { balance: -penalty } });
           updateData.penaltyAmount = penalty;
        }
     }
 
     const order = await LabOrder.findOneAndUpdate(
-      { _id: req.params.id, partner: req.partner.id },
+      { _id: req.params.id, partner: req.partner._id },
       updateData,
       { new: true }
     ).populate('patient', 'name phone email');
     
     // Financial logic for completion
-    if (status === 'completed' || status === 'report_uploaded') {
-      const PartnerTransaction = require('../models/PartnerTransaction');
+    if (nbs === BOOKING_STATUS.COMPLETED || nbs === 'REPORT_UPLOADED') {
       const existingTx = await PartnerTransaction.findOne({ order: order._id });
       
       if (!existingTx) {
         if (order.paymentMethod === 'cod') {
           const platformFee = order.totalAmount * 0.2;
           const wallet = await PartnerWallet.findOneAndUpdate(
-            { partner: req.partner.id },
+            { partner: req.partner._id },
             { $inc: { balance: -platformFee } },
             { new: true, upsert: true }
           );
           await PartnerTransaction.create({
-            partner: req.partner.id,
+            partner: req.partner._id,
             wallet: wallet._id,
             order: order._id,
             type: 'debit',
@@ -327,16 +338,16 @@ exports.updateOrderStatus = async (req, res, next) => {
             netAmount: platformFee,
             description: `Platform Fee Deduction for COD Order #${order._id.toString().slice(-6).toUpperCase()}`
           });
-        } else if (order.paymentStatus === 'collected') {
+        } else if (normalizePaymentStatus(order.paymentStatus) === PAYMENT_STATUS.COLLECTED) {
           const platformFee = order.totalAmount * 0.2;
           const netAmount = order.totalAmount - platformFee;
           const wallet = await PartnerWallet.findOneAndUpdate(
-            { partner: req.partner.id },
+            { partner: req.partner._id },
             { $inc: { balance: netAmount, totalEarned: netAmount } },
             { new: true, upsert: true }
           );
           await PartnerTransaction.create({
-            partner: req.partner.id,
+            partner: req.partner._id,
             wallet: wallet._id,
             order: order._id,
             type: 'credit',
@@ -349,10 +360,83 @@ exports.updateOrderStatus = async (req, res, next) => {
       }
 
       // Boost performance score on success
-      await Partner.findByIdAndUpdate(req.partner.id, { $inc: { performanceScore: 1 } });
+      await Partner.findByIdAndUpdate(req.partner._id, { $inc: { performanceScore: 1 } });
     }
     
     res.status(200).json({ success: true, data: order });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc Mark payment collected by partner for a COD order
+exports.markPaymentCollected = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { notes, proofUrl } = req.body;
+
+    const order = await LabOrder.findOne({ _id: id, partner: req.partner._id });
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found or access denied' });
+
+    if (order.paymentMethod !== 'cod') {
+      return res.status(400).json({ success: false, message: 'Only COD orders can be marked collected by partner' });
+    }
+
+    const nps = normalizePaymentStatus(order.paymentStatus);
+    if (nps === PAYMENT_STATUS.COLLECTED || nps === PAYMENT_STATUS.PAID) {
+      return res.status(200).json({ success: true, message: 'Payment already marked collected', data: order });
+    }
+
+    const mongoose = require('mongoose');
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+
+      order.paymentStatus = PAYMENT_STATUS.COLLECTED;
+      order.paymentCollectedAt = Date.now();
+      order.paymentCollectedBy = req.partner._id.toString();
+      if (notes) order.paymentCollectionNotes = notes;
+      if (proofUrl) order.collectionProof = proofUrl;
+      order.paymentVerified = true;
+      order.reportLocked = false;
+      order.reportReleasedAt = Date.now();
+      order.releaseReason = 'Collected by Partner';
+      await order.save({ session });
+
+      // Guard against duplicate credit
+      const existingTx = await PartnerTransaction.findOne({ order: order._id, type: 'credit' }).session(session);
+      if (!existingTx) {
+        // Credit partner wallet atomically
+        const wallet = await PartnerWallet.findOneAndUpdate(
+          { partner: req.partner._id },
+          { $inc: { balance: order.labPayout || order.totalAmount, totalEarned: order.labPayout || order.totalAmount } },
+          { new: true, upsert: true, session }
+        );
+
+        await PartnerTransaction.create([
+          {
+            partner: req.partner._id,
+            wallet: wallet._id,
+            order: order._id,
+            type: 'credit',
+            amount: order.totalAmount,
+            platformCommission: order.platformFee || (order.totalAmount * 0.2),
+            netAmount: order.labPayout || order.totalAmount,
+            description: `Earnings for Lab Order #${order._id.toString().slice(-6).toUpperCase()} (Collected by Partner)`
+          }
+        ], { session });
+      }
+
+      await session.commitTransaction();
+      session.endSession();
+
+      res.status(200).json({ success: true, message: 'Payment marked as collected', data: order });
+      return;
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
   } catch (err) {
     next(err);
   }
@@ -366,15 +450,25 @@ exports.uploadOrderReport = async (req, res, next) => {
     }
 
     const orderId = req.params.id;
-    const orderToUpdate = await LabOrder.findOne({ _id: orderId, partner: req.partner.id });
+    const orderToUpdate = await LabOrder.findOne({ _id: orderId, partner: req.partner._id });
     if (!orderToUpdate) return res.status(404).json({ success: false, message: 'Order not found' });
 
+    // Payment validation check (Robust enforcement)
+    const nps = normalizePaymentStatus(orderToUpdate.paymentStatus);
+    if (orderToUpdate.paymentMethod === 'cod' && nps !== PAYMENT_STATUS.COLLECTED) {
+      return res.status(400).json({ success: false, message: 'Payment must be marked as COLLECTED for COD orders before you can upload the report.' });
+    }
+
+    if (['razorpay', 'upi'].includes(orderToUpdate.paymentMethod) && nps !== PAYMENT_STATUS.PAID) {
+      return res.status(400).json({ success: false, message: 'This is a prepaid order but payment is still pending. Please contact support if this is unexpected.' });
+    }
+
     const updateData = {
-      status: 'report_uploaded',
+      status: 'REPORT_UPLOADED',
       reportUrl: req.file.path
     };
 
-    if (orderToUpdate.paymentStatus === 'collected') {
+    if (normalizePaymentStatus(orderToUpdate.paymentStatus) === PAYMENT_STATUS.COLLECTED) {
       updateData.reportLocked = false;
       updateData.reportReleasedAt = Date.now();
       updateData.releaseReason = 'Auto-released upon report upload';
@@ -386,19 +480,18 @@ exports.uploadOrderReport = async (req, res, next) => {
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
     // Financial logic for completion
-    const PartnerTransaction = require('../models/PartnerTransaction');
     const existingTx = await PartnerTransaction.findOne({ order: order._id });
     
     if (!existingTx) {
       if (order.paymentMethod === 'cod') {
         const platformFee = order.totalAmount * 0.2;
         const wallet = await PartnerWallet.findOneAndUpdate(
-          { partner: req.partner.id },
+          { partner: req.partner._id },
           { $inc: { balance: -platformFee } },
           { new: true, upsert: true }
         );
         await PartnerTransaction.create({
-          partner: req.partner.id,
+          partner: req.partner._id,
           wallet: wallet._id,
           order: order._id,
           type: 'debit',
@@ -406,16 +499,16 @@ exports.uploadOrderReport = async (req, res, next) => {
           netAmount: platformFee,
           description: `Platform Fee Deduction for COD Order #${order._id.toString().slice(-6).toUpperCase()}`
         });
-      } else if (order.paymentStatus === 'collected') {
+      } else if (normalizePaymentStatus(order.paymentStatus) === PAYMENT_STATUS.COLLECTED) {
         const platformFee = order.totalAmount * 0.2;
         const netAmount = order.totalAmount - platformFee;
         const wallet = await PartnerWallet.findOneAndUpdate(
-          { partner: req.partner.id },
+          { partner: req.partner._id },
           { $inc: { balance: netAmount, totalEarned: netAmount } },
           { new: true, upsert: true }
         );
         await PartnerTransaction.create({
-          partner: req.partner.id,
+          partner: req.partner._id,
           wallet: wallet._id,
           order: order._id,
           type: 'credit',
@@ -427,7 +520,7 @@ exports.uploadOrderReport = async (req, res, next) => {
       }
     }
 
-    await Partner.findByIdAndUpdate(req.partner.id, { $inc: { performanceScore: 1 } });
+    await Partner.findByIdAndUpdate(req.partner._id, { $inc: { performanceScore: 1 } });
 
     res.status(200).json({ success: true, data: order });
   } catch (err) {
@@ -451,10 +544,22 @@ exports.getLeaderboard = async (req, res, next) => {
 
 exports.bulkUploadTests = async (req, res, next) => {
   try {
-    const { tests } = req.body; // In production, use csv-parser on req.file
+    const { tests } = req.body;
     if (!Array.isArray(tests)) return res.status(400).json({ success: false, message: 'Invalid data format' });
 
-    const formattedTests = tests.map(t => ({ ...t, partner: req.partner.id }));
+    const formattedTests = tests.map(t => {
+      const formatted = { 
+        ...t, 
+        partner: req.partner._id,
+        name: t.testName || t.name,
+        prepInstructions: t.preparationInstructions || t.prepInstructions
+      };
+      if (t.reportTat && !t.tatHours) {
+        const match = String(t.reportTat).match(/\d+/);
+        if (match) formatted.tatHours = parseInt(match[0]);
+      }
+      return formatted;
+    });
     await LabTest.insertMany(formattedTests);
     
     res.status(201).json({ success: true, message: `${tests.length} tests uploaded successfully` });
@@ -467,7 +572,7 @@ exports.bulkUploadTests = async (req, res, next) => {
 
 exports.getStaff = async (req, res, next) => {
   try {
-    const staff = await PartnerStaff.find({ partner: req.partner.id }).sort('-createdAt');
+    const staff = await PartnerStaff.find({ partner: req.partner._id }).sort('-createdAt');
     res.status(200).json({ success: true, data: staff });
   } catch (err) {
     next(err);
@@ -479,12 +584,12 @@ exports.addStaff = async (req, res, next) => {
     const { phone } = req.body;
     
     // Check for duplicate phone for the SAME partner
-    const existingStaff = await PartnerStaff.findOne({ phone, partner: req.partner.id });
+    const existingStaff = await PartnerStaff.findOne({ phone, partner: req.partner._id });
     if (existingStaff) {
       return res.status(400).json({ success: false, message: 'This number already exists for a staff member.' });
     }
 
-    const staff = await PartnerStaff.create({ ...req.body, partner: req.partner.id });
+    const staff = await PartnerStaff.create({ ...req.body, partner: req.partner._id });
     res.status(201).json({ success: true, data: staff });
   } catch (err) {
     next(err);
@@ -494,7 +599,7 @@ exports.addStaff = async (req, res, next) => {
 exports.updateStaffStatus = async (req, res, next) => {
   try {
     const staff = await PartnerStaff.findOneAndUpdate(
-      { _id: req.params.id, partner: req.partner.id },
+      { _id: req.params.id, partner: req.partner._id },
       { isActive: req.body.isActive },
       { new: true }
     );
@@ -504,20 +609,44 @@ exports.updateStaffStatus = async (req, res, next) => {
   }
 };
 
+exports.updateStaff = async (req, res, next) => {
+  try {
+    const staff = await PartnerStaff.findOneAndUpdate(
+      { _id: req.params.id, partner: req.partner._id },
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!staff) return res.status(404).json({ success: false, message: 'Staff not found' });
+    res.status(200).json({ success: true, data: staff });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.deleteStaff = async (req, res, next) => {
+  try {
+    const staff = await PartnerStaff.findOneAndDelete({ _id: req.params.id, partner: req.partner._id });
+    if (!staff) return res.status(404).json({ success: false, message: 'Staff not found' });
+    res.status(200).json({ success: true, message: 'Staff deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // --- Wallet & Transactions ---
 
 exports.getTransactions = async (req, res, next) => {
   try {
-    const transactions = await PartnerTransaction.find({ partner: req.partner.id })
+    const transactions = await PartnerTransaction.find({ partner: req.partner._id })
       .sort('-createdAt')
       .limit(50);
-    const wallet = await PartnerWallet.findOne({ partner: req.partner.id });
+    const wallet = await PartnerWallet.findOne({ partner: req.partner._id });
     
-    const LabOrder = require('../models/LabOrder');
-    const orders = await LabOrder.find({ partner: req.partner.id });
+    const orders = await LabOrder.find({ partner: req.partner._id });
     let codPending = 0;
     orders.forEach(o => {
-      if ((o.status === 'completed' || o.status === 'report_uploaded') && o.paymentMethod === 'cod') {
+      const nbs = normalizeBookingStatus(o.status);
+      if ((nbs === BOOKING_STATUS.COMPLETED || nbs === 'REPORT_UPLOADED') && o.paymentMethod === 'cod') {
         codPending += o.totalAmount;
       }
     });
@@ -531,8 +660,16 @@ exports.getTransactions = async (req, res, next) => {
 // @desc    Manage Tests
 exports.getTests = async (req, res, next) => {
   try {
-    const tests = await LabTest.find({ partner: req.partner.id });
-    res.status(200).json({ success: true, data: tests });
+    const tests = await LabTest.find({ partner: req.partner._id }).sort('-createdAt');
+    const formatted = tests.map(t => {
+      const obj = t.toObject();
+      obj.testName = obj.name || 'Unnamed Test';
+      obj.department = obj.department || 'pathology';
+      obj.offerPrice = obj.discountPrice || obj.price;
+      obj.standardMrp = obj.price;
+      return obj;
+    });
+    res.status(200).json({ success: true, data: formatted });
   } catch (err) {
     next(err);
   }
@@ -543,13 +680,63 @@ exports.addTest = async (req, res, next) => {
   try {
     let data = { ...req.body };
     
-    if (!data.department) {
+    // Map frontend fields to backend model
+    if (data.testName && !data.name) data.name = data.testName;
+    if (data.preparationInstructions) data.prepInstructions = data.preparationInstructions;
+    if (data.reportTat && !data.tatHours) {
+      const match = String(data.reportTat).match(/\d+/);
+      if (match) data.tatHours = parseInt(match[0]);
+    }
+
+      if (!data.department) {
       data.department = autoAssignDepartment(data.testName || data.name);
       console.log(`[AUTO_ASSIGN] Assigned department "${data.department}" to test "${data.testName || data.name}"`);
     }
 
-    const test = await LabTest.create({ ...data, partner: req.partner.id });
+    // Price mapping
+    if (data.standardMrp) data.price = data.standardMrp;
+    if (data.offerPrice) data.discountPrice = data.offerPrice;
+    
+    // Fallback for required price if only offerPrice is provided
+    if (!data.price && data.offerPrice) data.price = data.offerPrice;
+
+    const test = await LabTest.create({ ...data, partner: req.partner._id });
     res.status(201).json({ success: true, data: test });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Update Test
+exports.updateTest = async (req, res, next) => {
+  try {
+    let data = { ...req.body };
+    if (data.testName && !data.name) data.name = data.testName;
+    if (data.preparationInstructions) data.prepInstructions = data.preparationInstructions;
+    
+    // Price mapping
+    if (data.standardMrp) data.price = data.standardMrp;
+    if (data.offerPrice) data.discountPrice = data.offerPrice;
+    
+    const test = await LabTest.findOneAndUpdate(
+      { _id: req.params.id, partner: req.partner._id },
+      data,
+      { new: true, runValidators: true }
+    );
+    
+    if (!test) return res.status(404).json({ success: false, message: 'Test not found' });
+    res.status(200).json({ success: true, data: test });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Delete Test
+exports.deleteTest = async (req, res, next) => {
+  try {
+    const test = await LabTest.findOneAndDelete({ _id: req.params.id, partner: req.partner._id });
+    if (!test) return res.status(404).json({ success: false, message: 'Test not found' });
+    res.status(200).json({ success: true, message: 'Test deleted successfully' });
   } catch (err) {
     next(err);
   }

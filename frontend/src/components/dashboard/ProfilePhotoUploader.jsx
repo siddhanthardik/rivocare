@@ -180,7 +180,7 @@ export default function ProfilePhotoUploader() {
         <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-[2.5rem] overflow-hidden bg-white shadow-xl border-4 border-white">
           {preview || user?.avatar ? (
             <img 
-              src={preview || user.avatar} 
+                  src={preview || user?.avatar}
               alt={user?.name} 
               className={cn(
                 "w-full h-full object-cover transition-all duration-500",

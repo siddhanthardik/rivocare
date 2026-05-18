@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Activity, Clock, ShieldCheck, HeartPulse, FileText, ChevronRight, Stethoscope, Droplet, Microscope } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
-import { LAB_DEPARTMENTS } from '@/constants/departments';
+import { useDepartments } from '../../hooks/useDepartments';
+import { Activity, Droplet, HeartPulse, Microscope, FlaskConical, Dna, Briefcase, UserCheck, Search, Clock, ShieldCheck, FileText, ChevronRight } from 'lucide-react';
 
 export default function LabsHome() {
   const { user } = useAuth();
+  const { departments } = useDepartments();
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
@@ -23,12 +24,40 @@ export default function LabsHome() {
     }
   };
 
-  const categories = [
-    { name: 'Pathology', key: 'pathology', icon: <Droplet size={24} />, color: 'bg-red-50 text-red-600' },
-    { name: 'Radiology', key: 'radiology', icon: <Activity size={24} />, color: 'bg-blue-50 text-blue-600' },
-    { name: 'Cardiology', key: 'cardiology', icon: <HeartPulse size={24} />, color: 'bg-emerald-50 text-emerald-600' },
-    { name: 'Microbiology', key: 'microbiology', icon: <Microscope size={24} />, color: 'bg-purple-50 text-purple-600' },
-  ];
+  const getIcon = (key) => {
+    switch(key) {
+      case 'pathology': return <Droplet size={24} />;
+      case 'microbiology': return <Microscope size={24} />;
+      case 'serology': return <FlaskConical size={24} />;
+      case 'immunology': return <ShieldCheck size={24} />;
+      case 'biochemistry': return <Droplet size={24} />;
+      case 'haematology': return <Droplet size={24} />;
+      case 'genetics': return <Dna size={24} />;
+      case 'wellness': return <HeartPulse size={24} />;
+      default: return <FlaskConical size={24} />;
+    }
+  };
+
+  const getColor = (key) => {
+    switch(key) {
+      case 'pathology': return 'bg-red-50 text-red-600';
+      case 'microbiology': return 'bg-purple-50 text-purple-600';
+      case 'serology': return 'bg-blue-50 text-blue-600';
+      case 'immunology': return 'bg-emerald-50 text-emerald-600';
+      case 'biochemistry': return 'bg-orange-50 text-orange-600';
+      case 'haematology': return 'bg-rose-50 text-rose-600';
+      case 'genetics': return 'bg-indigo-50 text-indigo-600';
+      case 'wellness': return 'bg-teal-50 text-teal-600';
+      default: return 'bg-slate-50 text-slate-600';
+    }
+  };
+
+  const categories = departments.map(d => ({
+    name: d.label,
+    key: d.key,
+    icon: getIcon(d.key),
+    color: getColor(d.key)
+  }));
 
   const popularPackages = [
     { title: 'Comprehensive Full Body Checkup', tests: 64, originalPrice: 2999, price: 1499, tag: 'Most Popular' },

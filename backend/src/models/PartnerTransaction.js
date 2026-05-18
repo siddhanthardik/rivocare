@@ -18,6 +18,14 @@ const PartnerTransactionSchema = new mongoose.Schema({
     method: String,
     processedAt: Date
   }
+  ,
+  // Optional audit trail
+  processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  processedAt: { type: Date },
+  externalReference: { type: String },
+  idempotencyKey: { type: String },
+  auditMetadata: { type: mongoose.Schema.Types.Mixed },
+  requestId: { type: String },
 }, { timestamps: true });
 
 module.exports = mongoose.model('PartnerTransaction', PartnerTransactionSchema);

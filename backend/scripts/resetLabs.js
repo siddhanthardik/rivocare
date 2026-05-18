@@ -39,11 +39,13 @@ async function reset() {
       labName: 'SRL Diagnostics',
       commissions: [
         { department: 'pathology', commissionType: 'percentage', commissionValue: 20 },
-        { department: 'radiology', commissionType: 'percentage', commissionValue: 15 },
-        { department: 'cardiology', commissionType: 'percentage', commissionValue: 20 },
-        { department: 'wellness', commissionType: 'percentage', commissionValue: 10 },
-        { department: 'genetics', commissionType: 'percentage', commissionValue: 18 },
-        { department: 'microbiology', commissionType: 'percentage', commissionValue: 12 }
+        { department: 'microbiology', commissionType: 'percentage', commissionValue: 15 },
+        { department: 'serology', commissionType: 'percentage', commissionValue: 18 },
+        { department: 'immunology', commissionType: 'percentage', commissionValue: 20 },
+        { department: 'biochemistry', commissionType: 'percentage', commissionValue: 15 },
+        { department: 'haematology', commissionType: 'percentage', commissionValue: 15 },
+        { department: 'genetics', commissionType: 'percentage', commissionValue: 20 },
+        { department: 'wellness', commissionType: 'percentage', commissionValue: 10 }
       ],
       addressDetails: {
         city: 'Mumbai',

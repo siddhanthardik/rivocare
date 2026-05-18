@@ -81,14 +81,17 @@ export const KPIChip = ({ label, value, icon: Icon, color = 'text-slate-900', bg
  * Standardized status indicator.
  */
 export const StatusPill = ({ status, label, className }) => {
-  const colorClass = STATUS_COLORS[status] || 'bg-slate-100 text-slate-600 border-slate-200';
+  // Normalize status keys: allow incoming values like 'CONFIRMED', 'in-progress', 'IN_PROGRESS'
+  const key = (status || '').toString().trim().toLowerCase().replace(/[-\s]+/g, '_');
+  const colorClass = STATUS_COLORS[key] || STATUS_COLORS[status] || 'bg-slate-100 text-slate-600 border-slate-200';
+  const display = label || (status || '').toString().replace(/_/g, ' ');
   return (
     <span className={cn(
       "inline-flex items-center px-2 py-0.5 rounded-md typo-micro font-black border uppercase tracking-tighter",
       colorClass,
       className
     )}>
-      {label || status.replace('_', ' ')}
+      {display}
     </span>
   );
 };

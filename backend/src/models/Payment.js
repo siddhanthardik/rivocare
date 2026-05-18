@@ -15,6 +15,10 @@ const paymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'LabOrder',
     },
+    // For PREPAID intents where Booking is created only after payment
+    bookingIntent: { type: mongoose.Schema.Types.Mixed },
+    // For PREPAID intents where LabOrder is created only after payment
+    labIntent: { type: mongoose.Schema.Types.Mixed },
     amount: {
       type: Number,
       required: true, // Amount in paise/cents
@@ -39,6 +43,12 @@ const paymentSchema = new mongoose.Schema(
     razorpaySignature: {
       type: String,
     },
+    // Optional audit/tracing fields — do not make required
+    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    processedAt: { type: Date },
+    idempotencyKey: { type: String },
+    auditMetadata: { type: mongoose.Schema.Types.Mixed },
+    requestId: { type: String },
   },
   { timestamps: true }
 );

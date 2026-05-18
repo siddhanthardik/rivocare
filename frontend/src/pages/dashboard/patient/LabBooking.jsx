@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Search, Microscope, Clock, ShieldCheck, 
   ChevronRight, X, User, Plus, MapPin, 
@@ -27,6 +27,7 @@ const STEPS = [
 
 export default function LabBooking() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [cart, setCart] = useState(() => {
     const saved = localStorage.getItem('rivo_lab_cart');
@@ -44,7 +45,7 @@ export default function LabBooking() {
   const [showAddressForm, setShowAddressForm] = useState(false);
 
   const [bookingData, setBookingData] = useState({
-    patient: { type: 'self', name: user?.name, age: '', gender: user?.gender || '' },
+    patient: { type: 'self', memberId: 'self', name: user?.name, age: '', gender: user?.gender || '' },
     address: {
       type: user?.addressType || 'Home',
       fullAddress: user?.address || '',
@@ -120,13 +121,20 @@ export default function LabBooking() {
     const data = Object.fromEntries(formData.entries());
     try {
       setLoading(true);
-      const res = await labService.addFamilyMember(data);
+      const payload = {
+        ...data,
+        relationship: ['Spouse', 'Child', 'Parent', 'Sibling', 'Other'].includes(data.relationship)
+          ? data.relationship
+          : 'Other',
+      };
+      const res = await labService.addFamilyMember(payload);
       toast.success('Member added!');
       setShowProfileForm(false);
+      const created = Array.isArray(res.data) ? res.data[res.data.length - 1] : res.data;
       fetchProfilesAndAddresses();
-      setBookingData(prev => ({ ...prev, patient: { type: 'family', ...res.data } }));
+      setBookingData(prev => ({ ...prev, patient: { type: 'family', memberId: created?._id, ...created } }));
     } catch (err) {
-      toast.error('Failed to add member');
+      toast.error(err.response?.data?.message || 'Failed to add member');
     } finally {
       setLoading(false);
     }
@@ -138,13 +146,18 @@ export default function LabBooking() {
     const data = Object.fromEntries(formData.entries());
     try {
       setLoading(true);
-      const res = await labService.addSavedAddress(data);
+      const payload = {
+        ...data,
+        type: data.type === 'Office' ? 'Work' : data.type,
+      };
+      const res = await labService.addSavedAddress(payload);
       toast.success('Address saved!');
       setShowAddressForm(false);
+      const created = Array.isArray(res.data) ? res.data[res.data.length - 1] : res.data;
       fetchProfilesAndAddresses();
-      setBookingData(prev => ({ ...prev, address: res.data }));
+      setBookingData(prev => ({ ...prev, address: created }));
     } catch (err) {
-      toast.error('Failed to save address');
+      toast.error(err.response?.data?.message || 'Failed to save address');
     } finally {
       setLoading(false);
     }
@@ -298,7 +311,7 @@ export default function LabBooking() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <button 
-          onClick={() => setBookingData({...bookingData, patient: { type: 'self', name: user?.name, age: '', gender: user?.gender }})}
+          onClick={() => setBookingData({...bookingData, patient: { type: 'self', memberId: 'self', name: user?.name, age: '', gender: user?.gender }})}
           className={cn(
             "p-3 rounded-2xl border transition-all flex flex-col items-start gap-3 text-left",
             bookingData.patient.type === 'self' ? "bg-blue-50 border-blue-600" : "bg-white border-slate-100"
@@ -316,7 +329,7 @@ export default function LabBooking() {
         {familyMembers.map(member => (
           <button 
             key={member._id}
-            onClick={() => setBookingData({...bookingData, patient: { type: 'family', ...member }})}
+            onClick={() => setBookingData({...bookingData, patient: { type: 'family', memberId: member._id, ...member }})}
             className={cn(
               "p-3 rounded-2xl border transition-all flex flex-col items-start gap-3 text-left",
               bookingData.patient._id === member._id ? "bg-blue-50 border-blue-600" : "bg-white border-slate-100"
@@ -357,11 +370,11 @@ export default function LabBooking() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {savedAddresses.map((addr, idx) => (
           <button 
-            key={idx}
+            key={addr._id || idx}
             onClick={() => setBookingData({...bookingData, address: addr})}
             className={cn(
               "p-3 rounded-2xl border transition-all flex items-start gap-3 text-left",
-              bookingData.address.fullAddress === addr.fullAddress ? "bg-blue-50 border-blue-600" : "bg-white border-slate-100"
+              (bookingData.address._id && bookingData.address._id === addr._id) || bookingData.address.fullAddress === addr.fullAddress ? "bg-blue-50 border-blue-600" : "bg-white border-slate-100"
             )}
           >
             <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 shrink-0">
@@ -533,20 +546,48 @@ export default function LabBooking() {
                 const payload = {
                   partnerId: cart[0].partner?._id,
                   testIds: cart.map(t => t._id),
-                  totalAmount,
-                  scheduledDate: bookingData.slot.date,
-                  scheduledTime: bookingData.slot.time,
+                  memberId: bookingData.patient.memberId || 'self',
+                  addressId: bookingData.address._id,
+                  schedule: {
+                    date: bookingData.slot.date,
+                    time: bookingData.slot.time,
+                  },
                   collectionType: 'home',
-                  collectionAddress: bookingData.address,
                   paymentMethod: bookingData.paymentMethod,
                   repeatReminder: bookingData.repeatReminder
                 };
+                if (!payload.addressId) {
+                  return toast.error('Please save and select an address before placing the order');
+                }
+                // For PREPAID flows, do NOT create LabOrder yet — store labIntent and redirect to checkout
+                if (payload.paymentMethod && payload.paymentMethod !== 'cod') {
+                  const labIntent = {
+                    partnerId: payload.partnerId,
+                    testIds: payload.testIds,
+                    scheduledDate: payload.schedule.date,
+                    scheduledTime: payload.schedule.time,
+                    collectionType: payload.collectionType,
+                    collectionAddress: payload.collectionAddress,
+                    memberId: payload.memberId,
+                    paymentMethod: payload.paymentMethod
+                  };
+                  sessionStorage.setItem('rivo_lab_intent', JSON.stringify(labIntent));
+                  localStorage.removeItem('rivo_lab_cart');
+                  setCart([]);
+                  toast.success('Proceed to payment');
+                  navigate('/labs/checkout');
+                  setLoading(false);
+                  return;
+                }
+
+                // COD or offline flows — create order immediately
                 const res = await labService.bookTest(payload);
-                setCurrentStep(6);
-                setBookingData(prev => ({ ...prev, bookingId: res.data?._id }));
+                const bookingId = res.data?._id;
+                setBookingData(prev => ({ ...prev, bookingId }));
                 localStorage.removeItem('rivo_lab_cart');
                 setCart([]);
                 toast.success('Confirmed!');
+                setCurrentStep(6);
               } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
               finally { setLoading(false); }
             }}
@@ -650,7 +691,13 @@ export default function LabBooking() {
              </div>
              <div className="col-span-2">
                <label className="typo-micro font-bold text-gray-400 uppercase">Relationship</label>
-               <input name="relationship" placeholder="e.g. Mother, Spouse" required className="w-full mt-1 p-2.5 bg-gray-50 border border-gray-100 rounded-xl typo-body outline-none focus:ring-2 focus:ring-blue-500/10" />
+               <select name="relationship" required className="w-full mt-1 p-2.5 bg-gray-50 border border-gray-100 rounded-xl typo-body outline-none focus:ring-2 focus:ring-blue-500/10">
+                 <option value="Parent">Parent</option>
+                 <option value="Spouse">Spouse</option>
+                 <option value="Child">Child</option>
+                 <option value="Sibling">Sibling</option>
+                 <option value="Other">Other</option>
+               </select>
              </div>
           </div>
           <Button type="submit" loading={loading} className="w-full !py-3">Add Member</Button>
@@ -664,7 +711,7 @@ export default function LabBooking() {
                <label className="typo-micro font-bold text-gray-400 uppercase">Address Type</label>
                <select name="type" className="w-full mt-1 p-2.5 bg-gray-50 border border-gray-100 rounded-xl typo-body outline-none focus:ring-2 focus:ring-blue-500/10">
                  <option value="Home">Home</option>
-                 <option value="Office">Office</option>
+                 <option value="Work">Work</option>
                  <option value="Other">Other</option>
                </select>
              </div>

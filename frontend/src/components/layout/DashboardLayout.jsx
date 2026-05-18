@@ -141,6 +141,16 @@ function searchPlaceholder(role) {
 export default function DashboardLayout({ navItems, role = 'patient' }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (role === 'provider' && user?.providerProfile?.onboardingStatus !== 'ACTIVE') {
+      const allowedPaths = ['/dashboard/provider', '/dashboard/provider/onboarding', '/dashboard/provider/profile'];
+      if (!allowedPaths.includes(window.location.pathname)) {
+        navigate('/dashboard/provider');
+      }
+    }
+  }, [role, user, navigate]);
 
   return (
     <div className="flex min-h-screen bg-slate-50/60 font-sans selection:bg-primary-100 selection:text-primary-600">

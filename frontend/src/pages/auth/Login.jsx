@@ -1,18 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Lock, Mail, ShieldCheck, Activity, Star } from 'lucide-react';
+import { ArrowRight, Lock, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 
 const DASHBOARD = { patient: '/dashboard/patient', provider: '/dashboard/provider', admin: '/dashboard/admin', partner: '/dashboard/partner/lab' };
-
-const TRUST_ITEMS = [
-  { icon: ShieldCheck, text: 'NABH-accredited diagnostics & care' },
-  { icon: Activity, text: 'Real-time health tracking dashboard' },
-  { icon: Star, text: 'Trusted by 50,000+ families across India' },
-];
 
 export default function Login() {
   const { login } = useAuth();
@@ -57,18 +51,10 @@ export default function Login() {
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
         </div>
 
-        <div className="relative z-10">
-          <Link to="/">
-            <img src="/images/logo.png" alt="Rivo Care" className="h-10 brightness-0 invert" />
-          </Link>
-        </div>
+        <div className="relative z-10" />
 
         <div className="relative z-10 space-y-10">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 px-4 py-1.5 rounded-full">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-black text-white/80 uppercase tracking-widest">Healthcare Platform</span>
-            </div>
             <h1 className="text-4xl xl:text-5xl font-black text-white leading-tight tracking-tight">
               India's Premium<br />Home Care Network
             </h1>
@@ -77,30 +63,14 @@ export default function Login() {
             </p>
           </div>
 
-          <div className="space-y-4">
-            {TRUST_ITEMS.map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
-                  <Icon size={18} className="text-white" />
-                </div>
-                <p className="text-white/80 text-sm font-semibold">{text}</p>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div className="relative z-10">
-          <p className="text-white/40 text-xs font-medium">© 2025 Rivo Care Technologies Pvt. Ltd.</p>
         </div>
       </div>
 
       {/* RIGHT FORM PANEL */}
       <div className="flex-1 flex flex-col items-center justify-center bg-white px-6 py-12 lg:px-16">
-        {/* Mobile logo */}
-        <div className="lg:hidden mb-8">
-          <Link to="/"><img src="/images/logo.png" alt="Rivo Care" className="h-9 mx-auto" /></Link>
-        </div>
-
         <div className="w-full max-w-sm space-y-10">
           {/* Header */}
           <div className="space-y-2">

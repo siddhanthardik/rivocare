@@ -11,6 +11,10 @@ const LabTestSchema = new mongoose.Schema({
     lowercase: true
   },
   description: { type: String },
+  shortCode: { type: String },
+  sampleType: { type: String },
+  fastingRequired: { type: Boolean, default: false },
+  homeCollectionAvailable: { type: Boolean, default: true },
   parameters: [{ type: String }], // What the test measures
   
   price: { type: Number, required: true },

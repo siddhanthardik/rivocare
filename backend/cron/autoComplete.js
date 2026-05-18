@@ -16,16 +16,20 @@ const autoComplete = async () => {
 
   try {
     // ── STEP 5: Auto-complete bookings ended >2 hours ago ──────────────
-    const autoBookings = await Booking.find({
+    // Safe find: fallback to raw collection if Mongoose casting fails (e.g., corrupt `service` values)
+    let autoBookings = [];
+    const autoQuery = {
       status: 'in-progress',
-      paymentStatus: { $ne: 'PAID' }, // Don't re-trigger if payout done
-      $expr: {
-        $lt: [
-          { $add: ['$scheduledAt', { $multiply: ['$durationHours', 3600000] }] },
-          twoHoursAgo
-        ]
-      }
-    });
+      paymentStatus: { $ne: 'PAID' },
+      $expr: { $lt: [ { $add: ['$scheduledAt', { $multiply: ['$durationHours', 3600000] }] }, twoHoursAgo ] }
+    };
+    try {
+      autoBookings = await Booking.find(autoQuery);
+    } catch (err) {
+      console.warn('[CRON:AUTO_COMPLETE] Mongoose find failed, falling back to raw collection read:', err.message || err);
+      const mongoose = require('mongoose');
+      autoBookings = await mongoose.connection.db.collection('bookings').find(autoQuery).toArray();
+    }
 
     for (const b of autoBookings) {
       b.status = 'completed';
@@ -37,20 +41,26 @@ const autoComplete = async () => {
     }
 
     // ── STEP 6: System failsafe — in-progress >24 hours ───────────────
-    const systemBookings = await Booking.find({
-      status: 'in-progress',
-      paymentStatus: { $ne: 'PAID' },
-      scheduledAt: { $lt: twentyFourHoursAgo },
-    });
+    let systemBookings = [];
+    const systemQuery = { status: 'in-progress', paymentStatus: { $ne: 'PAID' }, scheduledAt: { $lt: twentyFourHoursAgo } };
+    try {
+      systemBookings = await Booking.find(systemQuery);
+    } catch (err) {
+      console.warn('[CRON:SYSTEM_COMPLETE] Mongoose find failed, falling back to raw collection read:', err.message || err);
+      const mongoose = require('mongoose');
+      systemBookings = await mongoose.connection.db.collection('bookings').find(systemQuery).toArray();
+    }
 
     for (const b of systemBookings) {
-      if (b.status === 'completed') continue; // already handled above
-      b.status = 'completed';
-      b.completionType = 'system';
-      b.completedAt = now;
-      b.completionMeta = { markedLate: true };
-      await b.save();
-      console.log('[CRON:SYSTEM_COMPLETE]', { bookingId: b._id, completionType: 'system', completedAt: now });
+      try {
+        const id = b._id ? b._id : b._id; // raw doc or model
+        // Use atomic update to avoid model casting issues
+        await Booking.findByIdAndUpdate(id, { $set: { status: 'completed', completionType: 'system', completedAt: now, completionMeta: { markedLate: true } } }, { new: true });
+        console.log('[CRON:SYSTEM_COMPLETE]', { bookingId: id, completionType: 'system', completedAt: now });
+      } catch (err) {
+        console.warn('[CRON:SYSTEM_COMPLETE] Skipping booking due to update error:', err.message || err);
+        continue;
+      }
     }
 
     const total = autoBookings.length + systemBookings.length;

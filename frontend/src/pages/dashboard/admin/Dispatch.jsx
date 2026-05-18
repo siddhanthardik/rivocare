@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { bookingService } from '../../../services';
 import { formatDateTime, SERVICE_CONFIG, cn } from '../../../utils';
+import { BOOKING_STATUS } from '../../../constants/bookingStatus';
 import { PageWrapper, Card, Row, Section, StatusPill } from '../../../components/ui/Layout';
 import Button from '../../../components/ui/Button';
 import Avatar from '../../../components/ui/Avatar';
@@ -67,9 +68,9 @@ export default function DispatchDashboard() {
 
     parsedBookings.forEach(b => {
       const status = b.assignment.status;
-      if (status === 'needs_manual_assignment' || (b.hoursUntil < 6 && status !== 'confirmed')) {
+      if (status === 'needs_manual_assignment' || (b.hoursUntil < 6 && status !== BOOKING_STATUS.CONFIRMED)) {
         critical.push(b);
-      } else if (status === 'confirmed') {
+      } else if (status === BOOKING_STATUS.CONFIRMED) {
         confirmed.push(b);
       } else if (status === 'reassigned') {
         reassigned.push(b);

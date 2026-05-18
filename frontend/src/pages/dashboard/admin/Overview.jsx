@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Activity, Wallet, ShieldCheck, ChevronRight, TrendingUp, Zap } from 'lucide-react';
+import { Users, Activity, Wallet, ShieldCheck, ChevronRight, TrendingUp, Zap, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { adminService } from '../../../services';
 import { formatCurrency, cn } from '../../../utils';
@@ -10,6 +10,7 @@ const COLOR_MAP = {
   emerald:{ icon: 'bg-emerald-50 text-emerald-600',   border: 'border-emerald-100' },
   purple: { icon: 'bg-purple-50 text-purple-600',     border: 'border-purple-100' },
   amber:  { icon: 'bg-amber-50 text-amber-600',       border: 'border-amber-100' },
+  red:    { icon: 'bg-red-50 text-red-600',           border: 'border-red-100' },
 };
 
 export default function AdminOverview() {
@@ -33,9 +34,10 @@ export default function AdminOverview() {
   ];
 
   const quickLinks = [
+    { to: '/dashboard/admin/stuck', icon: AlertTriangle, color: 'amber', title: 'Operational Alerts', sub: 'Monitor stuck and unpaid bookings' },
+    { to: '/dashboard/admin/disputes', icon: Zap, color: 'red', title: 'COD Disputes', sub: 'Resolve payment disputes' },
+    { to: '/dashboard/admin/reconciliation', icon: Activity, color: 'purple', title: 'Reconciliation', sub: 'Failed payments & payout anomalies' },
     { to: '/dashboard/admin/providers', icon: ShieldCheck, color: 'emerald', title: 'Verify Providers', sub: 'Review pending applications' },
-    { to: '/dashboard/admin/users', icon: Users, color: 'blue', title: 'Manage Users', sub: 'View and update user roles' },
-    { to: '/dashboard/admin/bookings', icon: Activity, color: 'purple', title: 'All Bookings', sub: 'Monitor platform bookings' },
   ];
 
   return (

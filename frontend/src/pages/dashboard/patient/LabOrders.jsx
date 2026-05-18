@@ -5,7 +5,9 @@ import {
   CheckCircle2, AlertCircle, FlaskConical,
   Truck, FileCheck, MapPin, User, X, Info
 } from 'lucide-react';
-import { labService } from '@/services';
+import { labService, paymentService } from '@/services';
+import { normalizePaymentStatus, PAYMENT_STATUS } from '../../../constants/paymentStatus';
+import { normalizeBookingStatus, BOOKING_STATUS } from '../../../constants/bookingStatus';
 import Button from '../../../components/ui/Button';
 import { PageLoader } from '../../../components/ui/Feedback';
 import { toast } from 'react-hot-toast';
@@ -16,6 +18,8 @@ import { PageWrapper, Card, Row, Section, KPIChip, StatusPill } from '../../../c
 
 export default function LabOrders() {
    const [orders, setOrders] = useState([]);
+  const [confirming, setConfirming] = useState(null);
+  const [reporting, setReporting] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -26,7 +30,25 @@ export default function LabOrders() {
     try {
       setLoading(true);
       const { data } = await labService.getMyOrders();
-      setOrders(data || []);
+      let fetched = data || [];
+
+      // If there's an optimistic pending order, prepend it unless server already returned it
+      try {
+        const rawPending = sessionStorage.getItem('rivo_pending_order');
+        if (rawPending) {
+          const pending = JSON.parse(rawPending);
+          // Try to detect if server already has the real order: match by totalAmount and status recently
+          const match = fetched.find(o => Math.abs((o.totalAmount || 0) - (pending.totalAmount || 0)) < 0.01 && (new Date(o.createdAt)).getTime() >= (Date.now() - 1000 * 60 * 10));
+          if (!match) {
+            fetched = [pending, ...fetched];
+          } else {
+            // Real order appeared — remove pending marker
+            sessionStorage.removeItem('rivo_pending_order');
+          }
+        }
+      } catch (e) { console.warn('pending order merge failed', e); }
+
+      setOrders(fetched);
     } catch (err) {
       toast.error('Failed to load lab orders');
     } finally {
@@ -55,7 +77,7 @@ export default function LabOrders() {
 
   const handleDownloadInvoice = async (order) => {
     try {
-      if (order.paymentStatus !== 'collected' && order.paymentStatus !== 'paid') {
+      if (normalizePaymentStatus(order.paymentStatus) !== PAYMENT_STATUS.COLLECTED && normalizePaymentStatus(order.paymentStatus) !== PAYMENT_STATUS.PAID) {
         toast.error('Invoice pending collection.');
         return;
       }
@@ -82,6 +104,33 @@ export default function LabOrders() {
     } catch (err) { toast.error('Invoice failed'); }
   };
 
+  const handleConfirmCash = async (order) => {
+    try {
+      setConfirming(order._id);
+      await paymentService.confirmCash(order._id);
+      toast.success('Thank you for confirming the payment');
+      fetchOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Confirm failed');
+    } finally {
+      setConfirming(null);
+    }
+  };
+
+  const handleReportCashIssue = async (order) => {
+    try {
+      const note = window.prompt('Describe the issue you experienced (optional)');
+      setReporting(order._id);
+      await paymentService.reportCashIssue(order._id, { issue: note });
+      toast.success('Issue reported. Admin will follow up');
+      fetchOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Report failed');
+    } finally {
+      setReporting(null);
+    }
+  };
+
   const filteredOrders = orders.filter(order => {
     if (filter === 'all') return true;
     return order.status.toLowerCase().includes(filter.toLowerCase());
@@ -90,7 +139,7 @@ export default function LabOrders() {
   if (loading) return <PageLoader />;
 
   return (
-    <PageWrapper>
+    <PageWrapper maxWidth="1200px">
       {/* ── Page Header ────────────────────────────────── */}
       <Section 
         title="Lab Test Orders" 
@@ -179,7 +228,7 @@ export default function LabOrders() {
                       </button>
                     ) : (
                       <button 
-                        disabled={order.status === 'cancelled' || order.status === 'rejected'}
+                        disabled={normalizeBookingStatus(order.status) === BOOKING_STATUS.CANCELLED || normalizeBookingStatus(order.status) === 'rejected'}
                         onClick={() => handleTrack(order)}
                         className="btn-primary-sm col-span-2 !py-2.5 shadow-md shadow-blue-900/10"
                       >
@@ -189,6 +238,16 @@ export default function LabOrders() {
                     <button onClick={() => handleRebook(order)} className="btn-secondary-sm !py-2 !text-[11px] font-black uppercase">Rebook</button>
                     <button onClick={() => handleDownloadInvoice(order)} className="btn-secondary-sm !py-2 !text-[11px] font-black uppercase">Invoice</button>
                   </div>
+                  {/* Patient cash confirmation prompt */}
+                  {order.paymentMethod === 'cod' && normalizePaymentStatus(order.paymentStatus) === PAYMENT_STATUS.COLLECTED && order.patientConfirmed !== true && (
+                    <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-100">
+                      <p className="typo-micro font-black text-amber-700 mb-2">Provider marked ₹{order.collectedAmount || order.totalAmount} collected in cash. Does this match what you paid?</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleConfirmCash(order)} disabled={confirming === order._id} className="btn-primary-sm !py-2 !bg-emerald-600">{confirming === order._id ? 'Confirming...' : 'YES'}</button>
+                        <button onClick={() => handleReportCashIssue(order)} disabled={reporting === order._id} className="btn-secondary-sm !py-2">{reporting === order._id ? 'Reporting...' : 'REPORT ISSUE'}</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>

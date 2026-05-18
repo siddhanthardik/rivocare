@@ -1,6 +1,7 @@
 const Review = require('../models/Review');
 const Booking = require('../models/Booking');
 const Provider = require('../models/Provider');
+const { BOOKING_STATUS, normalizeBookingStatus } = require('../constants/bookingStatus');
 
 // ─── POST /api/reviews ────────────────────────────────────────
 // Patient submits a review for a completed booking
@@ -27,7 +28,7 @@ exports.submitReview = async (req, res) => {
     }
 
     // Booking must be completed
-    if (booking.status !== 'completed') {
+    if (normalizeBookingStatus(booking.status) !== BOOKING_STATUS.COMPLETED) {
       return res.status(400).json({ success: false, message: 'You can only review completed bookings' });
     }
 

@@ -5,6 +5,7 @@ const {
   updateUser,
   verifyProvider,
   getAllProviders,
+  getOnboardingProviders,
   getDashboardSummary,
   getDashboardRevenue,
   getTopProviders,
@@ -24,6 +25,14 @@ const {
   updateServicePricing,
   setAdminPrice,
   getProviderDetails,
+  getReconciliationReport,
+  fixReconciliationIssue,
+  getUnpaidCompletedBookings,
+  getDisputes,
+  getStuckBookings,
+  resolveDispute,
+  getResolvedDisputes,
+  testEmail,
 } = require('../controllers/adminController');
 const { upload } = require('../utils/cloudinary');
 const {
@@ -54,6 +63,7 @@ router.get('/stats', getStats);
 router.get('/users', getUsers);
 router.put('/users/:id', updateUser);
 router.get('/providers', getAllProviders);
+router.get('/providers/onboarding', getOnboardingProviders);
 router.get('/providers/:id/details', getProviderDetails);
 router.put('/providers/:id/verify', verifyProvider);
 
@@ -99,6 +109,18 @@ router.put('/labs/partners/:partnerId/department-commissions', updateLabDepartme
 
 // Admin Price Override
 router.put('/bookings/:id/set-price', setAdminPrice);
+
+// Operational Admin Endpoints
+router.get('/bookings/unpaid-completed', getUnpaidCompletedBookings);
+router.get('/bookings/stuck', getStuckBookings);
+router.get('/disputes', getDisputes);
+router.get('/disputes/resolved', getResolvedDisputes);
+router.post('/disputes/:id/resolve', resolveDispute);
+router.post('/test-email', testEmail);
+
+// Reconciliation (wired from adminController)
+router.get('/reconciliation/report', getReconciliationReport);
+router.post('/reconciliation/fix/:bookingId', fixReconciliationIssue);
 
 // Provider Leads & Supply Expansion
 router.get('/leads', getProviderLeads);

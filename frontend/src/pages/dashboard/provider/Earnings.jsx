@@ -1,45 +1,66 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Wallet, ArrowDownCircle, Banknote, ArrowUpCircle, Clock, CheckCircle2 } from 'lucide-react';
-import { walletService } from '@/services';
+import {
+  ArrowDownCircle,
+  ArrowUpRight,
+  Banknote,
+  CalendarClock,
+  Clock3,
+  Landmark,
+  Wallet,
+} from 'lucide-react';
+import { providerService, walletService } from '@/services';
 import { useAuth } from '@/context/AuthContext';
 import { cn, formatDateTime, formatCurrency } from '@/utils';
-import { PageLoader, EmptyState } from '@/components/ui/Feedback';
+import { EmptyState, PageLoader } from '@/components/ui/Feedback';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
-import Input from '@/components/ui/Input';
+
+const initialSummary = {
+  totalEarnings: 0,
+  netEarnings: 0,
+  platformCut: 0,
+  walletBalance: 0,
+  totalBookings: 0,
+  trendPercentage: 0,
+  lastPayoutAt: null,
+  minimumPayoutThreshold: 1000,
+  lastUpdatedAt: null,
+  bookings: [],
+};
 
 export default function ProviderEarnings() {
-  const [wallet, setWallet] = useState({ balance: 0 });
-  const [transactions, setTransactions] = useState([]);
+  const { user } = useAuth();
+  const [summary, setSummary] = useState(initialSummary);
   const [loading, setLoading] = useState(true);
   const [refresh, setRefresh] = useState(0);
-
-  // Payout Modal State
   const [isPayoutOpen, setIsPayoutOpen] = useState(false);
   const [payoutAmount, setPayoutAmount] = useState('');
   const [requesting, setRequesting] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      walletService.getInfo(),
-      walletService.getTransactions({ limit: 50 })
-    ])
-      .then(([wRes, tRes]) => {
-        setWallet(wRes.data.wallet || { balance: 0 });
-        setTransactions(tRes.data.transactions || []);
-      })
-      .catch((err) => {
-        console.error('[EARNINGS_LOAD_FAILED]', err);
-        toast.error('Failed to load wallet data');
-      })
-      .finally(() => setLoading(false));
+    if (!user?._id) return;
+
+    const loadEarnings = async () => {
+      setLoading(true);
+      try {
+        const response = await providerService.getEarningsSummary();
+        setSummary(response.data);
+      } catch (error) {
+        console.error('[PROVIDER_EARNINGS_LOAD_FAILED]', error);
+        toast.error('Failed to load earnings');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEarnings();
   }, [refresh, user?._id]);
 
   const handleRequestPayout = async () => {
     const amount = Number(payoutAmount);
     if (!amount || amount <= 0) return toast.error('Enter a valid amount');
-    if (amount > wallet.balance) return toast.error('Insufficient balance');
+    if (amount > summary.walletBalance) return toast.error('Insufficient balance');
 
     setRequesting(true);
     try {
@@ -47,104 +68,124 @@ export default function ProviderEarnings() {
       toast.success('Payout requested successfully');
       setPayoutAmount('');
       setIsPayoutOpen(false);
-      setRefresh(r => r + 1);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Payout request failed');
+      setRefresh((current) => current + 1);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Payout request failed');
     } finally {
       setRequesting(false);
     }
   };
 
+  const trendLabel = useMemo(() => {
+    if (summary.trendPercentage > 0) return `+${summary.trendPercentage}%`;
+    if (summary.trendPercentage < 0) return `${summary.trendPercentage}%`;
+    return '0%';
+  }, [summary.trendPercentage]);
+
+  if (!user) {
+    return <div className="p-6">Loading...</div>;
+  }
+
   if (loading || !user?._id) {
     return (
       <div className="p-10 flex flex-col items-center justify-center space-y-3">
-        <PageLoader label="Loading financial data..." />
-        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Verifying Identity</p>
+        <PageLoader label="Loading earnings..." />
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Verifying identity</p>
       </div>
     );
   }
 
-  // Calculate total all-time earnings from credit transactions
-  const totalEarnings = (transactions || [])
-    .filter(t => t?.type === 'CREDIT')
-    .reduce((sum, t) => sum + (t?.amount || 0), 0);
-
   return (
-    <div className="page-container font-['Inter',_system-ui,_sans-serif]">
-      {/* ── Header ─────────────────────────────────────── */}
-      <div className="page-header">
-        <div className="page-header-info">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="typo-label !text-gray-400">Finance</span>
-          </div>
-          <h1 className="typo-title">Earnings & Wallet</h1>
-          <p className="typo-body">Track your revenue and manage payouts.</p>
-        </div>
-        <Button onClick={() => setIsPayoutOpen(true)} disabled={wallet.balance <= 0} className="bg-slate-900 text-white rounded-xl px-5 py-2.5 typo-label !text-white !font-bold flex items-center gap-2 shadow-lg active:scale-95">
-          <ArrowDownCircle size={16} /> Request Payout
-        </Button>
-      </div>
-
-      {/* ── KPI Strip ──────────────────────────────────── */}
-      <div className="kpi-strip !grid-cols-1 sm:!grid-cols-2">
-        <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-white/5 transition-transform group-hover:scale-150 duration-700" />
-          <div className="relative z-10">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-4 border border-white/10">
-              <Banknote size={20} className="text-emerald-400" />
+    <div className="mx-auto max-w-6xl space-y-6 px-4 pb-12">
+      <section className="relative overflow-hidden rounded-[28px] bg-slate-950 p-6 text-white shadow-2xl shadow-slate-950/10">
+        <div className="absolute right-0 top-0 h-44 w-44 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
+              <Wallet size={14} />
+              Earnings Control
             </div>
-            <p className="typo-label !text-slate-400">Available Balance</p>
-            <h3 className="typo-kpi !text-white !text-[32px] mt-1">{formatCurrency(wallet.balance)}</h3>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-emerald-50 transition-transform group-hover:scale-150 duration-700" />
-          <div className="relative z-10">
-            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-4 border border-emerald-100">
-              <Wallet size={20} className="text-emerald-600" />
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">Available Balance</p>
+              <h2 className="mt-2 text-3xl font-bold md:text-4xl">{formatCurrency(summary.walletBalance)}</h2>
             </div>
-            <p className="typo-label !text-gray-400">Total Earnings (80% Cut)</p>
-            <h3 className="typo-kpi !text-gray-900 !text-[32px] mt-1">{formatCurrency(totalEarnings)}</h3>
+            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-300">
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full px-3 py-1 font-semibold',
+                  summary.trendPercentage >= 0 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'
+                )}
+              >
+                <ArrowUpRight size={14} />
+                {trendLabel} vs last month
+              </span>
+              <span>Last payout: {summary.lastPayoutAt ? formatDateTime(summary.lastPayoutAt) : 'No payouts yet'}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 lg:items-end">
+            <Button
+              onClick={() => setIsPayoutOpen(true)}
+              disabled={summary.walletBalance <= 0}
+              className="rounded-xl bg-white px-5 py-3 font-bold text-slate-900 shadow-lg hover:bg-slate-100"
+            >
+              Request Payout
+            </Button>
+            <div className="text-right text-xs text-slate-400">
+              <p>Minimum payout threshold: {formatCurrency(summary.minimumPayoutThreshold)}</p>
+              <p>Last updated: {summary.lastUpdatedAt ? formatDateTime(summary.lastUpdatedAt) : 'Just now'}</p>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ── Wallet Ledger ─────────────────────────────── */}
-      <div className="compact-card">
-        <div className="card-header">
-           <h3 className="typo-label !text-gray-900 !font-bold">Wallet Ledger</h3>
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <BreakdownCard icon={Banknote} title="Total Earnings" value={formatCurrency(summary.totalEarnings)} />
+        <BreakdownCard icon={Landmark} title="Platform Fee" value={formatCurrency(summary.platformCut)} />
+        <BreakdownCard icon={Wallet} title="Net Earnings" value={formatCurrency(summary.netEarnings)} />
+      </section>
+
+      <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Completed Booking Credits</h3>
+            <p className="text-sm text-slate-500">
+              Single-source earnings ledger from completed bookings only.
+            </p>
+          </div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            {summary.totalBookings} completed bookings
+          </div>
         </div>
-        {transactions.length === 0 ? (
-          <EmptyState title="No transactions yet" description="Complete bookings to start earning your 80% cut." />
+
+        {summary.bookings.length === 0 ? (
+          <EmptyState title="No earnings yet" description="Completed bookings will appear here once they are credited." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-6 py-3 typo-label">Date</th>
-                  <th className="px-6 py-3 typo-label">Type</th>
-                  <th className="px-6 py-3 typo-label">Description</th>
-                  <th className="px-6 py-3 typo-label text-right">Amount</th>
+                <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-[0.16em] text-slate-400">
+                  <th className="px-4 py-3">Booking ID</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3 text-right">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                {transactions.map((t) => (
-                  <tr key={t._id} className="table-row group">
-                    <td className="px-6 py-4 typo-body font-medium whitespace-nowrap">{formatDateTime(t.createdAt)}</td>
-                    <td className="px-6 py-4">
-                      {t.type === 'CREDIT' ? (
-                        <span className="inline-flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100 typo-label !text-[9px] !font-bold">
-                          <ArrowUpCircle size={12} /> EARNING
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-gray-600 bg-gray-100 px-2 py-0.5 rounded-lg border border-gray-200 typo-label !text-[9px] !font-bold">
-                          <ArrowDownCircle size={12} /> PAYOUT
-                        </span>
-                      )}
+              <tbody className="divide-y divide-slate-100">
+                {summary.bookings.map((booking) => (
+                  <tr key={booking.bookingId} className="hover:bg-slate-50/60">
+                    <td className="px-4 py-4 font-semibold text-slate-900">
+                      #{String(booking.bookingId).slice(-6).toUpperCase()}
                     </td>
-                    <td className="px-6 py-4 typo-body !text-gray-700">{t.description}</td>
-                    <td className={cn("px-6 py-4 text-right typo-body font-bold", t.type === 'CREDIT' ? 'text-emerald-600' : 'text-gray-900')}>
-                      {t.type === 'CREDIT' ? '+' : '-'}{formatCurrency(t.amount || 0)}
+                    <td className="px-4 py-4 text-slate-500">{formatDateTime(booking.date)}</td>
+                    <td className="px-4 py-4 text-right font-semibold text-emerald-600">
+                      {formatCurrency(booking.amount)}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        {booking.status}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -152,13 +193,26 @@ export default function ProviderEarnings() {
             </table>
           </div>
         )}
-      </div>
+      </section>
 
-      <p className="typo-micro text-center pt-4 flex items-center justify-center gap-2">
-         <Clock size={12} /> Payouts are processed manually within 24-48 business hours.
-      </p>
+      <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">Payout actions</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Withdraw only when your balance crosses the minimum threshold.
+            </p>
+          </div>
+          <Button
+            onClick={() => setIsPayoutOpen(true)}
+            disabled={summary.walletBalance < summary.minimumPayoutThreshold}
+            className="rounded-xl bg-black px-5 py-3 font-bold text-white"
+          >
+            Request Payout
+          </Button>
+        </div>
+      </section>
 
-      {/* Payout Modal */}
       <Modal
         isOpen={isPayoutOpen}
         onClose={() => !requesting && setIsPayoutOpen(false)}
@@ -166,31 +220,55 @@ export default function ProviderEarnings() {
         size="sm"
       >
         <div className="space-y-4">
-          <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
-            <p className="typo-label !text-gray-400">Available to withdraw</p>
-            <p className="typo-kpi !text-[28px] mt-1">{formatCurrency(wallet.balance)}</p>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Available to withdraw</p>
+            <p className="mt-1 text-3xl font-bold text-slate-900">{formatCurrency(summary.walletBalance)}</p>
           </div>
           <div className="space-y-1">
-             <label className="typo-label !text-gray-400">Amount to withdraw (₹) *</label>
-             <input 
-               type="number"
-               className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl typo-value outline-none focus:ring-2 focus:ring-indigo-500/20"
-               placeholder="₹0.00"
-               value={payoutAmount}
-               onChange={(e) => setPayoutAmount(e.target.value)}
-             />
+            <label className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Amount to withdraw (₹)
+            </label>
+            <input
+              type="number"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-900"
+              placeholder="Enter payout amount"
+              value={payoutAmount}
+              onChange={(event) => setPayoutAmount(event.target.value)}
+            />
           </div>
-          <p className="typo-micro !text-gray-400 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
-            Funds will be deposited to your registered bank account. Make sure your KYC is updated.
-          </p>
+          <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-slate-500">
+            <div className="flex items-center gap-2 font-semibold text-slate-700">
+              <Clock3 size={15} />
+              Minimum payout: {formatCurrency(summary.minimumPayoutThreshold)}
+            </div>
+            <p className="mt-1">Payouts are processed manually within 24-48 business hours after approval.</p>
+          </div>
           <div className="flex gap-2 pt-2">
-             <Button variant="ghost" onClick={() => setIsPayoutOpen(false)} disabled={requesting} className="flex-1 typo-label">Cancel</Button>
-             <Button onClick={handleRequestPayout} disabled={requesting} className="flex-1 bg-slate-900 text-white rounded-xl typo-label !text-white !font-bold">
-                {requesting ? 'Processing...' : 'Confirm Withdrawal'}
-             </Button>
+            <Button variant="ghost" onClick={() => setIsPayoutOpen(false)} disabled={requesting} className="flex-1">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRequestPayout}
+              disabled={requesting}
+              className="flex-1 rounded-xl bg-slate-900 font-bold text-white"
+            >
+              {requesting ? 'Processing...' : 'Confirm Withdrawal'}
+            </Button>
           </div>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function BreakdownCard({ icon: Icon, title, value }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+        <Icon size={18} />
+      </div>
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{title}</p>
+      <h3 className="mt-2 text-2xl font-bold text-slate-900">{value}</h3>
     </div>
   );
 }

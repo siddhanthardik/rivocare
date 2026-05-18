@@ -21,10 +21,16 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    referenceId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Booking', // or 'Payment'
-    },
+      referenceType: { type: String },
+      referenceId: { type: mongoose.Schema.Types.ObjectId },
+      status: { type: String, enum: ['PENDING', 'COMPLETED', 'FAILED'], default: 'COMPLETED' },
+      externalReference: { type: String },
+      // Optional audit fields (safe to add)
+      processedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      processedAt: { type: Date },
+      idempotencyKey: { type: String },
+      auditMetadata: { type: mongoose.Schema.Types.Mixed },
+      requestId: { type: String },
   },
   { timestamps: true }
 );

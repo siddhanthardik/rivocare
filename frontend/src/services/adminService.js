@@ -45,6 +45,15 @@ const adminService = {
   deleteBlog: (id) => api.delete(`/admin/blogs/${id}`),
   uploadBlogHero: (id, formData) => api.post(`/admin/blogs/${id}/hero`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   getErrorLogs: () => api.get('/logs/errors'),
+  // Operational admin endpoints
+  getStuckBookings: () => api.get('/admin/bookings/stuck'),
+  getDisputes: (params) => api.get('/admin/disputes', { params }),
+  getUnpaidCompleted: (params) => api.get('/admin/bookings/unpaid-completed', { params }),
+  syncPayment: (paymentId) => api.post(`/payment/sync/${paymentId}`),
+  fixReconciliationIssue: (bookingId) => api.post(`/admin/reconciliation/fix/${bookingId}`),
+  resolveDispute: (id, data) => api.post(`/admin/disputes/${id}/resolve`, data),
+  getResolvedDisputes: (params) => api.get('/admin/disputes/resolved', { params }),
+  getOnboardingProviders: (status) => api.get('/admin/providers/onboarding', { params: { status } }),
 };
 
 export default adminService;

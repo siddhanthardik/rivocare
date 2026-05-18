@@ -20,9 +20,41 @@ const providerSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false },
     onboardingStatus: {
       type: String,
-      enum: ['INCOMPLETE', 'KYC_PENDING', 'VERIFIED', 'ACTIVE'],
+      enum: ['INCOMPLETE', 'DRAFT', 'PENDING_VERIFICATION', 'ACTIVE', 'REJECTED', 'SUSPENDED'],
       default: 'INCOMPLETE',
     },
+    // ---- ONBOARDING & TRUST BADGES ----
+    languages: { type: [String], default: [] },
+    gender: { type: String, enum: ['Male', 'Female', 'Other', 'Prefer not to say'], default: 'Prefer not to say' },
+    profession: { type: String, default: '' },
+    
+    kycDetails: {
+      aadhaarUrl: { type: String, default: null },
+      panUrl: { type: String, default: null },
+      bankAccount: { type: String, default: null },
+      ifsc: { type: String, default: null },
+      chequeUrl: { type: String, default: null },
+      status: { type: String, enum: ['PENDING', 'VERIFIED', 'REJECTED'], default: 'PENDING' }
+    },
+
+    professionalDocs: [{
+      documentType: String,
+      fileUrl: String,
+      uploadedAt: { type: Date, default: Date.now },
+      status: { type: String, enum: ['PENDING', 'VERIFIED', 'REJECTED'], default: 'PENDING' }
+    }],
+
+    policeVerificationUrl: { type: String, default: null },
+    policeVerificationStatus: { type: String, enum: ['PENDING', 'VERIFIED', 'REJECTED', 'NOT_SUBMITTED'], default: 'NOT_SUBMITTED' },
+
+    declaration: {
+      accepted: { type: Boolean, default: false },
+      acceptedAt: { type: Date, default: null }
+    },
+    
+    rejectionNotes: { type: String, default: '' },
+    // -----------------------------------
+    isProfileComplete: { type: Boolean, default: false },
     isAvailable: { type: Boolean, default: false }, // distinct from isOnline (session) — permanent availability flag
     referralCode: { type: String, unique: true, sparse: true }, // provider's own referral code
     referredByCode: { type: String, default: null }, // code they used to sign up
@@ -32,6 +64,7 @@ const providerSchema = new mongoose.Schema(
     completedBookings: { type: Number, default: 0 },
     cancellationCount: { type: Number, default: 0 },
     totalEarnings: { type: Number, default: 0 },
+    walletBalance: { type: Number, default: 0 },
     isBlocked: { type: Boolean, default: false },
     warningCount: { type: Number, default: 0 },
     notes: { type: String, default: '{}' }, // Used for serialized availability JSON

@@ -5,6 +5,7 @@ import {
    Share2, Lock, ArrowRight
 } from 'lucide-react';
 import { labService, paymentService } from '@/services';
+import { normalizePaymentStatus, PAYMENT_STATUS } from '../../../constants/paymentStatus';
 import Button from '../../../components/ui/Button';
 import { PageLoader } from '../../../components/ui/Feedback';
 import { toast } from 'react-hot-toast';
@@ -55,26 +56,9 @@ export default function LabReports() {
 
   const handlePayToUnlock = async (report) => {
     try {
-      const { data } = await paymentService.createLabOrder(report._id);
-      const options = {
-        key: data.keyId,
-        amount: data.order.amount,
-        currency: 'INR',
-        name: 'Rivo Labs',
-        description: 'Report Unlock Payment',
-        order_id: data.order.id,
-        handler: async function (response) {
-          try {
-            await paymentService.verifyLabPayment(response);
-            toast.success('Payment successful! Report Unlocked.');
-            fetchReports();
-          } catch (err) { toast.error('Payment verification failed'); }
-        },
-        theme: { color: '#4f46e5' },
-      };
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', function () { toast.error('Payment failed or cancelled.'); });
-      rzp.open();
+      await paymentService.createLabOrder(report._id);
+      toast.success('Payment successful! Report unlocked.');
+      fetchReports();
     } catch (err) { toast.error(err.response?.data?.message || 'Could not initiate payment'); }
   };
 
@@ -132,7 +116,7 @@ export default function LabReports() {
   if (loading) return <PageLoader />;
 
   return (
-    <PageWrapper>
+    <PageWrapper maxWidth="1200px">
       {/* ── Page Header ────────────────────────────────── */}
       <Section 
         title="Diagnostic Reports" 
@@ -232,9 +216,15 @@ export default function LabReports() {
                    <span className="typo-kpi !text-[24px] text-gray-900">{formatCurrency(paymentPendingModal.report?.totalAmount)}</span>
                 </div>
                 <div className="space-y-2">
-                  <button onClick={() => { handlePayToUnlock(paymentPendingModal.report); setPaymentPendingModal({ isOpen: false, report: null }); }} className="w-full btn-primary-sm !py-3.5 !bg-blue-600 flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20">
-                    Pay & Unlock Report <ArrowRight size={14} />
-                  </button>
+                  {normalizePaymentStatus(paymentPendingModal.report?.paymentStatus) === PAYMENT_STATUS.PENDING && paymentPendingModal.report?.paymentMethod !== 'cod' ? (
+                    <button onClick={() => { handlePayToUnlock(paymentPendingModal.report); setPaymentPendingModal({ isOpen: false, report: null }); }} className="w-full btn-primary-sm !py-3.5 !bg-blue-600 flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20">
+                      Pay & Unlock Report <ArrowRight size={14} />
+                    </button>
+                  ) : (
+                    <div className="rounded-2xl bg-amber-50 border border-amber-100 p-3 text-center typo-micro font-bold text-amber-700">
+                      Cash collection must be confirmed before this report unlocks.
+                    </div>
+                  )}
                   <button onClick={() => setPaymentPendingModal({ isOpen: false, report: null })} className="w-full py-2.5 typo-micro font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors">
                     Cancel
                   </button>

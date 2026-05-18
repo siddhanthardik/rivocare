@@ -4,11 +4,14 @@ const LabOrderSchema = new mongoose.Schema({
   patient: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   partner: { type: mongoose.Schema.Types.ObjectId, ref: 'Partner', required: true },
   tests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'LabTest' }],
+  member: { type: mongoose.Schema.Types.ObjectId },
+  address: { type: mongoose.Schema.Types.ObjectId },
+  orderId: { type: String, unique: true, sparse: true },
   
   status: { 
     type: String, 
-    enum: ['new', 'accepted', 'rejected', 'technician_assigned', 'sample_collected', 'processing', 'report_uploaded', 'completed', 'cancelled'],
-    default: 'new' 
+    enum: ['new', 'confirmed', 'accepted', 'rejected', 'technician_assigned', 'sample_collected', 'processing', 'report_uploaded', 'completed', 'cancelled', 'NEW', 'CONFIRMED', 'ACCEPTED', 'REJECTED', 'TECHNICIAN_ASSIGNED', 'SAMPLE_COLLECTED', 'PROCESSING', 'REPORT_UPLOADED', 'COMPLETED', 'CANCELLED'],
+    default: 'NEW' 
   },
   
   totalAmount: { type: Number, required: true },
@@ -16,7 +19,7 @@ const LabOrderSchema = new mongoose.Schema({
   labPayout: { type: Number, default: 0 },
   commissionUsed: { type: Number },
   commissionSource: { type: String, enum: ['override', 'department', 'default'] },
-  paymentStatus: { type: String, enum: ['pending', 'payment_link_sent', 'cash_due', 'collected', 'failed', 'refunded', 'waived'], default: 'pending' },
+  paymentStatus: { type: String, enum: ['pending', 'payment_link_sent', 'cash_due', 'paid', 'collected', 'failed', 'refunded', 'waived', 'PENDING', 'PAID', 'COLLECTED', 'FAILED', 'REFUNDED'], default: 'PENDING' },
   paymentMethod: { type: String, enum: ['cod', 'upi', 'razorpay'], default: 'cod' },
   paymentDetails: {
     transactionId: String,
@@ -42,6 +45,9 @@ const LabOrderSchema = new mongoose.Schema({
   // Payment & Report Security
   paymentCollectedAt: { type: Date },
   paymentCollectedBy: { type: String }, // 'admin', 'system', 'partner'
+  paymentCollectionNotes: { type: String },
+  collectionProof: { type: String },
+  paymentVerified: { type: Boolean, default: false },
   reportLocked: { type: Boolean, default: true },
   reportReleasedAt: { type: Date },
   releaseReason: { type: String },

@@ -21,6 +21,8 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Offering',
     },
+    planName: { type: String, trim: true },
+    price: { type: Number, min: 0 },
     test: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'LabTest',
@@ -40,8 +42,15 @@ const bookingSchema = new mongoose.Schema(
     durationHours: { type: Number, default: 1, min: 1, max: 1000 },
     status: {
       type: String,
-      enum: ['pending', 'confirmed', 'in-progress', 'completed', 'cancelled'],
-      default: 'pending',
+      enum: [
+        // Legacy lowercase variants
+        'pending', 'confirmed', 'in-progress', 'completed', 'cancelled',
+        // Canonical uppercase variants
+        'REQUESTED', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED',
+        'COLLECTED',  // COD: cash held, awaiting patient confirmation
+        'PAID', 'CANCELLED',
+      ],
+      default: 'REQUESTED',
     },
     notes: { type: String, maxlength: 500, default: '' },
     totalAmount: { type: Number, required: true, min: 0 },
@@ -74,7 +83,11 @@ const bookingSchema = new mongoose.Schema(
     }],
     paymentStatus: {
       type: String,
-      enum: ['PENDING', 'PAID', 'REFUNDED'],
+      enum: [
+        'PENDING', 'PAID', 'REFUNDED', 'COLLECTED', 'FAILED',
+        'PENDING_CONFIRMATION',  // COD: cash collected, not yet confirmed
+        'DISPUTED',              // Patient raised a dispute
+      ],
       default: 'PENDING',
     },
     cancelReason: { type: String, default: null },
@@ -93,6 +106,28 @@ const bookingSchema = new mongoose.Schema(
     systemFlags: { type: [String], default: [] }, // e.g. 'SHORT_COMPLETION_TIME', 'PATIENT_DENIED_COMPLETION'
     rating: { type: Number, min: 1, max: 5, default: null },
     review: { type: String, default: null },
+    // Cash collection fields (optional)
+    collectedAmount: { type: Number },
+    collectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    collectedAt: { type: Date },
+    paymentCollectionNote: { type: String },
+    patientConfirmed: { type: Boolean, default: null },
+    patientConfirmedAt: { type: Date },
+    disputeRaised: { type: Boolean, default: false },
+
+    // Dispute resolution audit trail (Phase 2)
+    disputeResolution: {
+      resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      resolvedAt: { type: Date },
+      resolutionType: {
+        type: String,
+        enum: ['APPROVE_PROVIDER', 'REJECT_PROVIDER', 'PARTIAL_SETTLEMENT'],
+      },
+      adminNotes: { type: String, maxlength: 1000 },
+      approvedAmount: { type: Number, min: 0 },       // For PARTIAL_SETTLEMENT
+      originalCollectedAmount: { type: Number, min: 0 },
+      disputeResolved: { type: Boolean, default: false },
+    },
   },
   { timestamps: true }
 );

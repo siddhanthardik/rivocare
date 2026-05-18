@@ -3,14 +3,19 @@ const Booking = require('../models/Booking');
 const Provider = require('../models/Provider');
 const Service = require('../models/Service');
 const fraudService = require('../services/fraudService');
+const { updateProviderEarnings } = require('../services/providerEarningsService');
 const { maskPhone, maskAddress } = require('../utils/helpers');
 const Notification = require('../models/Notification');
 const socketHelper = require('../socket');
 const ServiceablePincode = require('../models/ServiceablePincode');
-
+const { cleanString } = require('../utils/sanitizeInput');
+const { BOOKING_STATUS, PAYMENT_STATUS, VALID_BOOKING_TRANSITIONS, normalizeBookingStatus, normalizePaymentStatus } = require('../constants/bookingStatus');
+const emailService = require('../services/emailService');
 const generateOrderId = () => {
   return "ORD-" + Date.now().toString(36).toUpperCase();
 };
+
+const billingLogger = require('../utils/billingLogger');
 
 // Safegaurd: Ensure SubscriptionPlan exists
 try {
@@ -21,24 +26,47 @@ try {
 
 const formatBookingResponse = (booking, userRole) => {
   const b = booking.toObject ? booking.toObject() : booking;
-  if (userRole === 'provider' && !['confirmed', 'in-progress', 'completed'].includes(b.status)) {
+  
+  // Normalize current status
+  const currentStatus = normalizeBookingStatus(b.status);
+  
+  if (userRole === 'provider' && ![BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS, BOOKING_STATUS.COMPLETED].includes(currentStatus)) {
     if (b.patient && b.patient.phone) b.patient.phone = maskPhone(b.patient.phone);
     if (b.address) b.address = maskAddress(b.address);
   }
+
+  // Add a normalized payment status to responses for safe standardization
+  b.paymentStatusNormalized = normalizePaymentStatus(b.paymentStatus);
+
+  // Ensure monetary fields are present and normalized for frontend
+  const finalAmountVal = b.finalAmount || b.finalPrice || b.totalAmount || 0;
+  if (typeof b.providerEarning !== 'number') {
+    b.providerEarning = Math.round(finalAmountVal * 0.8);
+  }
+  if (typeof b.platformFee !== 'number') {
+    b.platformFee = Math.round(finalAmountVal - b.providerEarning);
+  }
+
+  // Standardized normalizedStatus for frontend
+  b.normalizedStatus = currentStatus.toUpperCase();
+  
   return b;
 };
 
 // @POST /api/bookings
 exports.createBooking = async (req, res, next) => {
-  console.log("BOOKING REQUEST:", {
-    provider: req.body.providerId,
-    scheduledAt: req.body.scheduledAt,
-    service: req.body.service
-  });
   console.log('[BOOKING_AUDIT] Incoming Payload:', JSON.stringify(req.body, null, 2));
   
   try {
     const { providerId, service: serviceId, address, pincode, scheduledAt, durationHours, notes, testId, offeringId, planId } = req.body;
+    const forbiddenPricingFields = ['price', 'amount', 'totalAmount', 'finalPrice', 'finalAmount', 'estimatedPrice', 'platformFee', 'providerEarning'];
+    const tamperedField = forbiddenPricingFields.find((field) => req.body[field] !== undefined);
+    if (tamperedField) {
+      return res.status(400).json({
+        success: false,
+        message: `${tamperedField} is calculated by the server and cannot be supplied by the client.`,
+      });
+    }
 
     // 🛡️ Strict Field Validation
     if (!providerId || !serviceId || !address || !pincode || !scheduledAt) {
@@ -69,7 +97,6 @@ exports.createBooking = async (req, res, next) => {
     const Wallet = require('../models/Wallet');
     const Transaction = require('../models/Transaction');
     const Offering = require('../models/Offering');
-    const pricingService = require('../services/pricingService');
 
     // 🧩 STEP 11: HARD FAIL SAFETY (Plan Required)
     if (!planId) {
@@ -79,20 +106,41 @@ exports.createBooking = async (req, res, next) => {
       });
     }
 
-    console.log('[BOOKING_DEBUG] Incoming planId:', planId);
+    // Determine price
     
     if (!planId) {
       return res.status(400).json({ success: false, error: "Plan ID is required" });
     }
 
-    const plan = await Offering.findById(planId);
+    const plan = await Offering.findOne({ _id: planId, isActive: true });
     if (!plan) {
       console.error('[BOOKING_ERROR] Plan not found for ID:', planId);
       return res.status(404).json({ success: false, message: 'Selected plan no longer exists' });
     }
 
-    const serviceDoc = await Service.findById(serviceId);
+    // Resolve serviceId: accept either ObjectId or slug/name from client
+    let resolvedServiceId = serviceId;
+    try {
+      const mongoose = require('mongoose');
+      if (!mongoose.Types.ObjectId.isValid(serviceId)) {
+        // try to find by slug or name (case-insensitive)
+        const maybe = await Service.findOne({ $or: [ { slug: serviceId }, { name: serviceId }, { label: serviceId } ] });
+        if (maybe) resolvedServiceId = maybe._id;
+        else {
+          console.warn('[bookingController] Invalid service identifier received from client:', serviceId);
+          return res.status(400).json({ success: false, message: 'Invalid service identifier' });
+        }
+      }
+    } catch (e) {
+      console.warn('[bookingController] Service resolution error:', e && e.message);
+      return res.status(400).json({ success: false, message: 'Invalid service identifier' });
+    }
+
+    const serviceDoc = await Service.findById(resolvedServiceId);
     if (!serviceDoc) return res.status(404).json({ success: false, message: 'Service not found' });
+    if (plan.service && plan.service.toString() !== serviceDoc._id.toString()) {
+      return res.status(400).json({ success: false, message: 'Selected plan does not belong to this service' });
+    }
 
     const provider = await Provider.findById(providerId);
     if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
@@ -101,24 +149,47 @@ exports.createBooking = async (req, res, next) => {
     if (!provider.isOnline) return res.status(400).json({ success: false, message: 'Provider is offline' });
     
     // Check if provider offers this service
-    if (!provider.services.some(s => s.toString() === serviceId.toString())) {
+    if (!provider.services.some(s => s.toString() === resolvedServiceId.toString())) {
       return res.status(400).json({ success: false, message: 'Provider does not offer this service' });
     }
 
     // Check for double-booking
     const scheduledDate = new Date(scheduledAt);
+    const requestedDurationHours = Number(durationHours) || 1;
+    const scheduledEnd = new Date(scheduledDate.getTime() + requestedDurationHours * 60 * 60 * 1000);
+
+    const duplicatePatientBooking = await Booking.findOne({
+      patient: req.user._id,
+      scheduledAt: scheduledDate,
+      status: { $in: [BOOKING_STATUS.REQUESTED, BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS] },
+    });
+    if (duplicatePatientBooking) {
+      return res.status(409).json({ success: false, message: 'Duplicate booking for this time slot' });
+    }
+
     const conflict = await Booking.findOne({
       provider: providerId,
-      scheduledAt: scheduledDate,
-      status: { $in: ['pending', 'confirmed', 'in-progress'] },
+      scheduledAt: { $lt: scheduledEnd },
+      status: { $in: [BOOKING_STATUS.REQUESTED, BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS] },
+      $expr: {
+        $gt: [
+          { $add: ['$scheduledAt', { $multiply: [{ $ifNull: ['$durationHours', 1] }, 60 * 60 * 1000] }] },
+          scheduledDate,
+        ],
+      },
     });
     if (conflict) {
-      return res.status(409).json({ success: false, message: 'Provider is already booked' });
+      return res.status(409).json({ success: false, message: 'Slot not available' });
     }
 
     // 🧩 STEP 2: REMOVE SERVICE PRICING COMPLETELY
-    const finalPrice = plan.price;
+    const finalPrice = Number(plan.price);
+    if (!Number.isFinite(finalPrice) || finalPrice < 0) {
+      return res.status(400).json({ success: false, message: 'Selected plan has invalid pricing' });
+    }
     const orderId = generateOrderId();
+    const cleanAddress = cleanString(address, 500);
+    const cleanNotes = cleanString(notes || '', 500);
 
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
@@ -129,13 +200,15 @@ exports.createBooking = async (req, res, next) => {
         orderId,
         patient: req.user._id,
         provider: providerId,
-        service: serviceId,
-        plan: plan._id,
-        address,
+        service: resolvedServiceId,
+        offering: plan._id,
+        planName: plan.name,
+        price: finalPrice,
+        address: cleanAddress,
         pincode,
         scheduledAt: scheduledDate,
-        durationHours: durationHours || 1,
-        notes,
+        durationHours: requestedDurationHours,
+        notes: cleanNotes,
         totalAmount: finalPrice,
         finalAmount: finalPrice,
         finalPrice,
@@ -145,10 +218,22 @@ exports.createBooking = async (req, res, next) => {
         platformFee: Math.round(finalPrice * 0.2),
         providerEarning: Math.round(finalPrice * 0.8),
         paymentStatus: "PENDING",
-        status: "pending",
+        status: BOOKING_STATUS.REQUESTED,
         expiresAt,
       });
-      console.log('✅ Booking created, triggering notifications:', booking._id);
+      try {
+        billingLogger.logBookingCreated({
+          bookingId: booking._id && booking._id.toString(),
+          userId: req.user._id && req.user._id.toString(),
+          providerId: providerId && providerId.toString(),
+          amount: booking.totalAmount,
+          status: booking.status,
+          requestId: req.requestId,
+          ip: req.ip,
+          endpoint: req.originalUrl,
+          metadata: { orderId }
+        });
+      } catch (e) {}
     } catch (err) {
       console.error('❌ BOOKING CREATION FAILED:', err);
       return res.status(500).json({ success: false, message: 'Booking failed to save' });
@@ -156,7 +241,7 @@ exports.createBooking = async (req, res, next) => {
 
     // Update user profile if address or pincode is missing
     let userModified = false;
-    if (!req.user.address) { req.user.address = address; userModified = true; }
+    if (!req.user.address) { req.user.address = cleanAddress; userModified = true; }
     if (!req.user.pincode) { req.user.pincode = pincode; userModified = true; }
     if (userModified) await req.user.save();
 
@@ -227,7 +312,7 @@ exports.createBooking = async (req, res, next) => {
         bookingId: booking._id,
         orderId: booking.orderId,
         service: booking.service,
-        plan: booking.plan,
+        plan: booking.offering,
         finalPrice: booking.finalPrice,
         status: booking.status,
         booking 
@@ -236,6 +321,182 @@ exports.createBooking = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+// Helper: credit provider if not already credited and payment is fully confirmed (PAID status only)
+// COD Hold Flow: this MUST only fire when booking.status === PAID (i.e., patient has confirmed).
+// It must NOT fire at COLLECTED — the provider holds until patient confirms.
+const creditProviderIfNeeded = async (booking) => {
+  try {
+    const Wallet = require('../models/Wallet');
+    const Transaction = require('../models/Transaction');
+    const Provider = require('../models/Provider');
+
+    // Only credit when the booking is fully PAID — never at COLLECTED
+    const isFullyPaid = normalizeBookingStatus(booking.status) === BOOKING_STATUS.PAID
+      || normalizePaymentStatus(booking.paymentStatus) === PAYMENT_STATUS.PAID;
+    if (!isFullyPaid) return;
+
+    const provider = await Provider.findById(booking.provider).populate('user');
+    if (!provider) return;
+
+    const providerCut = booking.providerEarning || Math.round((booking.totalAmount || 0) * 0.8);
+
+    // Idempotency: standardized check using referenceType: 'Booking'
+    const existingProviderTx = await Transaction.findOne({
+      referenceId: booking._id,
+      referenceType: 'Booking',
+      type: 'CREDIT',
+    });
+    if (existingProviderTx) return;
+
+    const wallet = await Wallet.findOneAndUpdate(
+      { user: provider.user?._id || provider.user },
+      { $inc: { balance: providerCut } },
+      { new: true, upsert: true }
+    );
+
+    await Transaction.create({
+      wallet: wallet._id,
+      type: 'CREDIT',
+      amount: providerCut,
+      description: `Earnings for Service (Booking: ${booking._id})`,
+      referenceType: 'Booking',
+      referenceId: booking._id,
+    });
+
+    await updateProviderEarnings(booking.provider);
+  } catch (e) {
+    console.error('creditProviderIfNeeded failed', e);
+  }
+};
+
+// Exported helper for confirmCash to trigger referral bonus post-confirmation
+exports.triggerReferralBonus = async (booking) => {
+  // Referral bonus is only for first completed booking — safe to call from confirmCash
+  // The idempotency guard inside the stage 3 logic will prevent duplicates
+  try {
+    const provider = await require('../models/Provider').findById(booking.provider);
+    if (provider && provider.completedBookings === 1 && provider.referredByCode) {
+      const Wallet = require('../models/Wallet');
+      const Transaction = require('../models/Transaction');
+      const referrer = await require('../models/Provider').findOne({ referralCode: provider.referredByCode });
+      if (referrer) {
+        const existingRefTx = await Transaction.findOne({
+          type: 'CREDIT',
+          referenceId: booking._id,
+          description: /Referral First Booking Bonus/i,
+        });
+        if (!existingRefTx) {
+          const referrerWallet = await Wallet.findOneAndUpdate(
+            { user: referrer.user },
+            { $inc: { balance: 100 } },
+            { upsert: true, new: true }
+          );
+          await Transaction.create({
+            wallet: referrerWallet._id,
+            type: 'CREDIT',
+            amount: 100,
+            description: `Referral First Booking Bonus (Booking: ${booking._id})`,
+            referenceId: booking._id,
+            referenceType: 'Booking',
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[triggerReferralBonus] failed', e);
+  }
+};
+
+// Provider marks cash collected (creates notification) — minimal and safe
+exports.collectCash = async (req, res, next) => {
+  try {
+    const { amount } = req.body;
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+    const providerProfile = await Provider.findOne({ user: req.user._id });
+    if (!providerProfile || booking.provider.toString() !== providerProfile._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Only assigned provider can collect cash' });
+    }
+
+    const nps = normalizePaymentStatus(booking.paymentStatus);
+    if (nps === PAYMENT_STATUS.COLLECTED || nps === PAYMENT_STATUS.PAID) {
+      return res.json({ success: true, message: 'Payment already collected or paid.', data: { booking } });
+    }
+
+    const currentStatus = normalizeBookingStatus(booking.status);
+    if (currentStatus !== BOOKING_STATUS.COMPLETED && currentStatus !== BOOKING_STATUS.IN_PROGRESS) {
+      return res.status(400).json({ success: false, message: 'Can only collect cash for in-progress or completed services' });
+    }
+
+    booking.collectedAmount = Number(amount) || booking.totalAmount || 0;
+    booking.collectedBy = req.user._id;
+    booking.collectedAt = new Date();
+    booking.paymentStatus = PAYMENT_STATUS.COLLECTED;
+    booking.patientConfirmed = null; // awaiting patient confirmation
+
+    await booking.save();
+
+    const n = await Notification.create({
+      user: booking.patient,
+      title: 'Cash Collected',
+      message: `Provider collected ₹${booking.collectedAmount}. Please confirm the payment or report an issue.`,
+      type: 'PAYMENT',
+      linkId: booking._id,
+    });
+    try { socketHelper.getIO().to(booking.patient.toString()).emit('notification', n); } catch (e) {}
+
+    res.json({ success: true, message: 'Marked cash collected. Awaiting patient confirmation.', data: { booking } });
+  } catch (err) { next(err); }
+};
+
+// Mark booking as paid (can be called after cash collection or on prepaid verification)
+exports.markPaid = async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+    // Allow provider or admin or system to mark paid
+    const providerProfile = await Provider.findOne({ user: req.user._id });
+    const isProvider = providerProfile && booking.provider.toString() === providerProfile._id.toString();
+    const isAdmin = req.user.role === 'admin';
+    const isPatient = booking.patient.toString() === req.user._id.toString();
+    if (!isProvider && !isAdmin && !isPatient) return res.status(403).json({ success: false, message: 'Not authorized to mark paid' });
+
+    booking.paymentStatus = PAYMENT_STATUS.PAID;
+    if (!booking.paymentConfirmedAt) booking.paymentConfirmedAt = new Date();
+    await booking.save();
+
+    await Notification.create({ user: booking.patient, title: 'Payment Confirmed', message: 'Payment has been recorded. Thank you!', type: 'PAYMENT', linkId: booking._id });
+    try { socketHelper.getIO().to(booking.patient.toString()).emit('notification', { message: 'Payment confirmed' }); } catch (e) {}
+
+    // If booking already completed, credit provider now
+    await creditProviderIfNeeded(booking);
+
+    // If booking is completed and paid, ask patient for review
+    if (normalizeBookingStatus(booking.status) === BOOKING_STATUS.COMPLETED) {
+      try {
+        const reviewNotif = await Notification.create({
+          user: booking.patient,
+          title: 'Rate your experience',
+          message: 'Please rate your recently completed service. Your feedback helps us improve.',
+          type: 'REVIEW',
+          linkId: booking._id,
+        });
+        try { socketHelper.getIO().to(booking.patient.toString()).emit('notification', reviewNotif); } catch (e) {}
+        
+        // 📧 Email Review Request
+        await booking.populate([{ path: 'patient', select: 'name email' }, { path: 'provider', populate: { path: 'user', select: 'name' } }]);
+        if (booking.patient?.email) {
+          emailService.sendReviewRequest(booking.patient.email, booking.patient.name, booking.provider?.user?.name || 'your provider', booking._id);
+        }
+      } catch (e) { console.error('Failed to send review request', e); }
+    }
+
+    res.json({ success: true, message: 'Payment marked as PAID', data: { booking } });
+  } catch (err) { next(err); }
 };
 
 // @GET /api/bookings — role-aware
@@ -254,7 +515,16 @@ exports.getBookings = async (req, res, next) => {
     }
 
     if (status && status !== 'all') {
-      filter.status = status;
+      const normalized = normalizeBookingStatus(status);
+      // Support searching by both new normalized status and common legacy strings
+      const statusVariants = [normalized];
+      if (normalized === BOOKING_STATUS.REQUESTED) statusVariants.push('pending', 'PENDING');
+      if (normalized === BOOKING_STATUS.CONFIRMED) statusVariants.push('confirmed', 'accepted', 'ACCEPTED');
+      if (normalized === BOOKING_STATUS.IN_PROGRESS) statusVariants.push('in-progress', 'in_progress', 'started', 'STARTED');
+      if (normalized === BOOKING_STATUS.COMPLETED) statusVariants.push('completed', 'COMPLETED');
+      if (normalized === BOOKING_STATUS.CANCELLED) statusVariants.push('cancelled', 'CANCELLED', 'rejected', 'REJECTED');
+      
+      filter.status = { $in: [...new Set(statusVariants)] };
     }
 
     // 🔍 Search Logic (ID, Patient Name, Provider Name)
@@ -408,16 +678,30 @@ exports.getBookingById = async (req, res, next) => {
 // @PUT /api/bookings/:id/status
 exports.updateBookingStatus = async (req, res, next) => {
   try {
-    const { status, cancelReason } = req.body;
+    const { status: incomingStatus, cancelReason } = req.body;
+    
+    // Normalize target status
+    const targetStatus = normalizeBookingStatus(incomingStatus);
+    
     const booking = await Booking.findById(req.params.id);
     if (!booking) {
-      return res.json({
-        success: true,
-        data: {}
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    // Current normalized status
+    const currentStatus = normalizeBookingStatus(booking.status);
+
+    // 🛡️ IDEMPOTENCY GUARD: If already in target status, return success
+    if (currentStatus === targetStatus) {
+      const formattedBooking = formatBookingResponse(booking, req.user.role);
+      return res.json({ 
+        success: true, 
+        message: `Booking is already ${targetStatus.toLowerCase()}`, 
+        data: { booking: formattedBooking } 
       });
     }
 
-    // SECURITY FIX: Insecure Direct Object Reference (IDOR) protection
+    // SECURITY: IDOR protection
     const isPatient = booking.patient.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin';
     let isAssignedProvider = false;
@@ -431,42 +715,49 @@ exports.updateBookingStatus = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Not authorized to modify this booking' });
     }
 
-    const validTransitions = {
-      patient: { pending: ['cancelled'], confirmed: ['cancelled'], 'in-progress': ['cancelled'] },
-      provider: { pending: ['confirmed', 'cancelled', 'rejected'], confirmed: ['in-progress'], 'in-progress': ['completed'] },
-      admin: { pending: ['confirmed', 'cancelled'], confirmed: ['cancelled'], 'in-progress': ['completed', 'cancelled'] },
+    // Role-based transition restrictions (Subset of global state machine)
+    const roleBasedAllowed = {
+      patient: [BOOKING_STATUS.CANCELLED],
+      provider: [BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS, BOOKING_STATUS.COMPLETED, BOOKING_STATUS.CANCELLED],
+      admin: [BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS, BOOKING_STATUS.COMPLETED, BOOKING_STATUS.CANCELLED, BOOKING_STATUS.PAID],
     };
 
-    const allowed = validTransitions[req.user.role]?.[booking.status] || [];
-    if (!allowed.includes(status)) {
+    const allowedByRole = roleBasedAllowed[req.user.role] || [];
+    const allowedByState = VALID_BOOKING_TRANSITIONS[currentStatus] || [];
+
+    if (!allowedByRole.includes(targetStatus)) {
+      return res.status(403).json({ success: false, message: `Role '${req.user.role}' is not allowed to transition to '${targetStatus}'` });
+    }
+
+    if (!allowedByState.includes(targetStatus)) {
       return res.status(400).json({
         success: false,
-        message: `Cannot transition booking from '${booking.status}' to '${status}'`,
+        message: `Invalid transition: Cannot move booking from '${currentStatus}' to '${targetStatus}'`,
       });
     }
 
-    // ⏳ EXPIRY STRICT ENFORCEMENT
-    if (status === 'confirmed' || status === 'in-progress') {
-      // 🧩 STEP 5: FIX PROVIDER ACCEPT API VALIDATION
-      if (booking.status !== 'pending') {
-        return res.status(400).json({ success: false, message: 'Booking no longer available' });
-      }
-
+    // State-specific side effects and extra guards
+    if (targetStatus === BOOKING_STATUS.CONFIRMED) {
       if (booking.expiresAt && new Date() > booking.expiresAt) {
-        booking.status = 'cancelled';
-        booking.cancelReason = 'System: Provider failed to accept request within 30 minute expiration window.';
+        booking.status = BOOKING_STATUS.CANCELLED;
+        booking.cancelReason = 'System: Provider failed to accept request within expiration window.';
         await booking.save();
-        console.log('[BOOKING_AUDIT] Auto-cancelled (Expired):', booking._id);
         return res.status(400).json({ success: false, message: 'This booking request has expired and was automatically cancelled.' });
+      }
+    }
+
+    if (targetStatus === BOOKING_STATUS.IN_PROGRESS) {
+      if (!isAssignedProvider && !isAdmin) {
+        return res.status(403).json({ success: false, message: 'Only the assigned provider or admin can start the service' });
       }
     }
 
     // ⚠️ SOFT ACTIVE BOOKING WARNING: Allow acceptance but warn if many pending
     let softWarningPayload = null;
-    if ((status === 'confirmed' || status === 'in-progress') && req.user.role === 'provider') {
+    if ((targetStatus === BOOKING_STATUS.CONFIRMED || targetStatus === BOOKING_STATUS.IN_PROGRESS) && req.user.role === 'provider') {
       const pendingCount = await Booking.countDocuments({
         provider: booking.provider,
-        status: { $in: ['in-progress', 'confirmed'] },
+        status: { $in: [BOOKING_STATUS.IN_PROGRESS, BOOKING_STATUS.CONFIRMED] },
         _id: { $ne: booking._id }
       });
       if (pendingCount > 2) {
@@ -478,23 +769,42 @@ exports.updateBookingStatus = async (req, res, next) => {
       }
     }
 
-    const previousStatus = booking.status;
+    const previousStatus = currentStatus;
 
-    if (status === 'in-progress') {
+    // Provider-focused transition logging
+    if (req.user.role === 'provider' && [BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.IN_PROGRESS, BOOKING_STATUS.COMPLETED].includes(targetStatus)) {
+      try {
+        const providerProfile = await Provider.findOne({ user: req.user._id });
+        console.log('[BOOKING_TRANSITION]', {
+          bookingId: booking._id.toString(),
+          providerUser: req.user._id.toString(),
+          providerProfileId: providerProfile?._id?.toString(),
+          from: previousStatus,
+          to: targetStatus,
+        });
+      } catch (e) {}
+    }
+
+    if (targetStatus === BOOKING_STATUS.IN_PROGRESS) {
       booking.startedAt = new Date();
     }
 
-    if (status === 'rejected') {
-      booking.status = 'cancelled';
-      booking.cancelReason = 'Provider rejected the request.';
-    } else {
-      booking.status = status;
-    }
+    // Set final status
+    booking.status = targetStatus;
 
     console.log('[BOOKING_AUDIT] Status Updated:', booking._id, 'From:', previousStatus, 'To:', booking.status);
+    try {
+      billingLogger.logBookingStatusUpdated({
+        bookingId: booking._id.toString(),
+        userId: req.user._id.toString(),
+        status: booking.status,
+        requestId: req.requestId,
+        metadata: { from: previousStatus, to: targetStatus }
+      });
+    } catch (e) {}
 
     // 🔔 Notify Patient on Confirm
-    if (status === 'confirmed') {
+    if (targetStatus === BOOKING_STATUS.CONFIRMED) {
       const n = await Notification.create({
         user: booking.patient,
         title: 'Payment Required: Booking Confirmed',
@@ -504,44 +814,39 @@ exports.updateBookingStatus = async (req, res, next) => {
       });
       try { socketHelper.getIO().to(booking.patient.toString()).emit('notification', n); } catch(e) {}
 
-      // 📧 Send warning email to Patient to pay
+      // 📧 Send booking accepted email to Patient
       try {
         const User = require('../models/User');
-        const sendEmail = require('../utils/sendEmail');
+        const Service = require('../models/Service');
         const patientUser = await User.findById(booking.patient);
-        if (patientUser) {
-          await sendEmail({
-            email: patientUser.email,
-            subject: 'Payment Required: Your RIVO Booking is Confirmed',
-            message: `Hello ${patientUser.name},\n\nYour home healthcare booking has been accepted by the provider!\n\nTo proceed and finalize the appointment, please log in to your RIVO dashboard and click the "Pay Now" button on your confirmed booking.\n\nThank you,\nThe RIVO Team`
-          });
+        const providerUser = await User.findById(req.user.role === 'provider' ? req.user._id : booking.provider);
+        const serviceDoc = await Service.findById(booking.service);
+        
+        if (patientUser && patientUser.email) {
+          emailService.sendBookingAccepted(
+            patientUser.email,
+            patientUser.name,
+            providerUser ? providerUser.name : 'Your Provider',
+            serviceDoc ? serviceDoc.name : 'Healthcare Service',
+            booking.scheduledAt,
+            booking.paymentMethod
+          );
         }
       } catch (err) {
         console.error('Failed to send confirmation payment email', err);
       }
     }
     
-    if (status === 'cancelled') {
-      booking.cancelReason = cancelReason || 'No reason provided';
-
-      // 💰 50% CANCELLATION FEE: If patient cancels while service is in-progress
-      if (req.user.role === 'patient' && previousStatus === 'in-progress') {
-        const effectivePrice = booking.finalPrice || booking.estimatedPrice || booking.totalAmount;
-        const oldPrice = booking.totalAmount;
-        booking.totalAmount = Math.round(effectivePrice * 0.5);
-        booking.finalPrice = booking.totalAmount;
-        booking.priceUpdateReason = 'Patient cancelled during in-progress service — 50% charged';
-        booking.priceUpdated = true;
-        booking.priceApprovedByPatient = true;
-        booking.priceHistory.push({
-          changedBy: 'system',
-          changedByUserId: req.user._id,
-          oldPrice,
-          newPrice: booking.totalAmount,
-          reason: 'Patient cancelled during in-progress service — 50% cancellation fee applied',
-          action: 'cancel_50pct',
+    if (targetStatus === BOOKING_STATUS.CANCELLED) {
+      // 🛡️ CANCELLATION ENGINE: Cannot cancel after service has started
+      if (previousStatus === BOOKING_STATUS.IN_PROGRESS || previousStatus === BOOKING_STATUS.COMPLETED || previousStatus === BOOKING_STATUS.PAID) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot cancel booking at this stage: Current status is ${previousStatus}.`
         });
       }
+
+      booking.cancelReason = cancelReason || 'No reason provided';
 
       // Track provider cancellations
       if (req.user.role === 'provider') {
@@ -551,9 +856,9 @@ exports.updateBookingStatus = async (req, res, next) => {
       }
     }
     
-    if (status === 'completed') {
-      // 🛡️ DUPLICATE COMPLETION GUARD
-      if (booking.status === 'completed') {
+    if (targetStatus === BOOKING_STATUS.COMPLETED) {
+      // 🛡️ DUPLICATE COMPLETION GUARD (Redundant due to state machine but safe)
+      if (currentStatus === BOOKING_STATUS.COMPLETED) {
         return res.json({ success: true, message: 'Booking already completed.', data: { booking } });
       }
 
@@ -592,92 +897,91 @@ exports.updateBookingStatus = async (req, res, next) => {
       // Update provider stats
       const Provider = require('../models/Provider');
       const provider = await Provider.findById(booking.provider);
-      if (provider) {
-        provider.completedBookings += 1;
-        provider.totalEarnings += booking.totalAmount;
-        await provider.save();
+        if (provider) {
+          provider.completedBookings += 1;
+          await provider.save();
 
-        // 💰 Stage 3: Referral First Booking Bonus (₹100)
-        if (provider.completedBookings === 1 && provider.referredByCode) {
-          try {
-            const referrer = await Provider.findOne({ referralCode: provider.referredByCode });
-            if (referrer) {
-              const Wallet = require('../models/Wallet');
-              const Transaction = require('../models/Transaction');
-              
-              let referrerWallet = await Wallet.findOne({ user: referrer.user });
-              if (!referrerWallet) referrerWallet = await Wallet.create({ user: referrer.user, balance: 0 });
+          // 💰 Stage 3: Referral First Booking Bonus (₹100)
+          if (provider.completedBookings === 1 && provider.referredByCode) {
+            try {
+              const referrer = await Provider.findOne({ referralCode: provider.referredByCode });
+              if (referrer) {
+                const Wallet = require('../models/Wallet');
+                const Transaction = require('../models/Transaction');
 
-              referrerWallet.balance += 100;
-              await referrerWallet.save();
-
-              await Transaction.create({
-                wallet: referrerWallet._id,
-                type: 'CREDIT',
-                amount: 100,
-                description: `Referral First Booking Bonus (Provider: ${req.user.name})`,
-                referenceId: booking._id,
-              });
+                // 🔒 Idempotency: prevent duplicate referral bonus
+                const existingRefTx = await Transaction.findOne({
+                  type: 'CREDIT',
+                  referenceId: booking._id,
+                  description: /Referral First Booking Bonus/i,
+                });
+                if (!existingRefTx) {
+                  // ✅ Atomic wallet credit using $inc
+                  const referrerWallet = await Wallet.findOneAndUpdate(
+                    { user: referrer.user },
+                    { $inc: { balance: 100 } },
+                    { upsert: true, new: true }
+                  );
+                  await Transaction.create({
+                    wallet: referrerWallet._id,
+                    type: 'CREDIT',
+                    amount: 100,
+                    description: `Referral First Booking Bonus (Provider: ${req.user.name})`,
+                    referenceId: booking._id,
+                  });
+                } else {
+                  console.warn('[bookingController] Skipping duplicate Stage 3 referral bonus for booking', booking._id.toString());
+                }
+              }
+            } catch (err) {
+              console.error('Failed to credit Stage 3 referral bonus', err);
             }
-          } catch (err) {
-            console.error('Failed to credit Stage 3 referral bonus', err);
+          }
+
+          // 🔔 Notify both parties
+          const pNotif = await Notification.create({
+            user: booking.patient,
+            title: 'Service Completed',
+            message: 'Your service is complete! Please rate your experience to help us improve.',
+            type: 'BOOKING',
+            linkId: booking._id
+          });
+          const dNotif = await Notification.create({
+            user: provider.user,
+            title: 'Service Completed',
+            message: 'Service completed successfully.',
+            type: 'BOOKING',
+            linkId: booking._id
+          });
+          try {
+            socketHelper.getIO().to(booking.patient.toString()).emit('notification', pNotif);
+            socketHelper.getIO().to(provider.user.toString()).emit('notification', dNotif);
+          } catch(e) {}
+          
+          // 📧 Send Service Completed Email
+          try {
+            const User = require('../models/User');
+            const Service = require('../models/Service');
+            const patientUser = await User.findById(booking.patient);
+            const serviceDoc = await Service.findById(booking.service);
+            if (patientUser && patientUser.email) {
+              emailService.sendBookingCompleted(patientUser.email, patientUser.name, serviceDoc ? serviceDoc.name : 'Service');
+            }
+          } catch (e) {
+            console.error('Failed to send completion email', e);
           }
         }
 
-        // 🔔 Notify both parties
-        const pNotif = await Notification.create({
-          user: booking.patient,
-          title: 'Service Completed',
-          message: 'Your service is complete! Please rate your experience to help us improve.',
-          type: 'BOOKING',
-          linkId: booking._id
-        });
-        const dNotif = await Notification.create({
-          user: provider.user,
-          title: 'Service Completed',
-          message: 'Service completed successfully.',
-          type: 'BOOKING',
-          linkId: booking._id
-        });
+        // 💰 PATIENT REFERRAL BONUS (₹100 to Referrer)
         try {
-          socketHelper.getIO().to(booking.patient.toString()).emit('notification', pNotif);
-          socketHelper.getIO().to(provider.user.toString()).emit('notification', dNotif);
-        } catch(e) {}
-      }
-
-      // 💰 WALLET CREDIT LOGIC
-      // Credit wallet upon completion using the stored provider earning amount
-      const Wallet = require('../models/Wallet');
-      const Transaction = require('../models/Transaction');
-      
-      let wallet = await Wallet.findOne({ user: provider.user });
-      if (!wallet) {
-        wallet = await Wallet.create({ user: provider.user, balance: 0 });
-      }
-
-      const providerCut = booking.providerEarning || Math.round(booking.totalAmount * 0.8); // Fallback for old bookings
-
-      wallet.balance += providerCut;
-      await wallet.save();
-
-      await Transaction.create({
-        wallet: wallet._id,
-        type: 'CREDIT',
-        amount: providerCut,
-        description: `Earnings for Service (Booking: ${booking._id})`,
-        referenceId: booking._id,
-      });
-
-      // 💰 PATIENT REFERRAL BONUS (₹100 to Referrer)
-      try {
-        const User = require('../models/User');
-        const patientUser = await User.findById(booking.patient);
-        if (patientUser && patientUser.referredByCode) {
-          const pastBookingsCount = await Booking.countDocuments({ 
-            patient: booking.patient, 
-            status: 'completed', 
-            _id: { $ne: booking._id } 
-          });
+          const User = require('../models/User');
+          const patientUser = await User.findById(booking.patient);
+          if (patientUser && patientUser.referredByCode) {
+            const pastBookingsCount = await Booking.countDocuments({ 
+              patient: booking.patient, 
+              status: BOOKING_STATUS.COMPLETED, 
+              _id: { $ne: booking._id } 
+            });
           
           if (pastBookingsCount === 0) {
              // First completed booking - award bonus to referrer
@@ -686,16 +990,20 @@ exports.updateBookingStatus = async (req, res, next) => {
                let referrerWallet = await Wallet.findOne({ user: referrerUser._id });
                if (!referrerWallet) referrerWallet = await Wallet.create({ user: referrerUser._id, balance: 0 });
 
-               referrerWallet.balance += 100;
-               await referrerWallet.save();
-
-               await Transaction.create({
-                 wallet: referrerWallet._id,
-                 type: 'CREDIT',
-                 amount: 100,
-                 description: `Referral Bonus (Friend's First Booking: ${patientUser.name})`,
-                 referenceId: booking._id,
-               });
+               // Prevent duplicate referral bonus
+               const existingRefTx = await Transaction.findOne({ wallet: referrerWallet._id, referenceId: booking._id, description: /Referral Bonus/i });
+               if (!existingRefTx) {
+                 await Wallet.findOneAndUpdate({ user: referrerUser._id }, { $inc: { balance: 100 } }, { upsert: true });
+                 await Transaction.create({
+                   wallet: referrerWallet._id,
+                   type: 'CREDIT',
+                   amount: 100,
+                   description: `Referral Bonus (Friend's First Booking: ${patientUser.name})`,
+                   referenceId: booking._id,
+                 });
+               } else {
+                 console.warn('[bookingController] Skipping duplicate referral bonus for booking', booking._id.toString());
+               }
              }
           }
         }
@@ -705,6 +1013,10 @@ exports.updateBookingStatus = async (req, res, next) => {
     }
 
     await booking.save();
+    
+    // 💰 FINAL TRIGGER: Credit provider if payment already confirmed or cash collected
+    await creditProviderIfNeeded(booking);
+
     await booking.populate([
       { path: 'patient', select: 'name email phone' },
       { path: 'provider', populate: { path: 'user', select: 'name email phone' } },
@@ -715,7 +1027,7 @@ exports.updateBookingStatus = async (req, res, next) => {
 
     res.json({ 
       success: true, 
-      message: `Booking ${status}`, 
+      message: `Booking ${targetStatus}`, 
       data: { booking: formattedBooking },
       ...(softWarningPayload || {})
     });
@@ -750,7 +1062,7 @@ exports.verifyCompletion = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Only the patient can verify completion' });
     }
 
-    if (booking.status !== 'completed') {
+    if (normalizeBookingStatus(booking.status) !== BOOKING_STATUS.COMPLETED) {
       return res.status(400).json({ success: false, message: 'Booking must be completed before verification' });
     }
 
@@ -806,7 +1118,7 @@ exports.updateBookingPrice = async (req, res, next) => {
     }
 
     // Cannot update after completion or cancellation
-    if (['completed', 'cancelled'].includes(booking.status)) {
+    if ([BOOKING_STATUS.COMPLETED, BOOKING_STATUS.CANCELLED].includes(normalizeBookingStatus(booking.status))) {
       return res.status(400).json({ success: false, message: 'Cannot update price after completion or cancellation' });
     }
 
@@ -926,10 +1238,11 @@ exports.rejectBookingPrice = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Price already approved — cannot reject now' });
     }
 
+    const currentStatus = normalizeBookingStatus(booking.status);
     // BEFORE service started (pending / confirmed) → Cancel the booking
-    if (['pending', 'confirmed'].includes(booking.status)) {
+    if ([BOOKING_STATUS.REQUESTED, BOOKING_STATUS.CONFIRMED].includes(currentStatus)) {
       const oldPrice = booking.totalAmount;
-      booking.status = 'cancelled';
+      booking.status = BOOKING_STATUS.CANCELLED;
       booking.cancelReason = 'Patient rejected updated price';
       booking.finalPrice = null;
       booking.totalAmount = booking.estimatedPrice;
@@ -962,7 +1275,7 @@ exports.rejectBookingPrice = async (req, res, next) => {
     }
 
     // DURING service (in-progress) → Revert to original estimated price, no extras
-    if (booking.status === 'in-progress') {
+    if (normalizeBookingStatus(booking.status) === BOOKING_STATUS.IN_PROGRESS) {
       const oldPrice = booking.totalAmount;
       booking.finalPrice = booking.estimatedPrice;
       booking.totalAmount = booking.estimatedPrice;

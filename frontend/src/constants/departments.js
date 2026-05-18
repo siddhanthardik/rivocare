@@ -1,10 +1,12 @@
 export const LAB_DEPARTMENTS = [
   { key: 'pathology', label: 'Pathology' },
-  { key: 'radiology', label: 'Radiology' },
-  { key: 'cardiology', label: 'Cardiology' },
-  { key: 'wellness', label: 'Wellness' },
+  { key: 'microbiology', label: 'Microbiology' },
+  { key: 'serology', label: 'Serology' },
+  { key: 'immunology', label: 'Immunology' },
+  { key: 'biochemistry', label: 'Biochemistry' },
+  { key: 'haematology', label: 'Haematology' },
   { key: 'genetics', label: 'Genetics' },
-  { key: 'microbiology', label: 'Microbiology' }
+  { key: 'wellness', label: 'Wellness' }
 ];
 
 export const LAB_DEPARTMENT_KEYS = LAB_DEPARTMENTS.map(d => d.key);

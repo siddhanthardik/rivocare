@@ -1,26 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { 
   Calendar, Search, MoreHorizontal,
-  MapPin, Clock,
-  Plus, Activity, Wallet
+  Clock
 } from 'lucide-react';
-import { bookingService, reviewService, walletService } from '../../../services';
+import { bookingService, reviewService, paymentService } from '../../../services';
+import useCheckout from '../../../hooks/useCheckout';
+import { BOOKING_STATUS, normalizeBookingStatus, PAYMENT_STATUS, normalizePaymentStatus } from '../../../constants/bookingStatus';
 import { formatDateTime, SERVICE_CONFIG, cn, formatDate } from '../../../utils';
 import { formatCurrency } from '../../../utils/format';
 import { PageLoader } from '../../../components/ui/Feedback';
-import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
 import RateModal from '../../../components/ui/RateModal';
-import { PageWrapper, Card, Row, Section, KPIChip, StatusPill } from '../../../components/ui/Layout';
+import { PageWrapper, Card, Row, Section, StatusPill } from '../../../components/ui/Layout';
 
 export default function PatientBookings() {
   const [bookings, setBookings]         = useState([]);
   const [loading, setLoading]           = useState(true);
   const [refresh, setRefresh]           = useState(0);
   const [reviewedMap, setReviewedMap]   = useState({});
-  const [walletBalance, setWalletBalance] = useState(0);
   const [activeTab, setActiveTab]       = useState('all');
 
   // Cancel Modal
@@ -33,16 +31,13 @@ export default function PatientBookings() {
   const [rateBooking, setRateBooking]       = useState(null);
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
 
-  // Price Approval
-  const [approvingId, setApprovingId] = useState(null);
-
   const loadBookings = useCallback(async () => {
     try {
       const res = await bookingService.getAll({ limit: 100 });
       const bks = res.data.bookings;
       setBookings(bks);
 
-      const completedIds = bks.filter((b) => b.status === 'completed').map((b) => b._id);
+      const completedIds = bks.filter((b) => normalizeBookingStatus(b.status) === BOOKING_STATUS.COMPLETED).map((b) => b._id);
       if (completedIds.length > 0) {
         const checks = await Promise.allSettled(completedIds.map((id) => reviewService.getBookingReview(id)));
         const map = {};
@@ -59,70 +54,27 @@ export default function PatientBookings() {
     }
   }, []);
 
-  const loadWallet = useCallback(async () => {
-    try {
-      const res = await walletService.getInfo();
-      setWalletBalance(res.data.wallet.balance);
-    } catch (err) {
-      console.error('Failed to load wallet', err);
-    }
-  }, []);
-
   useEffect(() => { 
     loadBookings(); 
-    loadWallet();
-  }, [refresh, loadBookings, loadWallet]);
-
-  const handleApprovePrice = async (bookingId) => {
-    setApprovingId(bookingId);
-    try {
-      await bookingService.approvePrice(bookingId);
-      toast.success('Price approved!');
-      setBookings((prev) =>
-        prev.map((b) => b._id === bookingId
-          ? { ...b, priceApprovedByPatient: true }
-          : b
-        )
-      );
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Approval failed');
-    } finally {
-      setApprovingId(null);
-    }
-  };
+  }, [refresh, loadBookings]);
 
   const filteredBookings = bookings.filter(b => {
     if (activeTab === 'all') return true;
-    if (activeTab === 'upcoming') return b.status === 'pending' || b.status === 'confirmed';
-    if (activeTab === 'completed') return b.status === 'completed';
-    if (activeTab === 'cancelled') return b.status === 'cancelled' || b.status === 'rejected';
+    if (activeTab === 'upcoming') return normalizeBookingStatus(b.status) === BOOKING_STATUS.REQUESTED || normalizeBookingStatus(b.status) === BOOKING_STATUS.CONFIRMED;
+    if (activeTab === 'collected') return normalizeBookingStatus(b.status) === BOOKING_STATUS.COLLECTED;
+    if (activeTab === 'completed') return normalizeBookingStatus(b.status) === BOOKING_STATUS.COMPLETED || normalizeBookingStatus(b.status) === BOOKING_STATUS.PAID;
+    if (activeTab === 'cancelled') return normalizeBookingStatus(b.status) === BOOKING_STATUS.CANCELLED;
     return true;
   });
+
+  // Show a pending-confirmation badge count for attention
+  const pendingConfirmCount = bookings.filter(b => normalizeBookingStatus(b.status) === BOOKING_STATUS.COLLECTED).length;
 
   if (loading) return <PageLoader />;
 
   return (
-    <PageWrapper>
+    <PageWrapper maxWidth="1200px">
       {/* ── Wallet KPI ───────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <KPIChip 
-          icon={Wallet} 
-          label="Wallet Balance" 
-          value={formatCurrency(walletBalance)} 
-          color="text-emerald-600"
-          bg="bg-emerald-50/30"
-        />
-        <Card className="flex items-center justify-between border-transparent bg-slate-900/5 p-3">
-          <div className="min-w-0">
-             <p className="typo-micro font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Referral Rewards</p>
-             <p className="typo-body font-black text-slate-900">Share with friends and earn cash</p>
-          </div>
-          <Link to="/dashboard/patient/referral">
-            <button className="btn-secondary-sm !px-4 !py-2 !bg-white">Earn More</button>
-          </Link>
-        </Card>
-      </div>
-
       {/* ── Tabs & Header ──────────────────────────────── */}
       <div className="space-y-3">
         <Section 
@@ -141,16 +93,19 @@ export default function PatientBookings() {
         />
 
         <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-gray-100 shadow-sm w-fit overflow-x-auto no-scrollbar">
-          {['all', 'upcoming', 'completed', 'cancelled'].map(tab => (
+          {['all', 'upcoming', 'collected', 'completed', 'cancelled'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "px-3 py-1.5 rounded-lg typo-label transition-all whitespace-nowrap",
+                "px-3 py-1.5 rounded-lg typo-label transition-all whitespace-nowrap relative",
                 activeTab === tab ? "bg-slate-900 text-white font-black shadow-sm" : "text-gray-400 hover:text-gray-600"
               )}
             >
               {tab}
+              {tab === 'collected' && pendingConfirmCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center text-[9px] font-black bg-amber-500 text-white rounded-full">{pendingConfirmCount}</span>
+              )}
             </button>
           ))}
         </div>
@@ -172,8 +127,7 @@ export default function PatientBookings() {
                 isReviewed={reviewedMap[b._id]}
                 onCancel={(booking) => { setSelectedBooking(booking); setIsCancelModalOpen(true); }}
                 onRate={(booking) => { setRateBooking(booking); setIsRateModalOpen(true); }}
-                onApprovePrice={handleApprovePrice}
-                approvingId={approvingId}
+                onRefresh={() => setRefresh(r => r + 1)}
               />
             ))
           )}
@@ -224,11 +178,93 @@ export default function PatientBookings() {
   );
 }
 
-function BookingRow({ booking: b, isReviewed, onCancel, onRate, onApprovePrice, approvingId }) {
+function BookingRow({ booking: b, isReviewed, onCancel, onRate, onRefresh }) {
   const service = SERVICE_CONFIG[b.service];
-  
+  const { open, isInitializing } = useCheckout();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [disputeText, setDisputeText] = useState('');
+  const [isDisputing, setIsDisputing] = useState(false);
+
+  const status = normalizeBookingStatus(b.status);
+  const paymentStatus = normalizePaymentStatus(b.paymentStatus);
+  const isPaid = paymentStatus === PAYMENT_STATUS.PAID;
+  const isCollected = status === BOOKING_STATUS.COLLECTED;
+  const isDisputed = paymentStatus === PAYMENT_STATUS.DISPUTED;
+  const isConfirmed = status === BOOKING_STATUS.CONFIRMED;
+
+  const handleConfirmCash = async () => {
+    if (isConfirming) return;
+    setIsConfirming(true);
+    try {
+      await paymentService.confirmCash(b._id);
+      toast.success('Payment confirmed! Thank you.');
+      onRefresh && onRefresh();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Confirmation failed');
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const handleReportIssue = async () => {
+    if (isDisputing || !disputeText.trim()) return;
+    setIsDisputing(true);
+    try {
+      await paymentService.reportCashIssue(b._id, { issue: disputeText });
+      toast.success('Dispute reported. Admin will follow up.');
+      setDisputeOpen(false);
+      onRefresh && onRefresh();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to report issue');
+    } finally {
+      setIsDisputing(false);
+    }
+  };
+
+  const handlePayNow = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    
+    try {
+      await open({
+        createOrderFn: async () => {
+          console.log(`[PAYMENT] Creating order for booking: ${b._id}`);
+          return paymentService.createOrder(b._id);
+        },
+        verifyFn: async (data) => {
+          console.log(`[PAYMENT] Verifying payment for booking: ${b._id}`, {
+            payload: data,
+            token: localStorage.getItem('accessToken') ? 'PRESENT' : 'MISSING'
+          });
+          return await paymentService.verifyPayment(data);
+        },
+        payload: { bookingId: b._id },
+        onSuccess: async () => {
+          toast.success('Payment successful');
+          console.log(`[PAYMENT] Success for booking: ${b._id}`);
+          // Explicitly wait for refresh to ensure UI updates
+          if (onRefresh) await onRefresh();
+          setIsProcessing(false);
+        },
+        onError: (err) => {
+          console.error(`[PAYMENT] Error for booking: ${b._id}`, err);
+          const msg = err?.response?.data?.message || err?.message || 'Payment failed';
+          toast.error(msg);
+          setIsProcessing(false);
+        }
+      });
+    } catch (err) {
+      console.error(`[PAYMENT] Initiation failed for booking: ${b._id}`, err);
+      toast.error(err?.response?.data?.message || err?.message || 'Payment initiation failed');
+      setIsProcessing(true);
+    }
+  };
+
   return (
-    <Row className="flex-col md:flex-row gap-3 md:items-center p-3">
+    <>
+      <Row className="flex-col md:flex-row gap-3 md:items-center p-3">
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100 text-lg shadow-sm">
             {service?.icon}
@@ -256,30 +292,141 @@ function BookingRow({ booking: b, isReviewed, onCancel, onRate, onApprovePrice, 
         </div>
         <div className="space-y-0.5">
            <p className="typo-micro font-black text-slate-300 uppercase">Service Fee</p>
-           <p className="typo-value !text-gray-900 leading-none">{formatCurrency(b.finalPrice || b.finalAmount || b.totalAmount || 0)}</p>
+           <div className="flex items-center gap-2">
+             <p className="typo-value !text-gray-900 leading-none">{formatCurrency(b.finalPrice || b.finalAmount || b.totalAmount || 0)}</p>
+             {isPaid && (
+               <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded text-[10px] font-black uppercase tracking-tighter border border-green-100">
+                 Paid
+               </span>
+             )}
+           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between md:justify-end gap-2 shrink-0">
-          {b.status === 'pending' && (
+          {normalizeBookingStatus(b.status) === BOOKING_STATUS.REQUESTED && (
             <button onClick={() => onCancel(b)} className="btn-secondary-sm !px-4 !py-2 !text-red-500 border-red-100 hover:bg-red-50">Cancel</button>
           )}
-          {b.status === 'completed' && !isReviewed && (
-            <button onClick={() => onRate(b)} className="btn-primary-sm !px-6 !py-2">Rate</button>
+
+          {isConfirmed && !isPaid && (
+            <div className="flex gap-2">
+              <button
+                onClick={handlePayNow}
+                disabled={isInitializing || isProcessing}
+                className={cn(
+                  "btn-primary-sm !px-4 !py-2 flex items-center gap-2",
+                  (isInitializing || isProcessing) && "opacity-70 cursor-not-allowed"
+                )}
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  isInitializing ? 'Loading...' : 'Pay Now'
+                )}
+              </button>
+              <button
+                disabled={isProcessing}
+                onClick={async () => {
+                  try {
+                    // Only update the payment preference. Do NOT change booking lifecycle status.
+                    await bookingService.update(b._id, { paymentMethod: 'CASH' });
+                    toast.success('Cash payment selected');
+                    onRefresh && onRefresh();
+                  } catch (err) {
+                    toast.error(err.response?.data?.message || 'Failed to set payment method');
+                  }
+                }}
+                className="btn-secondary-sm !px-4 !py-2"
+              >
+                Pay Cash After Service
+              </button>
+            </div>
           )}
-          {b.status === 'confirmed' && !b.priceApprovedByPatient && (b.finalPrice || b.finalAmount || b.totalAmount || 0) > 0 && (
-            <button 
-              onClick={() => onApprovePrice(b._id)} 
-              disabled={approvingId === b._id}
-              className="btn-primary-sm !px-6 !py-2 !bg-emerald-600"
-            >
-              Approve Fee
-            </button>
+
+          {isPaid && isConfirmed && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 shadow-sm">
+               <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+               <span className="typo-micro font-black uppercase tracking-tighter">Ready for Service</span>
+            </div>
+          )}
+
+          {normalizeBookingStatus(b.status) === BOOKING_STATUS.COMPLETED && !isReviewed && (
+            <button onClick={() => onRate(b)} className="btn-primary-sm !px-6 !py-2">Rate</button>
           )}
           <button className="btn-icon">
             <MoreHorizontal size={14} />
           </button>
       </div>
     </Row>
+
+      {/* COD Confirmation Card (below the row) */}
+      {isCollected && !isDisputed && (
+        <div className="mx-3 mb-2 bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-start gap-2">
+            <span className="text-amber-500 text-lg">⏳</span>
+            <div>
+              <p className="text-sm font-black text-amber-800">Provider marked ₹{b.collectedAmount || b.totalAmount} collected in cash</p>
+              <p className="text-xs text-amber-600 mt-0.5">Does this match what you paid? Please confirm or report an issue.</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              id={`confirm-cash-${b._id}`}
+              onClick={handleConfirmCash}
+              disabled={isConfirming}
+              className="flex-1 py-2 text-sm font-black rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors"
+            >
+              {isConfirming ? 'Confirming...' : '✓ Confirm Payment'}
+            </button>
+            <button
+              id={`dispute-cash-${b._id}`}
+              onClick={() => setDisputeOpen(true)}
+              className="flex-1 py-2 text-sm font-black rounded-xl border-2 border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+            >
+              Report Issue
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isDisputed && (
+        <div className="mx-3 mb-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-center gap-2">
+          <span className="text-red-500">⚠️</span>
+          <div>
+            <p className="text-xs font-black text-red-700">Dispute Raised</p>
+            <p className="text-[11px] text-red-500">Admin is reviewing this payment. We'll follow up within 24h.</p>
+          </div>
+        </div>
+      )}
+
+      {disputeOpen && (
+        <Modal isOpen={disputeOpen} onClose={() => setDisputeOpen(false)} title="Report Payment Issue">
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+              <p className="text-xs font-bold text-amber-800">Provider reported ₹{b.collectedAmount || b.totalAmount} was collected. Please describe the actual amount or issue below.</p>
+            </div>
+            <textarea
+              className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm outline-none h-24 focus:ring-2 focus:ring-red-500/10"
+              placeholder="e.g. Provider only collected ₹200, not ₹500"
+              value={disputeText}
+              onChange={(e) => setDisputeText(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setDisputeOpen(false)} className="flex-1 btn-secondary-sm !py-2.5">Cancel</button>
+              <button
+                onClick={handleReportIssue}
+                disabled={!disputeText.trim() || isDisputing}
+                className="flex-1 btn-primary-sm !bg-red-600 !py-2.5 disabled:opacity-50"
+              >
+                {isDisputing ? 'Reporting...' : 'Submit Report'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }

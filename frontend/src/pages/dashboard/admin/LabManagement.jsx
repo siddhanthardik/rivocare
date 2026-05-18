@@ -9,7 +9,7 @@ import { labService } from '@/services';
 import Button from '../../../components/ui/Button';
 import { PageLoader } from '../../../components/ui/Feedback';
 import { toast } from 'react-hot-toast';
-import { LAB_DEPARTMENTS } from '@/constants/departments';
+import { useDepartments } from '../../../hooks/useDepartments';
 
 export default function LabManagement() {
   const [partners, setPartners] = useState([]);
@@ -213,10 +213,11 @@ export default function LabManagement() {
 }
 
 function DepartmentCommissionsForm({ partner, onClose }) {
+  const { departments } = useDepartments();
   const existingComms = partner.profile?.commissions || partner.profile?.departmentCommissions || [];
   
   const [commissions, setCommissions] = useState(() => {
-    return LAB_DEPARTMENTS.map(dept => {
+    return departments.map(dept => {
       const existing = existingComms.find(c => c.department === dept.key);
       return {
         department: dept.key,

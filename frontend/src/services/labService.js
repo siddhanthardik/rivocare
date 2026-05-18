@@ -3,15 +3,21 @@ import api from './api';
 const labService = {
   // Public / Patient
   getLabs: () => api.get('/labs'),
+  getDepartments: () => api.get('/labs/departments'),
   searchTests: (params) => api.get('/labs/tests', { params }),
   getLabById: (id) => api.get(`/labs/${id}`),
-  bookTest: (data) => api.post('/labs/book', data),
+  bookTest: (data) => api.post('/lab/orders', data),
   getMyOrders: () => api.get('/labs/me/orders'),
-  getInvoice: (id) => api.get(`/labs/me/orders/${id}/invoice`),
-  getFamilyMembers: () => api.get('/labs/me/family'),
-  addFamilyMember: (data) => api.post('/labs/me/family', data),
-  getSavedAddresses: () => api.get('/labs/me/addresses'),
-  addSavedAddress: (data) => api.post('/labs/me/addresses', data),
+  getInvoice: (id) => api.get(`/invoices/${id}`),
+  getReport: (id) => api.get(`/reports/${id}`),
+  getFamilyMembers: () => api.get('/members'),
+  addFamilyMember: (data) => api.post('/members', data),
+  updateFamilyMember: (id, data) => api.put(`/members/${id}`, data),
+  deleteFamilyMember: (id) => api.delete(`/members/${id}`),
+  getSavedAddresses: () => api.get('/addresses'),
+  addSavedAddress: (data) => api.post('/addresses', data),
+  updateSavedAddress: (id, data) => api.put(`/addresses/${id}`, data),
+  deleteSavedAddress: (id) => api.delete(`/addresses/${id}`),
 
   // Partner
   registerPartner: (data) => api.post('/partner/lab/register', data),
@@ -70,6 +76,17 @@ const labService = {
   getDashboard: () => api.get('/partner/lab/dashboard'),
   getStaff: () => api.get('/partner/lab/staff'),
   getTests: (params) => api.get('/partner/lab/tests', { params }),
+  getFinancialSummary: () => api.get('/partner/lab/financial-summary'),
+  addStaff: (data) => api.post('/partner/lab/staff', data),
+  updateStaffStatus: (id, data) => api.put(`/partner/lab/staff/${id}/status`, data),
+  addTest: (data) => api.post('/partner/lab/tests', data),
+  bulkUploadTests: (data) => api.post('/partner/lab/tests/bulk', data),
+  updateStaff: (id, data) => api.put(`/partner/lab/staff/${id}`, data),
+  deleteStaff: (id) => api.delete(`/partner/lab/staff/${id}`),
+  updateTest: (id, data) => api.put(`/partner/lab/tests/${id}`, data),
+  deleteTest: (id) => api.delete(`/partner/lab/tests/${id}`),
+  updateOrderStatus: (id, data) => api.put(`/partner/lab/orders/${id}/status`, data),
+  uploadReport: (id, formData) => api.post(`/partner/lab/orders/${id}/report`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
 };
 
 export default labService;

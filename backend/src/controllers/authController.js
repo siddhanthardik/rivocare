@@ -1,8 +1,11 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
+const Review = require('../models/Review');
+const { BOOKING_STATUS, normalizeBookingStatus } = require('../constants/bookingStatus');
 const Provider = require('../models/Provider');
-const sendEmail = require('../utils/sendEmail');
+const emailService = require('../services/emailService');
+const { cleanObject } = require('../utils/sanitizeInput');
 
 const generateTokens = (userId) => {
   const accessToken = jwt.sign({ id: userId }, process.env.JWT_SECRET, {
@@ -74,6 +77,9 @@ exports.register = async (req, res, next) => {
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
+    // Send Welcome Email (Non-blocking)
+    emailService.sendWelcome(user.email, user.name);
+
     res.status(201).json({
       success: true,
       message: 'Registration successful',
@@ -88,38 +94,62 @@ exports.register = async (req, res, next) => {
 // Temporarily disabled 2FA - tokens issued immediately after password verification
 exports.login = async (req, res, next) => {
   try {
+    console.log('[DEBUG_LOGIN] Request received:', req.body.email);
     let { email, password } = req.body;
 
     // SECURITY FIX: Validate primitive types to block NoSQL objects
     if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+      console.log('[DEBUG_LOGIN] Invalid input types');
       return res.status(400).json({ success: false, message: 'Valid email and password are required' });
     }
     
     email = email.trim().toLowerCase();
 
     const user = await User.findOne({ email }).select('+password');
-    if (!user || !(await user.comparePassword(password))) {
+    if (!user) {
+      console.log('[DEBUG_LOGIN] User not found');
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
+    console.log('[DEBUG_LOGIN] User found, validating password...');
+
+    if (!(await user.comparePassword(password))) {
+      console.log('[DEBUG_LOGIN] Password mismatch');
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+    console.log('[DEBUG_LOGIN] Password valid');
 
     if (!user.isActive) {
+      console.log('[DEBUG_LOGIN] User inactive');
       return res.status(403).json({ success: false, message: 'Account is suspended' });
     }
 
     // Issue tokens directly - 2FA is temporarily disabled
+    console.log('[DEBUG_LOGIN] Generating tokens...');
     const { accessToken, refreshToken } = generateTokens(user._id);
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
+    console.log('[DEBUG_LOGIN] Tokens saved to user');
 
     // Remove password from output
     user.password = undefined;
 
+    // SAFE ENRICHMENT: Only fetch provider profile if user is a provider
+    let providerProfile = null;
+    if (user.role === 'provider') {
+      console.log('[DEBUG_LOGIN] Fetching provider profile...');
+      const Provider = require('../models/Provider');
+      providerProfile = await Provider.findOne({ user: user._id });
+      console.log('[DEBUG_LOGIN] Provider profile found:', !!providerProfile);
+    }
+
+    console.log('[DEBUG_LOGIN] Sending success response');
     res.json({
       success: true,
       message: 'Login successful',
-      data: { user, accessToken, refreshToken },
+      data: { user, accessToken, refreshToken, providerProfile },
     });
   } catch (err) {
+    console.error('[DEBUG_LOGIN] ERROR:', err);
     next(err);
   }
 };
@@ -127,20 +157,37 @@ exports.login = async (req, res, next) => {
 // @GET /api/auth/me
 exports.getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id);
-    let providerProfile = null;
+    console.log('[DEBUG_GETME] Request received for user ID:', req.user?._id);
+    if (!req.user) {
+      console.log('[DEBUG_GETME] req.user is undefined');
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
 
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      console.log('[DEBUG_GETME] User not found in DB');
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    console.log('[DEBUG_GETME] User found:', user.email);
+
+    let providerProfile = null;
     if (user.role === 'provider') {
+      console.log('[DEBUG_GETME] Fetching provider profile...');
       providerProfile = await Provider.findOne({ user: user._id });
+      console.log('[DEBUG_GETME] Provider profile found:', !!providerProfile);
     }
 
     if (!user.referralCode) {
+      console.log('[DEBUG_GETME] Generating referral code...');
       user.referralCode = `CARE${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
       await user.save({ validateBeforeSave: false });
+      console.log('[DEBUG_GETME] Referral code saved');
     }
 
+    console.log('[DEBUG_GETME] Sending success response');
     res.json({ success: true, data: { user, providerProfile } });
   } catch (err) {
+    console.error('[DEBUG_GETME] ERROR:', err);
     next(err);
   }
 };
@@ -189,13 +236,42 @@ exports.updateProfile = async (req, res, next) => {
       addressType, city, locality, landmark, houseNo, coords
     } = req.body;
 
+    const profileUpdate = cleanObject({
+      name, phone, address, pincode,
+      dob, gender, emergencyContact,
+      addressType, city, locality, landmark, houseNo, coords
+    }, {
+      name: { type: 'string', maxLength: 80 },
+      phone: { type: 'string', maxLength: 10 },
+      address: { type: 'string', maxLength: 500 },
+      pincode: { type: 'string', maxLength: 6 },
+      dob: { type: 'string', maxLength: 30 },
+      gender: { type: 'string', maxLength: 20 },
+      emergencyContact: {
+        type: 'object',
+        schema: {
+          name: { type: 'string', maxLength: 80 },
+          relationship: { type: 'string', maxLength: 40 },
+          phone: { type: 'string', maxLength: 10 },
+        },
+      },
+      addressType: { type: 'string', maxLength: 20 },
+      city: { type: 'string', maxLength: 80 },
+      locality: { type: 'string', maxLength: 120 },
+      landmark: { type: 'string', maxLength: 120 },
+      houseNo: { type: 'string', maxLength: 80 },
+      coords: {
+        type: 'object',
+        schema: {
+          lat: { type: 'number' },
+          lng: { type: 'number' },
+        },
+      },
+    });
+
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { 
-        name, phone, address, pincode,
-        dob, gender, emergencyContact,
-        addressType, city, locality, landmark, houseNo, coords
-      },
+      profileUpdate,
       { new: true, runValidators: true }
     );
     res.json({ success: true, data: { user } });
@@ -277,10 +353,9 @@ exports.forgotPassword = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
-    const message = `You are receiving this email because you (or someone else) requested to reset the password for your RIVO account.\n\nPlease make a put request to:\n\n${resetUrl}\n\nIgnore this email if it wasn't requested by you.`;
 
     try {
-      await sendEmail({ email: user.email, subject: 'RIVO - Password Reset', message });
+      await emailService.sendPasswordReset(user.email, user.name, resetUrl);
       res.json({ success: true, message: 'Email sent successfully' });
     } catch (err) {
       user.resetPasswordToken = undefined;
@@ -355,7 +430,7 @@ exports.getReferrals = async (req, res, next) => {
 
       if (bookings.length > 0) {
         status = 'Booked';
-        const hasCompleted = bookings.some(b => b.status === 'completed');
+        const hasCompleted = bookings.some(b => normalizeBookingStatus(b.status) === BOOKING_STATUS.COMPLETED);
         if (hasCompleted) {
           status = 'Completed';
           rewardStatus = 'Unlocked';
@@ -377,7 +452,7 @@ exports.getReferrals = async (req, res, next) => {
         referralLink: `${process.env.CLIENT_URL || 'http://localhost:5173'}/register?ref=${user.referralCode}`,
         stats: {
           total: history.length,
-          successful: history.filter(h => h.status === 'Completed').length,
+          successful: history.filter(h => normalizeBookingStatus(h.status) === BOOKING_STATUS.COMPLETED).length,
           pending: history.filter(h => h.status !== 'Completed').length,
           rewards: history.filter(h => h.rewardStatus === 'Unlocked').length
         },
