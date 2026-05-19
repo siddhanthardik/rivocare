@@ -124,7 +124,6 @@ export default function AdminBookings() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">All Bookings</h1>
-          <p className="text-slate-500">Monitor and manage all platform consultation requests.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative">
@@ -173,10 +172,12 @@ export default function AdminBookings() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(bookings || []).map((b) => {
-                    const effectivePrice = b.pricingType === 'OVERRIDE'
-                      ? b.overridePrice
-                      : (b.finalAmount || b.amount || b.totalAmount || 0);
+                  {(Array.isArray(bookings) ? bookings : []).map((b) => {
+                    const pricing = b?.pricingBreakdown || {};
+                    const effectivePrice = b?.pricingType === 'OVERRIDE'
+                      ? b?.overridePrice
+                      : (b?.pricingBreakdown?.totalAmount || b?.finalAmount || b?.amount || b?.totalAmount || 0);
+                    const shortId = b?._id ? `RIVO-${b._id.slice(-6).toUpperCase()}` : '—';
 
                     return (
                       <tr
@@ -185,11 +186,11 @@ export default function AdminBookings() {
                         className={`hover:bg-slate-50 cursor-pointer transition-colors ${b.pricingType === 'OVERRIDE' ? 'bg-purple-50/30' : ''}`}
                       >
                         <td className="px-5 py-4">
-                          <span className="font-bold text-slate-900">{b.orderId || "—"}</span>
+                          <span className="font-bold text-slate-900">{b?.orderId || shortId}</span>
                         </td>
                         <td className="px-5 py-4">
-                          <p className="font-mono text-xs text-slate-400 mb-1" title={b._id}>...{b._id.slice(-6)}</p>
-                          <p className="font-medium text-slate-800 whitespace-nowrap">{formatDateTime(b.scheduledAt)}</p>
+                          <p className="font-mono text-xs text-slate-400 mb-1" title={b?._id}>...{b?._id?.slice(-6) || '??????'}</p>
+                          <p className="font-medium text-slate-800 whitespace-nowrap">{formatDateTime(b?.scheduledAt)}</p>
                         </td>
 
                         <td className="px-5 py-4">
@@ -203,16 +204,16 @@ export default function AdminBookings() {
                         <td className="px-5 py-4">
                           <div className="mb-2">
                             <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">👤 Patient</span>
-                            <p className="font-medium text-slate-800">{b.patient?.name}</p>
+                            <p className="font-medium text-slate-800">{b?.patient?.name || 'N/A'}</p>
                           </div>
                           <div>
                             <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">⚕️ Provider</span>
-                            <p className="font-medium text-slate-800">{b.provider?.user?.name}</p>
+                            <p className="font-medium text-slate-800">{b?.provider?.user?.name || 'Unassigned'}</p>
                           </div>
                         </td>
 
                         <td className="px-5 py-4">
-                          <Badge status={b.status} />
+                          <Badge status={b?.status || 'REQUESTED'} />
                           {normalizePaymentStatus(b.paymentStatus) === PAYMENT_STATUS.PAID && (
                             <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-1">
                               <CheckCircle size={11} /> Paid
@@ -228,13 +229,15 @@ export default function AdminBookings() {
                         <td className="px-5 py-4">
                           <PriceSourceBadge booking={b} />
                           <div className="mt-2 text-xs space-y-0.5 text-slate-500">
-                            <p>Base: ₹{b.basePrice || 0}</p>
-                            <p>Markup: ₹{b.providerMarkup || 0}</p>
-                            <p>Estimated: ₹{b.estimatedPrice || b.totalAmount}</p>
-                            {b.pricingType === 'OVERRIDE' && (
-                              <p className="text-purple-700 font-semibold">Override: ₹{b.overridePrice}</p>
+                            <p>Base: ₹{b?.basePrice || 0}</p>
+                            <p>Markup: ₹{b?.providerMarkup || 0}</p>
+                            {pricing?.visitCharge > 0 && <p className="text-blue-600">Visit: ₹{pricing.visitCharge}</p>}
+                            {pricing?.distanceCharge > 0 && <p className="text-blue-600">Distance: ₹{pricing.distanceCharge}</p>}
+                            <p>Estimated: ₹{b?.pricingBreakdown?.totalAmount || b?.estimatedPrice || b?.totalAmount || 0}</p>
+                            {b?.pricingType === 'OVERRIDE' && (
+                              <p className="text-purple-700 font-semibold">Override: ₹{b?.overridePrice}</p>
                             )}
-                            {b.overrideReason && (
+                            {b?.overrideReason && (
                               <p className="text-purple-600 italic truncate max-w-[160px]" title={b.overrideReason}>
                                 "{b.overrideReason}"
                               </p>
