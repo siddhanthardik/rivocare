@@ -57,6 +57,36 @@ const bookingSchema = new mongoose.Schema(
     finalAmount: { type: Number, default: null }, // Added for new pricing logic
     basePrice: { type: Number, min: 0, default: 0 },
     planPrice: { type: Number, min: 0, default: 0 },
+
+    // Phase 1: Additive Visit Pricing Fields
+    visitCharge: { type: Number, default: 0 },
+    distanceCharge: { type: Number, default: 0 },
+    distanceTier: { type: String, default: null },
+    travelDistanceKm: { type: Number, default: 0 },
+    pricingBreakdown: {
+      serviceAmount: { type: Number },
+      visitCharge: { type: Number },
+      distanceCharge: { type: Number },
+      discountAmount: { type: Number },
+      totalAmount: { type: Number },
+      pricingRuleSnapshot: {
+        baseVisitFee: { type: Number, default: 0 },
+        appliedTier: { type: String, default: null },
+        waiverApplied: { type: Boolean, default: false },
+        promoApplied: { type: String, default: null },
+        calculatedAt: { type: Date, default: Date.now }
+      }
+    },
+
+    providerVisitShare: { type: Number, default: 0 },
+    platformVisitShare: { type: Number, default: 0 },
+
+    revenueBreakdown: {
+      serviceRevenue: { type: Number, default: 0 },
+      visitRevenue: { type: Number, default: 0 },
+      totalRevenue: { type: Number, default: 0 }
+    },
+
     pricingSource: { type: String, enum: ['PLAN'], default: 'PLAN' },
     providerMarkup: { type: Number, default: 0, min: 0 },
     estimatedPrice: { type: Number, min: 0, default: 0 },

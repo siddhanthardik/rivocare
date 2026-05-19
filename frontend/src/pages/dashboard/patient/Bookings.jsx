@@ -291,13 +291,36 @@ function BookingRow({ booking: b, isReviewed, onCancel, onRate, onRefresh }) {
            </div>
         </div>
         <div className="space-y-0.5">
-           <p className="typo-micro font-black text-slate-300 uppercase">Service Fee</p>
-           <div className="flex items-center gap-2">
-             <p className="typo-value !text-gray-900 leading-none">{formatCurrency(b.finalPrice || b.finalAmount || b.totalAmount || 0)}</p>
-             {isPaid && (
-               <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded text-[10px] font-black uppercase tracking-tighter border border-green-100">
-                 Paid
-               </span>
+           <p className="typo-micro font-black text-slate-300 uppercase">Total Payable</p>
+           <div className="flex flex-col gap-1">
+             <div className="flex items-center gap-2">
+               <p className="typo-value !text-gray-900 leading-none">{formatCurrency(b.totalAmount || b.finalPrice || b.finalAmount || 0)}</p>
+               {isPaid && (
+                 <span className="px-2 py-0.5 bg-green-50 text-green-600 rounded text-[10px] font-black uppercase tracking-tighter border border-green-100">
+                   Paid
+                 </span>
+               )}
+             </div>
+             {/* PRICING BREAKDOWN */}
+             {b.pricingBreakdown && (b.pricingBreakdown.visitCharge > 0 || b.pricingBreakdown.distanceCharge > 0) && (
+               <div className="mt-1.5 p-2 bg-slate-50 border border-slate-100 rounded-lg space-y-1 w-40">
+                 <div className="flex justify-between text-[10px] text-slate-500 font-medium">
+                   <span>Service Fee</span>
+                   <span>{formatCurrency(b.pricingBreakdown.serviceAmount || b.basePrice || 0)}</span>
+                 </div>
+                 {b.pricingBreakdown.visitCharge > 0 && (
+                   <div className="flex justify-between text-[10px] text-slate-500 font-medium">
+                     <span>Home Visit Fee</span>
+                     <span>{formatCurrency(b.pricingBreakdown.visitCharge)}</span>
+                   </div>
+                 )}
+                 {b.pricingBreakdown.distanceCharge > 0 && (
+                   <div className="flex justify-between text-[10px] text-slate-500 font-medium">
+                     <span>Distance Fee</span>
+                     <span>{formatCurrency(b.pricingBreakdown.distanceCharge)}</span>
+                   </div>
+                 )}
+               </div>
              )}
            </div>
         </div>

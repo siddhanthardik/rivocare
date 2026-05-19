@@ -11,6 +11,7 @@ const ServiceablePincode = require('../models/ServiceablePincode');
 const { cleanString } = require('../utils/sanitizeInput');
 const { BOOKING_STATUS, PAYMENT_STATUS, VALID_BOOKING_TRANSITIONS, normalizeBookingStatus, normalizePaymentStatus } = require('../constants/bookingStatus');
 const emailService = require('../services/emailService');
+const { calculateVisitPricing } = require('../services/visitPricingService');
 const generateOrderId = () => {
   return "ORD-" + Date.now().toString(36).toUpperCase();
 };
@@ -183,10 +184,21 @@ exports.createBooking = async (req, res, next) => {
     }
 
     // 🧩 STEP 2: REMOVE SERVICE PRICING COMPLETELY
-    const finalPrice = Number(plan.price);
-    if (!Number.isFinite(finalPrice) || finalPrice < 0) {
+    const baseServicePrice = Number(plan.price);
+    if (!Number.isFinite(baseServicePrice) || baseServicePrice < 0) {
       return res.status(400).json({ success: false, message: 'Selected plan has invalid pricing' });
     }
+
+    // Calculate Visit Pricing (Phase 1 Additive)
+    const { visitCharge, distanceCharge, distanceTier, pricingBreakdown } = await calculateVisitPricing({
+      serviceType: serviceDoc.name || serviceDoc.slug,
+      city: 'Default', // Default for now
+      serviceAmount: baseServicePrice,
+      distanceKm: 0 // Distance engine not implemented yet
+    });
+
+    const totalAmountWithVisit = pricingBreakdown.totalAmount;
+
     const orderId = generateOrderId();
     const cleanAddress = cleanString(address, 500);
     const cleanNotes = cleanString(notes || '', 500);
@@ -203,20 +215,28 @@ exports.createBooking = async (req, res, next) => {
         service: resolvedServiceId,
         offering: plan._id,
         planName: plan.name,
-        price: finalPrice,
+        price: baseServicePrice,
         address: cleanAddress,
         pincode,
         scheduledAt: scheduledDate,
         durationHours: requestedDurationHours,
         notes: cleanNotes,
-        totalAmount: finalPrice,
-        finalAmount: finalPrice,
-        finalPrice,
-        planPrice: finalPrice,
+        totalAmount: totalAmountWithVisit,
+        finalAmount: totalAmountWithVisit,
+        finalPrice: totalAmountWithVisit,
+        planPrice: baseServicePrice,
+        
+        // Additive Phase 1 fields
+        visitCharge,
+        distanceCharge,
+        distanceTier,
+        travelDistanceKm: 0,
+        pricingBreakdown,
+
         pricingSource: "PLAN",
-        estimatedPrice: finalPrice,
-        platformFee: Math.round(finalPrice * 0.2),
-        providerEarning: Math.round(finalPrice * 0.8),
+        estimatedPrice: totalAmountWithVisit,
+        platformFee: Math.round(totalAmountWithVisit * 0.2),
+        providerEarning: Math.round(totalAmountWithVisit * 0.8),
         paymentStatus: "PENDING",
         status: BOOKING_STATUS.REQUESTED,
         expiresAt,

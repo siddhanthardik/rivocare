@@ -52,9 +52,16 @@ exports.createOrder = async (req, res, next) => {
 
     // Use the correct price: finalPrice if updated & approved, else totalAmount
     // Determine payable amount from existing booking or intent
-    const payableAmount = booking
-      ? (booking.priceUpdated && booking.priceApprovedByPatient && booking.finalPrice ? booking.finalPrice : booking.totalAmount)
-      : (bookingIntent.totalAmount || 0);
+    let payableAmount = 0;
+    if (booking) {
+      if (booking.priceUpdated && booking.priceApprovedByPatient && booking.finalPrice) {
+        payableAmount = booking.finalPrice;
+      } else {
+        payableAmount = booking.pricingBreakdown?.totalAmount || booking.totalAmount || booking.finalPrice;
+      }
+    } else if (bookingIntent) {
+      payableAmount = bookingIntent.totalAmount || 0;
+    }
 
     // Razorpay works in paise (amount * 100)
     const amountInPaise = Math.round(payableAmount * 100);
@@ -253,15 +260,29 @@ exports.verifyPayment = async (req, res, next) => {
       // Create immutable InvoiceSnapshot and generate PDF (best-effort)
       try {
         const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`;
+        let invoiceItems = [];
+        let discount = 0;
+        let subtotal = payment.amount || 0;
+        
+        if (booking && booking.pricingBreakdown && (booking.pricingBreakdown.visitCharge > 0 || booking.pricingBreakdown.distanceCharge > 0)) {
+           invoiceItems.push({ code: 'SERVICE', description: 'Service Fee', quantity: 1, unitPrice: booking.pricingBreakdown.serviceAmount || 0, total: booking.pricingBreakdown.serviceAmount || 0, tax: 0 });
+           if (booking.pricingBreakdown.visitCharge > 0) invoiceItems.push({ code: 'VISIT_FEE', description: 'Home Visit Fee', quantity: 1, unitPrice: booking.pricingBreakdown.visitCharge, total: booking.pricingBreakdown.visitCharge, tax: 0 });
+           if (booking.pricingBreakdown.distanceCharge > 0) invoiceItems.push({ code: 'DISTANCE_FEE', description: 'Distance Fee', quantity: 1, unitPrice: booking.pricingBreakdown.distanceCharge, total: booking.pricingBreakdown.distanceCharge, tax: 0 });
+           discount = booking.pricingBreakdown.discountAmount || 0;
+           subtotal = (booking.pricingBreakdown.serviceAmount || 0) + (booking.pricingBreakdown.visitCharge || 0) + (booking.pricingBreakdown.distanceCharge || 0);
+        } else {
+           invoiceItems = [{ code: 'BOOKING', description: `Booking #${booking?._id}`, quantity: 1, unitPrice: payment.amount || 0, total: payment.amount || 0, tax: 0 }];
+        }
+
         const snapshot = await InvoiceSnapshot.create({
           invoiceNumber,
           booking: booking?._id,
           patient: booking?.patient,
           provider: booking?.provider,
-          items: [{ code: 'BOOKING', description: `Booking #${booking?._id}`, quantity: 1, unitPrice: payment.amount || 0, total: payment.amount || 0, tax: 0 }],
-          subtotal: payment.amount || 0,
+          items: invoiceItems,
+          subtotal,
           taxes: 0,
-          discount: 0,
+          discount,
           finalAmount: payment.amount || 0,
           paymentMethod: 'razorpay',
           paymentStatus: 'PAID',
@@ -356,9 +377,12 @@ exports.payWithWallet = async (req, res, next) => {
     }
 
     // Amount to be paid
-    const payableAmount = (booking.priceUpdated && booking.priceApprovedByPatient && booking.finalPrice)
-      ? booking.finalPrice
-      : booking.totalAmount;
+    let payableAmount = 0;
+    if (booking.priceUpdated && booking.priceApprovedByPatient && booking.finalPrice) {
+      payableAmount = booking.finalPrice;
+    } else {
+      payableAmount = booking.pricingBreakdown?.totalAmount || booking.totalAmount || booking.finalPrice;
+    }
 
     // Atomically deduct from wallet to avoid race conditions
     const updatedWallet = await Wallet.findOneAndUpdate(
@@ -785,15 +809,29 @@ exports.markCashCollectedBooking = async (req, res, next) => {
       const InvoiceSnapshot = require('../models/InvoiceSnapshot');
       const invoicePdfService = require('../services/invoicePdfService');
       const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`;
+      let invoiceItems = [];
+      let discount = 0;
+      let subtotal = booking.totalAmount || 0;
+      
+      if (booking.pricingBreakdown && (booking.pricingBreakdown.visitCharge > 0 || booking.pricingBreakdown.distanceCharge > 0)) {
+         invoiceItems.push({ code: 'SERVICE', description: 'Service Fee', quantity: 1, unitPrice: booking.pricingBreakdown.serviceAmount || 0, total: booking.pricingBreakdown.serviceAmount || 0, tax: 0 });
+         if (booking.pricingBreakdown.visitCharge > 0) invoiceItems.push({ code: 'VISIT_FEE', description: 'Home Visit Fee', quantity: 1, unitPrice: booking.pricingBreakdown.visitCharge, total: booking.pricingBreakdown.visitCharge, tax: 0 });
+         if (booking.pricingBreakdown.distanceCharge > 0) invoiceItems.push({ code: 'DISTANCE_FEE', description: 'Distance Fee', quantity: 1, unitPrice: booking.pricingBreakdown.distanceCharge, total: booking.pricingBreakdown.distanceCharge, tax: 0 });
+         discount = booking.pricingBreakdown.discountAmount || 0;
+         subtotal = (booking.pricingBreakdown.serviceAmount || 0) + (booking.pricingBreakdown.visitCharge || 0) + (booking.pricingBreakdown.distanceCharge || 0);
+      } else {
+         invoiceItems = [{ code: 'BOOKING', description: `Booking #${booking._id}`, quantity: 1, unitPrice: booking.totalAmount, total: booking.totalAmount, tax: 0 }];
+      }
+
       const snapshot = await InvoiceSnapshot.create([{
         invoiceNumber,
         booking: booking._id,
         patient: booking.patient,
         provider: booking.provider,
-        items: [{ code: 'BOOKING', description: `Booking #${booking._id}`, quantity: 1, unitPrice: booking.totalAmount, total: booking.totalAmount, tax: 0 }],
-        subtotal: booking.totalAmount,
+        items: invoiceItems,
+        subtotal,
         taxes: 0,
-        discount: 0,
+        discount,
         finalAmount: booking.totalAmount,
         paymentMethod: 'CASH',
         paymentStatus: 'PENDING_CONFIRMATION',
