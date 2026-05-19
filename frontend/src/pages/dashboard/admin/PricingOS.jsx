@@ -14,9 +14,9 @@ import {
 import { cn } from '../../../utils';
 
 const TABS = [
-  { id: 'services', label: 'Service Catalog', icon: ListTree, desc: 'Define available care categories' },
-  { id: 'rules', label: 'Base Rates & Payouts', icon: Settings2, desc: 'Configure margins and provider shares' },
-  { id: 'plans', label: 'Plans & Packages', icon: PkgIcon, desc: 'Manage subscriptions and bulk bundles' },
+  { id: 'services', label: 'Services', icon: ListTree, desc: 'Manage available care categories' },
+  { id: 'rules', label: 'Base Rates', icon: Settings2, desc: 'Configure pricing and provider shares' },
+  { id: 'plans', label: 'Plans & Packages', icon: PkgIcon, desc: 'Manage subscriptions and bundles' },
 ];
 
 export default function PricingOS() {
@@ -41,11 +41,14 @@ export default function PricingOS() {
         pricingService.getAdminRules(),
         pricingService.adminGetPlans()
       ]);
-      setServices(sRes.data || []);
-      setRules(rRes.data || []);
-      setPlans(pRes.data || []);
+      const sData = sRes?.data?.data || sRes?.data || [];
+      const rData = rRes?.data?.data || rRes?.data || [];
+      const pData = pRes?.data?.data || pRes?.data || [];
+      setServices(Array.isArray(sData) ? sData.filter(s => s && s.name) : []);
+      setRules(Array.isArray(rData) ? rData : []);
+      setPlans(Array.isArray(pData) ? pData : []);
     } catch (err) {
-      toast.error('Failed to sync Pricing OS');
+      toast.error('Failed to load pricing data');
     } finally {
       setLoading(false);
     }
@@ -98,7 +101,7 @@ export default function PricingOS() {
     finally { setSaving(false); }
   };
 
-  if (loading) return <PageLoader label="Booting Pricing OS..." />;
+  if (loading) return <PageLoader label="Loading pricing data..." />;
 
   return (
     <div className="space-y-8 animate-fade-in pb-20 max-w-[1600px] mx-auto">
@@ -108,12 +111,12 @@ export default function PricingOS() {
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
           <div className="relative z-10">
             <div className="flex items-center gap-2 text-blue-600 font-black text-[10px] uppercase tracking-[0.2em] mb-2">
-              <Zap size={14} fill="currentColor" /> Unified Pricing Core
+              <Zap size={14} fill="currentColor" /> Admin Â· Pricing
             </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              Pricing OS <span className="px-3 py-1 bg-slate-900 text-white text-[10px] rounded-full uppercase tracking-widest font-black">v2.0</span>
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight tracking-tight">
+              Pricing Management
             </h1>
-            <p className="text-slate-500 font-medium mt-2 max-w-md">The central intelligence for services, payout logic, and customer offerings.</p>
+            <p className="text-slate-500 font-medium mt-2 max-w-md">Manage services, pricing, payouts, and care plans.</p>
           </div>
           
           <div className="flex gap-4 relative z-10">
@@ -162,8 +165,8 @@ export default function PricingOS() {
           <div className="space-y-6 animate-fade-in">
             <div className="flex justify-between items-end">
                <div>
-                  <h2 className="text-2xl font-black text-slate-900">Service Catalog</h2>
-                  <p className="text-sm font-medium text-slate-500 mt-1">Core services available for booking.</p>
+                  <h2 className="text-2xl font-black text-slate-900">Services</h2>
+                  <p className="text-sm font-medium text-slate-500 mt-1">Services available for booking on the platform.</p>
                </div>
                <Button onClick={() => setServiceModal({ open: true, data: { name: '', icon: '', description: '', isActive: true }})} className="bg-slate-900 text-white rounded-2xl font-black px-6">
                   <Plus size={18} className="mr-2" /> Add Service
@@ -182,7 +185,7 @@ export default function PricingOS() {
                   <h3 className="text-xl font-black text-slate-900">{s.name}</h3>
                   <p className="text-xs font-medium text-slate-400 mt-2 line-clamp-2">{s.description}</p>
                   <div className="mt-6 flex justify-between items-center">
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">ID: {s.slug || s._id.slice(-6)}</span>
+                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">ID: {s.slug || s?._id?.slice(-6) || "??????"}</span>
                     <Button variant="ghost" size="sm" onClick={() => setServiceModal({ open: true, data: s })} className="hover:bg-blue-50 text-blue-600 rounded-xl">
                       <Pencil size={14} className="mr-2" /> Edit
                     </Button>
@@ -198,8 +201,8 @@ export default function PricingOS() {
           <div className="space-y-6 animate-fade-in">
              <div className="flex justify-between items-end">
                <div>
-                  <h2 className="text-2xl font-black text-slate-900">Base Rates & Payout Logic</h2>
-                  <p className="text-sm font-medium text-slate-500 mt-1">Configure global margins per service hourly/session base.</p>
+                  <h2 className="text-2xl font-black text-slate-900">Base Rates & Payouts</h2>
+                  <p className="text-sm font-medium text-slate-500 mt-1">Configure pricing and provider payout shares per service.</p>
                </div>
                <Button onClick={() => setRuleModal({ open: true, data: { service: '', basePrice: 0, providerPayoutType: 'percentage', providerPayoutValue: 0.8 }})} className="bg-slate-900 text-white rounded-2xl font-black px-6">
                   <Plus size={18} className="mr-2" /> Configure Rule
@@ -255,8 +258,8 @@ export default function PricingOS() {
           <div className="space-y-6 animate-fade-in">
              <div className="flex justify-between items-end">
                <div>
-                  <h2 className="text-2xl font-black text-slate-900">Offerings: Plans & Packages</h2>
-                  <p className="text-sm font-medium text-slate-500 mt-1">Patient-facing subscription plans and bulk session bundles.</p>
+                  <h2 className="text-2xl font-black text-slate-900">Plans & Packages</h2>
+                  <p className="text-sm font-medium text-slate-500 mt-1">Subscription plans and session packages for patients.</p>
                </div>
                <Button onClick={() => setPlanModal({ open: true, data: { name: '', service: '', planType: 'subscription', durationDays: 30, sessionsPerWeek: 3, price: 0, description: '', isActive: true }})} className="bg-slate-900 text-white rounded-2xl font-black px-6">
                   <Plus size={18} className="mr-2" /> Create Offering
@@ -338,46 +341,46 @@ export default function PricingOS() {
       <Modal isOpen={serviceModal.open} onClose={() => setServiceModal({ open: false, data: null })} title="Service Config" size="sm">
          {serviceModal.data && (
            <form onSubmit={handleSaveService} className="space-y-4 pt-4">
-              <Input label="Service Name" value={serviceModal.data.name} onChange={e => setServiceModal({...serviceModal, data: {...serviceModal.data, name: e.target.value}})} required />
-              <Input label="Slug (unique identifier)" value={serviceModal.data.slug} onChange={e => setServiceModal({...serviceModal, data: {...serviceModal.data, slug: e.target.value}})} placeholder="nurse, doctor-home, etc" />
+              <Input label="Service Name" value={serviceModal.data.name || ""} onChange={e => setServiceModal({...serviceModal, data: {...serviceModal.data, name: e.target.value}})} required />
+              <Input label="Slug (unique identifier)" value={serviceModal.data.slug || ""} onChange={e => setServiceModal({...serviceModal, data: {...serviceModal.data, slug: e.target.value}})} placeholder="nurse, doctor-home, etc" />
               <div className="flex items-center gap-4 py-2">
                  <label className="text-sm font-bold text-slate-700">Active in App</label>
                  <input type="checkbox" checked={serviceModal.data.isActive} onChange={e => setServiceModal({...serviceModal, data: {...serviceModal.data, isActive: e.target.checked}})} className="w-5 h-5 accent-blue-600" />
               </div>
-              <Button type="submit" loading={saving} className="w-full bg-slate-900 text-white rounded-xl">Deploy Service</Button>
+              <Button type="submit" loading={saving} className="w-full bg-slate-900 text-white rounded-xl">Save Service</Button>
            </form>
          )}
       </Modal>
 
       {/* Rule Modal */}
-      <Modal isOpen={ruleModal.open} onClose={() => setRuleModal({ open: false, data: null })} title="Pricing Payout Core">
+      <Modal isOpen={ruleModal.open} onClose={() => setRuleModal({ open: false, data: null })} title="Pricing Rule">
          {ruleModal.data && (
            <form onSubmit={handleSaveRule} className="space-y-6 pt-4">
               <div>
                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Service</label>
-                 <select className="input-base" value={ruleModal.data.service} onChange={e => setRuleModal({...ruleModal, data: {...ruleModal.data, service: e.target.value}})} required>
+                 <select className="input-base" value={ruleModal.data.service || ""} onChange={e => setRuleModal({...ruleModal, data: {...ruleModal.data, service: e.target.value}})} required>
                     <option value="">-- Select Service --</option>
-                    {services.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                    {services.filter(s => s && s._id && s.name).map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                  </select>
               </div>
-              <Input label="Base Rate (₹ per unit)" type="number" value={ruleModal.data.basePrice} onChange={e => setRuleModal({...ruleModal, data: {...ruleModal.data, basePrice: Number(e.target.value)}})} required />
+              <Input label="Base Rate (₹ per unit)" type="number" value={ruleModal.data.basePrice || 0} onChange={e => setRuleModal({...ruleModal, data: {...ruleModal.data, basePrice: Number(e.target.value)}})} required />
               <div className="grid grid-cols-2 gap-4">
                  <div>
                     <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Payout Type</label>
-                    <select className="input-base font-bold" value={ruleModal.data.providerPayoutType} onChange={e => setRuleModal({...ruleModal, data: {...ruleModal.data, providerPayoutType: e.target.value}})} required>
+                    <select className="input-base font-bold" value={ruleModal.data.providerPayoutType || "percentage"} onChange={e => setRuleModal({...ruleModal, data: {...ruleModal.data, providerPayoutType: e.target.value}})} required>
                        <option value="percentage">Percentage</option>
                        <option value="flat">Flat Amount</option>
                     </select>
                  </div>
-                 <Input label="Payout Value" type="number" step="0.01" value={ruleModal.data.providerPayoutValue} onChange={e => setRuleModal({...ruleModal, data: {...ruleModal.data, providerPayoutValue: Number(e.target.value)}})} required />
+                 <Input label="Payout Value" type="number" step="0.01" value={ruleModal.data.providerPayoutValue || 0} onChange={e => setRuleModal({...ruleModal, data: {...ruleModal.data, providerPayoutValue: Number(e.target.value)}})} required />
               </div>
-              <Button type="submit" loading={saving} className="w-full bg-blue-600 text-white rounded-xl font-black">Sync Logic</Button>
+              <Button type="submit" loading={saving} className="w-full bg-blue-600 text-white rounded-xl font-black">Update Pricing</Button>
            </form>
          )}
       </Modal>
 
       {/* Plan Modal */}
-      <Modal isOpen={planModal.open} onClose={() => setPlanModal({ open: false, data: null })} title="Offering Designer">
+      <Modal isOpen={planModal.open} onClose={() => setPlanModal({ open: false, data: null })} title="Create Plan">
          {planModal.data && (
            <form onSubmit={handleSavePlan} className="space-y-4 pt-4">
               <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
@@ -393,34 +396,34 @@ export default function PricingOS() {
                  ))}
               </div>
               
-              <Input label="Plan Title" value={planModal.data.name} onChange={e => setPlanModal({...planModal, data: {...planModal.data, name: e.target.value}})} required />
+              <Input label="Plan Title" value={planModal.data.name || ""} onChange={e => setPlanModal({...planModal, data: {...planModal.data, name: e.target.value}})} required />
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 block">Linked Service</label>
-                   <select className="input-base" value={planModal.data.service} onChange={e => setPlanModal({...planModal, data: {...planModal.data, service: e.target.value}})} required>
+                   <select className="input-base" value={planModal.data.service || ""} onChange={e => setPlanModal({...planModal, data: {...planModal.data, service: e.target.value}})} required>
                       <option value="">-- Select --</option>
-                      {services.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
+                      {services.filter(s => s && s._id && s.name).map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                    </select>
                 </div>
-                <Input label="Consumer Price (₹)" type="number" value={planModal.data.price} onChange={e => setPlanModal({...planModal, data: {...planModal.data, price: Number(e.target.value)}})} required />
+                <Input label="Consumer Price (₹)" type="number" value={planModal.data.price || 0} onChange={e => setPlanModal({...planModal, data: {...planModal.data, price: Number(e.target.value)}})} required />
               </div>
 
               {planModal.data.planType === 'subscription' ? (
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Duration (Days)" type="number" value={planModal.data.durationDays} onChange={e => setPlanModal({...planModal, data: {...planModal.data, durationDays: Number(e.target.value)}})} required />
-                  <Input label="Sessions / Week" type="number" value={planModal.data.sessionsPerWeek} onChange={e => setPlanModal({...planModal, data: {...planModal.data, sessionsPerWeek: Number(e.target.value)}})} required />
+                  <Input label="Duration (Days)" type="number" value={planModal.data.durationDays || 0} onChange={e => setPlanModal({...planModal, data: {...planModal.data, durationDays: Number(e.target.value)}})} required />
+                  <Input label="Sessions / Week" type="number" value={planModal.data.sessionsPerWeek || 0} onChange={e => setPlanModal({...planModal, data: {...planModal.data, sessionsPerWeek: Number(e.target.value)}})} required />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Total Sessions" type="number" value={planModal.data.totalSessions} onChange={e => setPlanModal({...planModal, data: {...planModal.data, totalSessions: Number(e.target.value)}})} required />
-                  <Input label="Validity (Days)" type="number" value={planModal.data.validityDays} onChange={e => setPlanModal({...planModal, data: {...planModal.data, validityDays: Number(e.target.value)}})} required />
+                  <Input label="Total Sessions" type="number" value={planModal.data.totalSessions || 0} onChange={e => setPlanModal({...planModal, data: {...planModal.data, totalSessions: Number(e.target.value)}})} required />
+                  <Input label="Validity (Days)" type="number" value={planModal.data.validityDays || 0} onChange={e => setPlanModal({...planModal, data: {...planModal.data, validityDays: Number(e.target.value)}})} required />
                 </div>
               )}
 
               <div className="space-y-1">
                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest block">Description</label>
-                 <textarea className="input-base min-h-[80px]" value={planModal.data.description} onChange={e => setPlanModal({...planModal, data: {...planModal.data, description: e.target.value}})} required />
+                 <textarea className="input-base min-h-[80px]" value={planModal.data.description || ""} onChange={e => setPlanModal({...planModal, data: {...planModal.data, description: e.target.value}})} required />
               </div>
 
               <div className="flex items-center gap-4 py-2">
@@ -428,7 +431,7 @@ export default function PricingOS() {
                  <input type="checkbox" checked={planModal.data.isActive} onChange={e => setPlanModal({...planModal, data: {...planModal.data, isActive: e.target.checked}})} className="w-5 h-5 accent-emerald-600" />
               </div>
 
-              <Button type="submit" loading={saving} className="w-full bg-slate-900 text-white rounded-xl py-4 font-black">Publish Offering</Button>
+              <Button type="submit" loading={saving} className="w-full bg-slate-900 text-white rounded-xl py-4 font-black">Create Plan</Button>
            </form>
          )}
       </Modal>

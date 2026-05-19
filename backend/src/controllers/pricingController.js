@@ -14,18 +14,27 @@ exports.getServices = async (req, res, next) => {
 exports.adminGetServices = async (req, res, next) => {
   try {
     const services = await Service.find().sort({ name: 1 });
-    res.json({ success: true, data: services });
+    // Filter out orphaned/invalid records with no name
+    const validServices = services.filter(s => s && s.name && s.name.trim() !== '');
+    res.json({ success: true, data: validServices });
   } catch (err) { next(err); }
 };
 
 exports.createService = async (req, res, next) => {
   try {
-    const { name } = req.body;
-    const existing = await Service.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
+    const cleanName = req.body.name?.trim();
+    const cleanSlug = req.body.slug?.trim();
+
+    if (!cleanName) {
+      return res.status(400).json({ success: false, message: 'Service name is required' });
+    }
+
+    const existing = await Service.findOne({ name: { $regex: new RegExp(`^${cleanName}$`, 'i') } });
     if (existing) {
       return res.status(400).json({ success: false, message: 'Service with this name already exists' });
     }
-    const service = await Service.create(req.body);
+
+    const service = await Service.create({ ...req.body, name: cleanName, slug: cleanSlug || cleanName.toLowerCase().replace(/\s+/g, '-') });
     res.status(201).json({ success: true, data: service });
   } catch (err) { next(err); }
 };
