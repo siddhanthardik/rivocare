@@ -19,6 +19,7 @@ import notificationService from './notificationService';
 import subscriptionService from './subscriptionService';
 import labService from './labService';
 import pricingService from './pricingService';
+import adminVisitPricingService from './adminVisitPricingService';
 import autoAssignEngine from './autoAssign';
 import availabilityEngine from './availability';
 
@@ -39,6 +40,7 @@ export {
   subscriptionService,
   labService,
   pricingService,
+  adminVisitPricingService,
   getRecommendedProviders,
   checkAvailability,
   getProviderAvailabilityConfig

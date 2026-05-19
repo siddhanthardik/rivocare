@@ -62,6 +62,7 @@ import AdminFraudDashboard from './pages/dashboard/admin/FraudDashboard';
 import AdminServiceAreas from './pages/dashboard/admin/ServiceAreas';
 import ProviderVerification from './pages/dashboard/admin/ProviderVerification';
 import AdminPricingOS from './pages/dashboard/admin/PricingOS';
+import AdminVisitPricing from './pages/dashboard/admin/VisitPricing';
 
 import AdminLabPricing from './pages/dashboard/admin/LabPricing';
 import AdminSupplyExpansion from './pages/dashboard/admin/SupplyExpansion';
@@ -150,6 +151,7 @@ const adminNav = [
     group: 'Payments & Finance',
     items: [
       { path: '/dashboard/admin/pricing', label: 'Pricing OS', icon: DollarSign },
+      { path: '/dashboard/admin/visit-pricing', label: 'Visit Pricing', icon: DollarSign },
       { path: '/dashboard/admin/reconciliation', label: 'Reconciliation', icon: FileText },
       { path: '/dashboard/admin/lab-reconciliation', label: 'Lab Recon', icon: ShieldCheck },
       { path: '/dashboard/admin/lab-finance', label: 'Finance OS', icon: DollarSign },
@@ -299,6 +301,7 @@ export default function App() {
           <Route index element={<AdminOverview />} />
           <Route path="revenue" element={<AdminRevenueDashboard />} />
           <Route path="pricing" element={<AdminPricingOS />} />
+          <Route path="visit-pricing" element={<AdminVisitPricing />} />
           <Route path="content" element={<ContentManagement />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="providers" element={<AdminProviders />} />

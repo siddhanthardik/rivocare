@@ -110,6 +110,19 @@ router.put('/labs/partners/:partnerId/department-commissions', updateLabDepartme
 // Admin Price Override
 router.put('/bookings/:id/set-price', setAdminPrice);
 
+// Visit Pricing
+const {
+  getVisitPricingConfigs,
+  createVisitPricingConfig,
+  updateVisitPricingConfig,
+  toggleVisitPricingConfig
+} = require('../controllers/adminVisitPricingController');
+
+router.get('/visit-pricing', getVisitPricingConfigs);
+router.post('/visit-pricing', createVisitPricingConfig);
+router.put('/visit-pricing/:id', updateVisitPricingConfig);
+router.patch('/visit-pricing/:id/toggle', toggleVisitPricingConfig);
+
 // Operational Admin Endpoints
 router.get('/bookings/unpaid-completed', getUnpaidCompletedBookings);
 router.get('/bookings/stuck', getStuckBookings);
