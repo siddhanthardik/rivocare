@@ -59,7 +59,7 @@ export default function SidebarSupportBlock({ onLogout, role = 'patient' }) {
       {/* ── Logout Button ──────────────────────────── */}
       <button
         onClick={onLogout}
-        className="flex items-center justify-center gap-2.5 w-full px-4 rounded-xl text-[11px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-[0.98] transition-all duration-150 border border-slate-100 hover:border-slate-200 group"
+        className="flex items-center justify-center gap-2.5 w-full px-4 rounded-xl text-sm font-medium text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-[0.98] transition-all duration-150 border border-slate-100 hover:border-slate-200 group"
         style={{ minHeight: '44px' }}
       >
         <LogOut

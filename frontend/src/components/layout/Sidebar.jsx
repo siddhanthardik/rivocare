@@ -124,12 +124,12 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
         }}
         className={({ isActive }) => cn(
           'flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-150 group',
-          isSubItem ? 'text-[10px] font-bold ml-4' : 'text-[11px] font-black uppercase tracking-widest',
+          isSubItem ? 'ml-4' : '',
           isActive && !isLocked
-            ? activeClass + ' shadow-sm'
+            ? activeClass + ' text-sm font-semibold shadow-sm'
             : isLocked
-            ? 'text-slate-300 cursor-not-allowed grayscale'
-            : 'text-slate-400 hover:bg-slate-50 hover:text-slate-900'
+            ? 'text-sm font-medium text-slate-300 cursor-not-allowed grayscale'
+            : 'text-sm font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-900'
         )}
       >
         {({ isActive }) => (
@@ -225,7 +225,7 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
                 placeholder="Search navigation..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 text-[11px] font-bold placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500/30 transition-all outline-none"
+                className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-9 pr-3 py-2 text-sm font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-purple-500/10 focus:border-purple-500/30 transition-all outline-none"
               />
             </div>
           </div>
@@ -240,7 +240,7 @@ export default function Sidebar({ navItems, isOpen, onClose, role = 'patient' })
                 <div key={item.group} className="mb-4">
                   <button
                     onClick={() => toggleGroup(item.group)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] hover:text-slate-600 transition-colors"
+                    className="w-full flex items-center justify-between px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-slate-400 hover:text-slate-600 transition-colors"
                   >
                     {item.group}
                     <div className="flex items-center gap-2">
