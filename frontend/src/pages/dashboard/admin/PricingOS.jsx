@@ -44,9 +44,12 @@ export default function PricingOS() {
       const sData = sRes?.data?.data || sRes?.data || [];
       const rData = rRes?.data?.data || rRes?.data || [];
       const pData = pRes?.data?.data || pRes?.data || [];
-      setServices(Array.isArray(sData) ? sData.filter(s => s && s.name) : []);
-      setRules(Array.isArray(rData) ? rData : []);
-      setPlans(Array.isArray(pData) ? pData : []);
+      const cleanServices = (Array.isArray(sData) ? sData : []).filter(s => s && s._id && s.name && s.name.trim() !== "");
+      setServices(cleanServices);
+      const cleanRules = (Array.isArray(rData) ? rData : []).filter(r => r && r.service && r.service.name && r.service.name.trim() !== "");
+      setRules(cleanRules);
+      const cleanPlans = (Array.isArray(pData) ? pData : []).filter(p => p && p.service && p.service.name && p.service.name.trim() !== "");
+      setPlans(cleanPlans);
     } catch (err) {
       toast.error('Failed to load pricing data');
     } finally {
@@ -174,7 +177,12 @@ export default function PricingOS() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {services.map(s => (
+              {services.length === 0 ? (
+                <div className="col-span-full text-center py-12 text-slate-500 font-medium bg-slate-50/50 rounded-[2rem] border border-slate-100">
+                  No services configured yet
+                </div>
+              ) : (
+                services.map(s => (
                 <div key={s._id} className="group bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100 hover:bg-white hover:shadow-xl transition-all duration-300">
                   <div className="flex justify-between items-start mb-4">
                     <div className="w-12 h-12 bg-white rounded-2xl border border-slate-100 flex items-center justify-center text-blue-600 shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">
@@ -191,7 +199,7 @@ export default function PricingOS() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                )))}
             </div>
           </div>
         )}
@@ -209,7 +217,12 @@ export default function PricingOS() {
                </Button>
             </div>
 
-            <div className="overflow-x-auto">
+            {rules.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 font-medium bg-slate-50/50 rounded-[2rem] border border-slate-100">
+                No base rates configured yet
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
                <table className="w-full text-left">
                   <thead>
                      <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -226,7 +239,7 @@ export default function PricingOS() {
                        const margin = r.basePrice - payout;
                        return (
                          <tr key={r._id} className="hover:bg-slate-50/30 transition-colors">
-                           <td className="px-6 py-6 font-black text-slate-900">{r.service?.name}</td>
+                           <td className="px-6 py-6 font-black text-slate-900">{r.service?.name?.trim() || "Unnamed Service"}</td>
                            <td className="px-6 py-6 text-center font-bold text-slate-700">₹{r.basePrice}</td>
                            <td className="px-6 py-6 text-center">
                               <div className="flex flex-col items-center">
@@ -250,6 +263,7 @@ export default function PricingOS() {
                   </tbody>
                </table>
             </div>
+            )}
           </div>
         )}
 
@@ -267,7 +281,12 @@ export default function PricingOS() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {plans.map(p => (
+              {plans.length === 0 ? (
+                <div className="col-span-full text-center py-12 text-slate-500 font-medium bg-slate-50/50 rounded-[2rem] border border-slate-100">
+                  No plans created yet
+                </div>
+              ) : (
+                plans.map(p => (
                 <div key={p._id} className="relative group bg-white border border-slate-100 p-8 rounded-[2.5rem] hover:shadow-2xl transition-all duration-500 overflow-hidden">
                    {/* Background Decor */}
                    <div className={cn(
@@ -282,7 +301,7 @@ export default function PricingOS() {
                          </Badge>
                          <h3 className="text-2xl font-black text-slate-900">{p.name}</h3>
                          <p className="text-blue-600 font-bold text-sm mt-1 flex items-center gap-2">
-                           <Zap size={14} /> {p.service?.name}
+                           <Zap size={14} /> {p.service?.name?.trim() || "Unnamed Service"}
                          </p>
                       </div>
                       <div className="text-right">
@@ -328,7 +347,7 @@ export default function PricingOS() {
                       </div>
                    </div>
                 </div>
-              ))}
+                )))}
             </div>
           </div>
         )}

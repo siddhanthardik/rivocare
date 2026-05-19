@@ -52,7 +52,8 @@ exports.updateService = async (req, res, next) => {
 exports.getPricingRules = async (req, res, next) => {
   try {
     const pricing = await ServicePricing.find().populate('service').sort({ 'service.name': 1 });
-    res.json({ success: true, data: pricing });
+    const cleanRules = pricing.filter(p => p && p.service && p.service.name && p.service.name.trim() !== '');
+    res.json({ success: true, data: cleanRules });
   } catch (err) { next(err); }
 };
 
@@ -81,7 +82,8 @@ exports.getPlansByService = async (req, res, next) => {
 exports.adminGetPlans = async (req, res, next) => {
   try {
     const plans = await Offering.find().populate('service').sort({ createdAt: -1 });
-    res.json({ success: true, data: plans });
+    const cleanPlans = plans.filter(o => o && o.service && o.service.name && o.service.name.trim() !== '');
+    res.json({ success: true, data: cleanPlans });
   } catch (err) { next(err); }
 };
 
