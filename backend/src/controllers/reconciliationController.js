@@ -32,7 +32,7 @@ exports.getReconciliation = async (req, res, next) => {
       paymentStatus: 'collected',
       paymentCollectedAt: { $gte: dayStart, $lte: dayEnd },
     };
-    if (partnerId) match.partner = require('mongoose').Types.ObjectId(partnerId);
+    if (partnerId) match.partner = new (require('mongoose').Types.ObjectId)(partnerId);
 
     /* ── Aggregate per lab ─────────────────────────────────────────── */
     const agg = await LabOrder.aggregate([
@@ -201,7 +201,7 @@ exports.settleReconciliation = async (req, res, next) => {
     const agg = await LabOrder.aggregate([
       {
         $match: {
-          partner: require('mongoose').Types.ObjectId(partnerId),
+          partner: new (require('mongoose').Types.ObjectId)(partnerId),
           status: { $in: ['completed', 'report_uploaded'] },
           paymentStatus: 'collected',
           paymentCollectedAt: { $gte: dayStart, $lte: dayEnd },

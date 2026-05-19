@@ -27,10 +27,11 @@ export default function VisitPricing() {
   const loadConfigs = async () => {
     try {
       setLoading(true);
-      const res = await adminVisitPricingService.getVisitPricingConfigs();
-      setConfigs(res.data?.data || []);
+      const data = await adminVisitPricingService.getVisitPricingConfigs();
+      setConfigs(Array.isArray(data) ? data : []);
     } catch (err) {
       toast.error('Failed to load visit pricing rules');
+      setConfigs([]);
     } finally {
       setLoading(false);
     }
@@ -99,7 +100,7 @@ export default function VisitPricing() {
       setFormData({
         serviceType: '', city: 'Default', baseVisitFee: 0, isActive: true, freeVisitToday: false, waiveAboveAmount: 0, tierRules: []
       });
-      loadConfigs();
+      await loadConfigs(); // Re-fetch immediately
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Failed to save rule');
     } finally {

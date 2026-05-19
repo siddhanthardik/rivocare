@@ -276,9 +276,13 @@ export default function ProviderVerification() {
     setLoading(true);
     try {
       const res = await adminService.getOnboardingProviders(status);
-      setProviders(res.data.data.providers || []);
-      setTotal(res.data.data.total || 0);
-    } catch (e) { console.error(e); }
+      setProviders(res?.data?.data?.providers || res?.data?.providers || []);
+      setTotal(res?.data?.data?.total || res?.data?.total || 0);
+    } catch (e) { 
+      console.error('[ProviderVerification] load error:', e);
+      setProviders([]);
+      setTotal(0);
+    }
     finally { setLoading(false); }
   };
 
